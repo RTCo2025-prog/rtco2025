@@ -1,6 +1,10 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+// إجبار Next.js على جلب الإشعارات ديناميكياً بدون تخزين مؤقت على خوادم الاستضافة
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function initNotificationsTable() {
   try {
     await query(`
@@ -40,16 +44,21 @@ export async function GET() {
       success: true,
       notifications,
       unreadCount
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   } catch (err: any) {
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+    console.error("Notifications GET Error:", err);
+    return NextResponse.json({ success: false, error: err.message, notifications: [], unreadCount: 0 }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
     await initNotificationsTable();
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { action } = body;
 
     if (action === 'MARK_AS_READ') {
@@ -87,7 +96,7 @@ export async function POST(req: Request) {
       RETURNING *
     `, [sector, action_type, title, message, link]);
 
-    return NextResponse.json({ success: true, notification: res.rows[0] });
+    return NextResponse.json({ success: true, notification: res.rows ? res.rows[0] : null });
   } catch (err: any) {
     console.error("Notifications API Error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });

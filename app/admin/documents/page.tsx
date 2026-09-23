@@ -202,7 +202,7 @@ export default function AdministrativeDocumentsPage() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setSiteOrigin('https://rtco2025.netlify.app');
+      setSiteOrigin(window.location.origin);
     }
 
     const raw = localStorage.getItem('erp_user');
@@ -213,6 +213,20 @@ export default function AdministrativeDocumentsPage() {
         if (parsed.full_name) {
           setOutSignatoryName(parsed.full_name);
           setOrderSignatoryName(parsed.full_name);
+        }
+
+        // فحص أمني لمنع فتح الحساب في أكثر من جهاز بالوقت نفسه
+        if (parsed.user_id && parsed.session_token) {
+          fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(parsed.user_id)}&session_token=${encodeURIComponent(parsed.session_token)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.valid === false) {
+                localStorage.removeItem('erp_user');
+                alert('تنبيه أمني: تم فتح هذا الحساب من جهاز آخر، سيتم تحويلك لصفحة تسجيل الدخول.');
+                window.location.href = '/login';
+              }
+            })
+            .catch(() => {});
         }
       } catch {}
     }
@@ -1473,14 +1487,20 @@ export default function AdministrativeDocumentsPage() {
           const doc = selectedDocForPrint;
           const isIncoming = doc.type === 'INCOMING';
           const isOrder = doc.type === 'INTERNAL_ORDER';
-          const verificationUrl = `https://rtco2025.netlify.app/admin/documents?verify=${encodeURIComponent(doc.docNumber)}`;
+          
+          // استخراج الرابط الحي لضمان عمل الباركود أونلاين ومحلياً
+          const activeOrigin = typeof window !== 'undefined' && window.location.origin
+            ? window.location.origin
+            : (siteOrigin || 'https://rtco2025.netlify.app');
+
+          const verificationUrl = `${activeOrigin}/admin/documents?verify=${encodeURIComponent(doc.docNumber)}`;
           const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
           const attachmentsList = doc.scannedFileUrls || [];
 
           return (
-            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible">
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible">
               
-              <div className="sticky top-0 z-50 w-full max-w-4xl flex flex-col sm:flex-row items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-6 shadow-2xl print:hidden print-hidden-element gap-3">
+              <div className="sticky top-0 z-50 w-full max-w-[210mm] flex flex-col sm:flex-row items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element gap-3">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => window.print()}
@@ -1522,267 +1542,270 @@ export default function AdministrativeDocumentsPage() {
                 </div>
               </div>
 
-              <div className="w-full flex flex-col items-center space-y-8 print:space-y-0">
-                <div 
-                  id="page-first"
-                  className="print-official-sheet w-full max-w-4xl bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300"
-                >
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                    <div className="w-[460px] h-[460px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-25 relative p-6">
-                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                        <Image 
-                          src="/logo.png" 
-                          alt="شركة البرج المتألق" 
-                          width={270} 
-                          height={270} 
-                          className="object-contain grayscale opacity-60" 
-                          priority 
-                        />
-                      </div>
-                      <div className="text-center mt-44 text-[#64748b] text-[11px] font-bold tracking-wider">
-                        Al Burj Al Mutalaa'iq General Contracting Company
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="relative z-10 flex flex-col flex-1">
-                    <div className="h-6 w-full bg-[#71717a]"></div>
-
-                    {/* الترويسة المحدثة والمطابقة للصورة المطلوبة تماماً */}
-                    <div className="px-10 pt-4 pb-3 flex items-center justify-between border-b border-slate-200">
-                      <div className="text-right flex-1 font-sans">
-                        <h1 className="text-xl md:text-2xl font-black text-[#d97706] tracking-wide leading-none">
-                          شركة البرج المتألق
-                        </h1>
-                        <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1.5 leading-snug">
-                          للمقاولات العامة والاستثمارات العقارية<br />والتجارة العامة والنقل العام
-                        </p>
-                      </div>
-
-                      <div className="w-20 h-20 relative flex items-center justify-center shrink-0 mx-4">
-                        <Image 
-                          src="/logo.png" 
-                          alt="شعار شركة البرج المتألق" 
-                          width={75} 
-                          height={75} 
-                          className="object-contain" 
-                          priority 
-                        />
-                      </div>
-
-                      <div className="text-left flex-1 font-sans text-[10px] text-slate-700 leading-tight space-y-0.5">
-                        <p className="font-bold text-slate-900 text-[11px]">Resplendently Tower Co</p>
-                        <p className="text-[#d97706] font-semibold">General Contracting</p>
-                        <p className="text-[#d97706] font-semibold">General Trading</p>
-                        <p className="text-[#d97706] font-semibold">General Transport</p>
-                        <p className="text-[#d97706] font-semibold">Real Estate Investments</p>
-                      </div>
-                    </div>
-
-                    <div className="mx-10 mt-3 bg-[#e4e4e7] px-6 py-2 rounded-sm flex items-center justify-between font-black text-xs text-slate-900 border border-slate-300">
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-900 font-bold">{isIncoming ? 'تاريخ استلام الوارد :' : 'التاريخ :'}</span>
-                        <span className="font-mono text-sm tracking-widest">{doc.docDate}</span>
-                      </div>
-
-                      <div className="border border-slate-800 bg-white text-slate-950 px-3 py-0.5 rounded text-[11px] font-black">
-                        {isIncoming ? 'سجل الكتب الواردة' : isOrder ? 'أمر إداري داخلي' : 'كتاب صادر رسمي'}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="text-slate-900 font-bold">{isIncoming ? 'رقم قيد الوارد :' : 'الـعــدد :'}</span>
-                        <span className="font-mono text-sm tracking-wider">{doc.docNumber}</span>
-                      </div>
-                    </div>
-
-                    {isIncoming && (
-                      <div className="mx-10 mt-3 p-3 bg-slate-50 border border-slate-300 rounded-xl grid grid-cols-2 gap-4 text-xs font-semibold">
-                        <div>
-                          <span className="text-slate-500 block text-[11px]">عدد كتاب الجهة المرسلة:</span>
-                          <strong className="font-mono text-slate-950 text-sm">{doc.senderDocNumber || '---'}</strong>
-                        </div>
-                        <div>
-                          <span className="text-slate-500 block text-[11px]">تاريخ كتاب الجهة المرسلة:</span>
-                          <strong className="font-mono text-slate-950 text-sm">{doc.senderDocDate || '---'}</strong>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="px-14 py-4 space-y-4 flex-1 text-slate-900 flex flex-col">
-                      <div className="text-center font-black text-base text-slate-950 pt-2">
-                        {isIncoming ? `من / ${doc.partyName}` : `إلى / ${doc.partyName}`}
-                      </div>
-
-                      <div className="text-center font-black text-sm text-slate-900 pt-1">
-                        <span className="border-b-2 border-slate-900 pb-0.5 px-4 inline-block">
-                          {doc.subject}
-                        </span>
-                      </div>
-
-                      {!isIncoming && doc.content && (
-                        <div className="text-[14px] leading-[2.6] font-medium text-slate-900 text-justify whitespace-pre-line pt-2">
-                          {doc.content}
-                        </div>
-                      )}
-
-                      {isIncoming && doc.mainLetterUrl && (
-                        <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group min-h-[580px]">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={doc.mainLetterUrl} 
-                            alt="الكتاب الوارد الرئيسي" 
-                            className="max-h-[640px] max-w-full w-auto h-auto object-contain rounded-xl border-2 border-slate-300 shadow-md"
+              {/* حاوية متجاوبة بعرض قياسي A4 موحد لجميع الشاشات */}
+              <div className="w-full max-w-[210mm] overflow-x-auto pb-6">
+                <div className="w-full min-w-[650px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
+                  <div 
+                    id="page-first"
+                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300"
+                  >
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
+                      <div className="w-[460px] h-[460px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-25 relative p-6">
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <Image 
+                            src="/logo.png" 
+                            alt="شركة البرج المتألق" 
+                            width={270} 
+                            height={270} 
+                            className="object-contain grayscale opacity-60" 
+                            priority 
                           />
-                          <button
-                            onClick={() => setViewScannedImage(doc.mainLetterUrl!)}
-                            className="absolute bottom-3 left-3 bg-slate-900/80 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur print:hidden cursor-pointer"
-                          >
-                            <Eye className="w-4 h-4 text-sky-400" /> عرض الكتاب بالحجم الكامل
-                          </button>
+                        </div>
+                        <div className="text-center mt-44 text-[#64748b] text-[11px] font-bold tracking-wider">
+                          Al Burj Al Mutalaa'iq General Contracting Company
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="relative z-10 flex flex-col flex-1">
+                      <div className="h-6 w-full bg-[#71717a]"></div>
+
+                      {/* الترويسة المحدثة والمطابقة للصورة المطلوبة تماماً */}
+                      <div className="px-10 pt-4 pb-3 flex items-center justify-between border-b border-slate-200">
+                        <div className="text-right flex-1 font-sans">
+                          <h1 className="text-xl md:text-2xl font-black text-[#d97706] tracking-wide leading-none">
+                            شركة البرج المتألق
+                          </h1>
+                          <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1.5 leading-snug">
+                            للمقاولات العامة والاستثمارات العقارية<br />والتجارة العامة والنقل العام
+                          </p>
+                        </div>
+
+                        <div className="w-20 h-20 relative flex items-center justify-center shrink-0 mx-4">
+                          <Image 
+                            src="/logo.png" 
+                            alt="شعار شركة البرج المتألق" 
+                            width={75} 
+                            height={75} 
+                            className="object-contain" 
+                            priority 
+                          />
+                        </div>
+
+                        <div className="text-left flex-1 font-sans text-[10px] text-slate-700 leading-tight space-y-0.5">
+                          <p className="font-bold text-slate-900 text-[11px]">Resplendently Tower Co</p>
+                          <p className="text-[#d97706] font-semibold">General Contracting</p>
+                          <p className="text-[#d97706] font-semibold">General Trading</p>
+                          <p className="text-[#d97706] font-semibold">General Transport</p>
+                          <p className="text-[#d97706] font-semibold">Real Estate Investments</p>
+                        </div>
+                      </div>
+
+                      <div className="mx-10 mt-3 bg-[#e4e4e7] px-6 py-2 rounded-sm flex items-center justify-between font-black text-xs text-slate-900 border border-slate-300">
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-900 font-bold">{isIncoming ? 'تاريخ استلام الوارد :' : 'التاريخ :'}</span>
+                          <span className="font-mono text-sm tracking-widest">{doc.docDate}</span>
+                        </div>
+
+                        <div className="border border-slate-800 bg-white text-slate-950 px-3 py-0.5 rounded text-[11px] font-black">
+                          {isIncoming ? 'سجل الكتب الواردة' : isOrder ? 'أمر إداري داخلي' : 'كتاب صادر رسمي'}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <span className="text-slate-900 font-bold">{isIncoming ? 'رقم قيد الوارد :' : 'الـعــدد :'}</span>
+                          <span className="font-mono text-sm tracking-wider">{doc.docNumber}</span>
+                        </div>
+                      </div>
+
+                      {isIncoming && (
+                        <div className="mx-10 mt-3 p-3 bg-slate-50 border border-slate-300 rounded-xl grid grid-cols-2 gap-4 text-xs font-semibold">
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">عدد كتاب الجهة المرسلة:</span>
+                            <strong className="font-mono text-slate-950 text-sm">{doc.senderDocNumber || '---'}</strong>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[11px]">تاريخ كتاب الجهة المرسلة:</span>
+                            <strong className="font-mono text-slate-950 text-sm">{doc.senderDocDate || '---'}</strong>
+                          </div>
                         </div>
                       )}
 
-                      {!isIncoming && (
-                        <>
-                          <div className="text-center pt-6 text-base font-black text-slate-900">
-                            ... مع فائق الشكر والتقدير
-                          </div>
+                      <div className="px-14 py-4 space-y-4 flex-1 text-slate-900 flex flex-col">
+                        <div className="text-center font-black text-base text-slate-950 pt-2">
+                          {isIncoming ? `من / ${doc.partyName}` : `إلى / ${doc.partyName}`}
+                        </div>
 
-                          <div className="flex justify-between items-end pt-4 px-2">
-                            <div className="flex flex-col items-center">
-                              <div className="w-16 h-16 border border-slate-300 rounded-lg p-1 bg-white flex items-center justify-center shadow-sm">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img src={qrCodeApiUrl} alt="باركود التحقق" className="w-full h-full object-contain" />
-                              </div>
-                              <span className="font-mono text-[9px] text-slate-500 mt-1">DOC VERIFIED</span>
+                        <div className="text-center font-black text-sm text-slate-900 pt-1">
+                          <span className="border-b-2 border-slate-900 pb-0.5 px-4 inline-block">
+                            {doc.subject}
+                          </span>
+                        </div>
+
+                        {!isIncoming && doc.content && (
+                          <div className="text-[14px] leading-[2.6] font-medium text-slate-900 text-justify whitespace-pre-line pt-2">
+                            {doc.content}
+                          </div>
+                        )}
+
+                        {isIncoming && doc.mainLetterUrl && (
+                          <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group min-h-[580px]">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img 
+                              src={doc.mainLetterUrl} 
+                              alt="الكتاب الوارد الرئيسي" 
+                              className="max-h-[640px] max-w-full w-auto h-auto object-contain rounded-xl border-2 border-slate-300 shadow-md"
+                            />
+                            <button
+                              onClick={() => setViewScannedImage(doc.mainLetterUrl!)}
+                              className="absolute bottom-3 left-3 bg-slate-900/80 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur print:hidden cursor-pointer"
+                            >
+                              <Eye className="w-4 h-4 text-sky-400" /> عرض الكتاب بالحجم الكامل
+                            </button>
+                          </div>
+                        )}
+
+                        {!isIncoming && (
+                          <>
+                            <div className="text-center pt-6 text-base font-black text-slate-900">
+                              ... مع فائق الشكر والتقدير
                             </div>
 
-                            <div className="text-center space-y-1 min-w-[220px]">
-                              <p className="font-black text-base text-slate-950">{doc.signatoryName}</p>
-                              <p className="text-xs font-bold text-slate-700">{doc.signatoryTitle}</p>
-                              <p className="text-[11px] text-slate-500">شركة البرج المتألق</p>
-                              
-                              <div className="h-16 flex items-center justify-center relative">
-                                <div className="border-2 border-dashed border-red-700/60 rounded-full w-20 h-20 flex flex-col items-center justify-center rotate-[-12deg] p-1 text-red-700/80 pointer-events-none absolute">
-                                  <span className="text-[8px] font-black">البرج المتألق</span>
-                                  <span className="text-[7px] font-bold">مصادق رسمياً</span>
-                                  <span className="text-[7px] font-mono">{doc.docDate}</span>
+                            <div className="flex justify-between items-end pt-4 px-2">
+                              <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 border border-slate-300 rounded-lg p-1 bg-white flex items-center justify-center shadow-sm">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img src={qrCodeApiUrl} alt="باركود التحقق" className="w-full h-full object-contain" />
+                                </div>
+                                <span className="font-mono text-[9px] text-slate-500 mt-1">DOC VERIFIED</span>
+                              </div>
+
+                              <div className="text-center space-y-1 min-w-[220px]">
+                                <p className="font-black text-base text-slate-950">{doc.signatoryName}</p>
+                                <p className="text-xs font-bold text-slate-700">{doc.signatoryTitle}</p>
+                                <p className="text-[11px] text-slate-500">شركة البرج المتألق</p>
+                                
+                                <div className="h-16 flex items-center justify-center relative">
+                                  <div className="border-2 border-dashed border-red-700/60 rounded-full w-20 h-20 flex flex-col items-center justify-center rotate-[-12deg] p-1 text-red-700/80 pointer-events-none absolute">
+                                    <span className="text-[8px] font-black">البرج المتألق</span>
+                                    <span className="text-[7px] font-bold">مصادق رسمياً</span>
+                                    <span className="text-[7px] font-mono">{doc.docDate}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </>
-                      )}
+                          </>
+                        )}
 
+                      </div>
                     </div>
-                  </div>
 
-                  {/* الجزء الثابت أسفل الصفحة (المرفقات ونسخة منه إلى) */}
-                  <div className="relative z-10 w-full bg-white mt-auto">
-                    <div className="mx-10 pt-3 pb-2 border-t border-slate-300 text-[11px] text-slate-700 space-y-1 font-medium">
-                      <div className="flex items-center justify-between">
-                        <p>
-                          <strong>المرفقات: </strong> {doc.attachments || 'لا يوجد'} 
-                          {attachmentsList.length > 0 && ` (مرفق طياً في الصفحات التالية عدد ${attachmentsList.length} صفحة)`}
-                        </p>
-                        {attachmentsList.length > 0 && (
-                          <button
-                            onClick={() => scrollToSection('att-0')}
-                            className="text-amber-700 font-bold hover:underline flex items-center gap-1 print:hidden cursor-pointer"
-                          >
-                            <span>تصفح المرفقات في الصفحات التالية</span>
-                            <ChevronDown className="w-3.5 h-3.5" />
-                          </button>
+                    {/* الجزء الثابت أسفل الصفحة (المرفقات ونسخة منه إلى) */}
+                    <div className="relative z-10 w-full bg-white mt-auto">
+                      <div className="mx-10 pt-3 pb-2 border-t border-slate-300 text-[11px] text-slate-700 space-y-1 font-medium">
+                        <div className="flex items-center justify-between">
+                          <p>
+                            <strong>المرفقات: </strong> {doc.attachments || 'لا يوجد'} 
+                            {attachmentsList.length > 0 && ` (مرفق طياً في الصفحات التالية عدد ${attachmentsList.length} صفحة)`}
+                          </p>
+                          {attachmentsList.length > 0 && (
+                            <button
+                              onClick={() => scrollToSection('att-0')}
+                              className="text-amber-700 font-bold hover:underline flex items-center gap-1 print:hidden cursor-pointer"
+                            >
+                              <span>تصفح المرفقات في الصفحات التالية</span>
+                              <ChevronDown className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
+                        {doc.carbonCopy && (
+                          <p><strong>نسخة منه إلى: </strong> {doc.carbonCopy}</p>
                         )}
                       </div>
-                      {doc.carbonCopy && (
-                        <p><strong>نسخة منه إلى: </strong> {doc.carbonCopy}</p>
-                      )}
-                    </div>
 
-                    <div className="px-10 pb-3 flex items-center justify-between text-xs font-bold text-slate-800 border-t border-slate-200 pt-2">
-                      <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700 dir-ltr">
-                        <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
-                          <Globe className="w-3.5 h-3.5" />
+                      <div className="px-10 pb-3 flex items-center justify-between text-xs font-bold text-slate-800 border-t border-slate-200 pt-2">
+                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700 dir-ltr">
+                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                            <Globe className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="hover:underline">{activeOrigin}</span>
                         </div>
-                        <span className="hover:underline">https://rtco2025.netlify.app/</span>
+
+                        <div className="flex items-center gap-1.5 text-xs text-slate-800">
+                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                            <MapPin className="w-3.5 h-3.5" />
+                          </div>
+                          <span>العراق - النجف الأشرف - حي الفرات</span>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
+                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                            <Phone className="w-3.5 h-3.5" />
+                          </div>
+                          <span className="font-bold">07868006699 - 07737006699</span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-1.5 text-xs text-slate-800">
-                        <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
-                          <MapPin className="w-3.5 h-3.5" />
-                        </div>
-                        <span>العراق - النجف الأشرف - حي الفرات</span>
-                      </div>
+                      <div className="h-1 w-full bg-[#71717a] mb-2"></div>
 
-                      <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
-                        <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
-                          <Phone className="w-3.5 h-3.5" />
-                        </div>
-                        <span className="font-bold">07868006699 - 07737006699</span>
+                      <div className="relative h-12 w-full">
+                        <div className="absolute bottom-0 left-0 w-32 h-10 bg-[#ea580c] rounded-tr-[50px] opacity-90"></div>
+                        <div className="absolute bottom-0 right-0 w-36 h-12 bg-[#f97316] rounded-tl-[70px]"></div>
                       </div>
                     </div>
 
-                    <div className="h-1 w-full bg-[#71717a] mb-2"></div>
-
-                    <div className="relative h-12 w-full">
-                      <div className="absolute bottom-0 left-0 w-32 h-10 bg-[#ea580c] rounded-tr-[50px] opacity-90"></div>
-                      <div className="absolute bottom-0 right-0 w-36 h-12 bg-[#f97316] rounded-tl-[70px]"></div>
-                    </div>
                   </div>
+
+                  {attachmentsList.map((attUrl, aIdx) => (
+                    <div 
+                      id={`att-${aIdx}`}
+                      key={aIdx} 
+                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-10 border border-slate-300 flex flex-col justify-start items-center min-h-[1120px]"
+                    >
+                      <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 relative flex items-center justify-center">
+                            <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
+                          </div>
+                          <div>
+                            <h4 className="font-black text-slate-900 text-sm">شركة البرج المتألق للمقاولات العامة</h4>
+                            <p className="text-[10px] text-amber-700 font-bold">ملف مرفق طي الوثيقة الرسمية</p>
+                          </div>
+                        </div>
+
+                        <div className="text-left font-mono text-xs space-y-0.5">
+                          <span className="bg-slate-950 text-white px-2.5 py-0.5 rounded font-bold text-[10px]">
+                            صفحة المرفق ({aIdx + 1} من {attachmentsList.length})
+                          </span>
+                          <p className="text-[10px] text-slate-600 font-sans">
+                            تابع للوثيقة: <strong className="font-mono text-slate-900">{doc.docNumber}</strong> بتاريخ: <strong className="font-mono">{doc.docDate}</strong>
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={attUrl} 
+                          alt={`مرفق ${aIdx + 1}`} 
+                          className="max-w-full max-h-[920px] w-auto h-auto object-contain border border-slate-200 rounded-xl shadow-lg"
+                        />
+                        
+                        <button
+                          onClick={() => setViewScannedImage(attUrl)}
+                          className="absolute bottom-4 left-4 bg-slate-900/80 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur print:hidden cursor-pointer"
+                        >
+                          <Eye className="w-4 h-4 text-sky-400" /> عرض بدقة الشاشة الكاملة
+                        </button>
+                      </div>
+
+                      <div className="w-full text-center text-[10px] text-slate-400 font-mono border-t border-slate-200 pt-3 mt-4 flex items-center justify-between">
+                        <span>وثيقة مؤرشفة إلكترونياً • نظام الأرشفة والوثائق المركزي</span>
+                        <span>صفحة مرفق تابعة للمخاطبة</span>
+                      </div>
+                    </div>
+                  ))}
 
                 </div>
-
-                {attachmentsList.map((attUrl, aIdx) => (
-                  <div 
-                    id={`att-${aIdx}`}
-                    key={aIdx} 
-                    className="print-attachment-sheet w-full max-w-4xl bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-10 border border-slate-300 flex flex-col justify-start items-center min-h-[1120px]"
-                  >
-                    <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 relative flex items-center justify-center">
-                          <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
-                        </div>
-                        <div>
-                          <h4 className="font-black text-slate-900 text-sm">شركة البرج المتألق للمقاولات العامة</h4>
-                          <p className="text-[10px] text-amber-700 font-bold">ملف مرفق طي الوثيقة الرسمية</p>
-                        </div>
-                      </div>
-
-                      <div className="text-left font-mono text-xs space-y-0.5">
-                        <span className="bg-slate-950 text-white px-2.5 py-0.5 rounded font-bold text-[10px]">
-                          صفحة المرفق ({aIdx + 1} من {attachmentsList.length})
-                        </span>
-                        <p className="text-[10px] text-slate-600 font-sans">
-                          تابع للوثيقة: <strong className="font-mono text-slate-900">{doc.docNumber}</strong> بتاريخ: <strong className="font-mono">{doc.docDate}</strong>
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={attUrl} 
-                        alt={`مرفق ${aIdx + 1}`} 
-                        className="max-w-full max-h-[920px] w-auto h-auto object-contain border border-slate-200 rounded-xl shadow-lg"
-                      />
-                      
-                      <button
-                        onClick={() => setViewScannedImage(attUrl)}
-                        className="absolute bottom-4 left-4 bg-slate-900/80 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur print:hidden cursor-pointer"
-                      >
-                        <Eye className="w-4 h-4 text-sky-400" /> عرض بدقة الشاشة الكاملة
-                      </button>
-                    </div>
-
-                    <div className="w-full text-center text-[10px] text-slate-400 font-mono border-t border-slate-200 pt-3 mt-4 flex items-center justify-between">
-                      <span>وثيقة مؤرشفة إلكترونياً • نظام الأرشفة والوثائق المركزي</span>
-                      <span>صفحة مرفق تابعة للمخاطبة</span>
-                    </div>
-                  </div>
-                ))}
-
               </div>
 
               <div className="h-16 print:hidden print-hidden-element"></div>

@@ -10,16 +10,44 @@ async function initUsersTable() {
       password VARCHAR(255) NOT NULL,
       role VARCHAR(50) NOT NULL DEFAULT 'SITE_ENGINEER',
       avatar_url TEXT,
+      session_token TEXT,
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
+  // التأكد من وجود العمود في حال كان الجدول منشأ سابقاً
+  await query(`
+    ALTER TABLE erp_users ADD COLUMN IF NOT EXISTS session_token TEXT;
+  `).catch(() => {});
 }
 
-// 1. جلب قائمة المستخدمين (للإدارة العليا فقط)
+// 1. جلب قائمة المستخدمين أو التحقق من الجلسة الحصرية
 export async function GET(req: Request) {
   try {
     await initUsersTable();
     const { searchParams } = new URL(req.url);
+    const action = searchParams.get('action');
+
+    // التحقق من صحة جلسة الجهاز الحالي
+    if (action === 'VERIFY_SESSION') {
+      const userId = searchParams.get('user_id');
+      const token = searchParams.get('session_token');
+
+      if (!userId || !token) {
+        return NextResponse.json({ valid: false, error: 'بيانات الجلسة غير مكتملة' }, { status: 400 });
+      }
+
+      const res = await query(
+        `SELECT session_token FROM erp_users WHERE user_id = $1`,
+        [userId]
+      );
+
+      if (res.rows.length === 0 || res.rows[0].session_token !== token) {
+        return NextResponse.json({ valid: false, message: 'تم فتح الحساب من جهاز آخر' }, { status: 401 });
+      }
+
+      return NextResponse.json({ valid: true });
+    }
+
     const requesterRole = searchParams.get('requester_role');
 
     if (requesterRole !== 'ADMIN') {
@@ -63,15 +91,38 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }, { status: 401 });
       }
 
+      // توليد رمز جلسة جديد حصري للجهاز الحالي
+      const newSessionToken = typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+      // تحديث الجلسة في قاعدة البيانات لإبطال الجلسات في الأجهزة السابقة
+      await query(
+        `UPDATE erp_users SET session_token = $1 WHERE user_id = $2`,
+        [newSessionToken, res.rows[0].user_id]
+      );
+
       const user = {
         user_id: res.rows[0].user_id,
         full_name: res.rows[0].full_name,
         username: res.rows[0].username,
         role: res.rows[0].role,
-        avatar_url: res.rows[0].avatar_url
+        avatar_url: res.rows[0].avatar_url,
+        session_token: newSessionToken
       };
 
-      return NextResponse.json({ success: true, user });
+      const response = NextResponse.json({ success: true, user });
+
+      // حفظ الرمز في الكوكيز
+      response.cookies.set('erp_session_token', newSessionToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7 // 7 أيام
+      });
+
+      return response;
     }
 
     // إنشاء حساب جديد بواسطة الإدارة

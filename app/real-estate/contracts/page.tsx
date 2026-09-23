@@ -170,7 +170,22 @@ export default function ElectronicContractsPage() {
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
-        setCurrentUser(JSON.parse(raw));
+        const u = JSON.parse(raw);
+        setCurrentUser(u);
+
+        // التحقق من صلاحية الجلسة الحصرية ضد أي تسجيل دخول بجهاز آخر
+        if (u.user_id && u.session_token) {
+          fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(u.user_id)}&session_token=${encodeURIComponent(u.session_token)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.valid === false) {
+                localStorage.removeItem('erp_user');
+                alert('تنبيه أمني: تم فتح هذا الحساب من جهاز آخر، سيتم تحويلك لصفحة تسجيل الدخول.');
+                window.location.href = '/login';
+              }
+            })
+            .catch(() => {});
+        }
       } catch {}
     }
 
@@ -337,7 +352,10 @@ export default function ElectronicContractsPage() {
   }, [savedContracts, searchQuery]);
 
   const getVerificationUrl = (cNo: string) => {
-    const origin = siteOrigin || 'https://rtco.app';
+    // تحديد رابط الموقع الحي بدقة سواء محلياً أو على النطاق السحابي
+    const origin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : (siteOrigin || 'https://rtco.app');
     return `${origin}/real-estate/contracts?view=${encodeURIComponent(cNo)}`;
   };
 
@@ -890,9 +908,9 @@ export default function ElectronicContractsPage() {
           const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
 
           return (
-            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 md:p-8 print:p-0 print:bg-white print:static">
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static">
               
-              <div className="sticky top-0 z-50 w-full max-w-4xl flex items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 px-5 py-3 rounded-2xl mb-6 shadow-2xl print:hidden print-hidden-element">
+              <div className="sticky top-0 z-50 w-full max-w-[210mm] flex items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 px-5 py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element">
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => window.print()}
@@ -914,207 +932,210 @@ export default function ElectronicContractsPage() {
                 </button>
               </div>
 
-              <div className="print-paper-sheet w-full max-w-4xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-2 print:border-slate-900 print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto">
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
-                  <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain" priority />
-                </div>
+              {/* حاوية A4 موحدة تمنع تشوه التصميم بين الهواتف والكمبيوتر */}
+              <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
+                <div className="print-paper-sheet min-w-[650mm] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-2 print:border-slate-900 print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto">
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
+                    <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain" priority />
+                  </div>
 
-                <div className="h-1.5 w-full bg-gradient-to-r from-slate-950 via-amber-500 to-slate-950 rounded-full"></div>
+                  <div className="h-1.5 w-full bg-gradient-to-r from-slate-950 via-amber-500 to-slate-950 rounded-full"></div>
 
-                <div className="relative z-10 flex items-center justify-between pb-4 border-b border-slate-200">
-                  <div className="flex items-center gap-4 text-right">
-                    <div className="w-16 h-16 relative flex items-center justify-center p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                      <Image 
-                        src="/logo.png" 
-                        alt="شعار شركة البرج المتألق" 
-                        width={58} 
-                        height={58} 
-                        className="object-contain" 
-                        priority 
-                      />
+                  <div className="relative z-10 flex items-center justify-between pb-4 border-b border-slate-200">
+                    <div className="flex items-center gap-4 text-right">
+                      <div className="w-16 h-16 relative flex items-center justify-center p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
+                        <Image 
+                          src="/logo.png" 
+                          alt="شعار شركة البرج المتألق" 
+                          width={58} 
+                          height={58} 
+                          className="object-contain" 
+                          priority 
+                        />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
+                          جمهورية العراق • شركة معتمدة
+                        </span>
+                        <h1 className="text-xl font-black text-slate-950 leading-tight">شركة البرج المتألق</h1>
+                        <p className="text-[11px] text-slate-600 font-bold">للمقاولات العامة، التجارة، النقل والاستثمار العقاري</p>
+                      </div>
                     </div>
+
+                    <div className="text-center">
+                      <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-6 py-2 rounded-2xl shadow-md">
+                        <h2 className="text-lg font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
+                        <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
+                          {!c.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-left font-mono text-xs space-y-1">
+                      <div className="border border-slate-300 bg-slate-50 px-3 py-1.5 rounded-xl font-black text-slate-950 inline-block text-[11px]">
+                        REF: <span className="text-amber-700">{c.contractNo}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{c.contractDate}</strong></p>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 grid grid-cols-2 gap-4">
+                    <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                        <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-slate-950"></span>
+                          الطرف الأول ({c.isRent ? 'المؤجر' : 'البائع / المالك الشرعي'})
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">FIRST PARTY</span>
+                      </div>
+                      <div className="space-y-1 text-[11px]">
+                        <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{c.sellerName || '---'}</strong></p>
+                        <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{c.sellerId || '---'}</strong></p>
+                        <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{c.sellerPhone || '---'}</strong></p>
+                        <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{c.sellerAddress}</span></p>
+                      </div>
+                    </div>
+
+                    <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                        <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                          الطرف الثاني ({c.isRent ? 'المستأجر' : 'المشتري'})
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">SECOND PARTY</span>
+                      </div>
+                      <div className="space-y-1 text-[11px]">
+                        <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{c.buyerName || '---'}</strong></p>
+                        <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{c.buyerId || '---'}</strong></p>
+                        <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{c.buyerPhone || '---'}</strong></p>
+                        <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{c.buyerAddress}</span></p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-white shadow-sm space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs font-bold">
+                      <span className="text-slate-950 flex items-center gap-1.5">
+                        <Award className="w-3.5 h-3.5 text-amber-600" />
+                        مواصفات المبيع المتفق عليه وتفاصيله الفنية:
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">SPECIFICATIONS</span>
+                    </div>
+
+                    {c.isVehicle ? (
+                      <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">الماركة والنوع:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.vehicleBrand}</strong>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">سنة الصنع / الموديل:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.vehicleModel}</strong>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">رقم اللوحة والتسجيل:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.vehiclePlate}</strong>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">اللون الخارجي:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.vehicleColor}</strong>
+                        </div>
+                        <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">رقم الشاصي (VIN):</span>
+                          <strong className="text-slate-950 text-xs font-mono uppercase font-bold">{c.vehicleVin || 'غير محدد'}</strong>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
+                        <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">وصف العقار / الدار:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.propertyTitle}</strong>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">المساحة الإجمالية:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.propertyArea} م²</strong>
+                        </div>
+                        <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">رقم القطعة والمقاطعة:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.propertyPlot}</strong>
+                        </div>
+                        <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] text-slate-500 block">الموقع الجغرافي:</span>
+                          <strong className="text-slate-950 text-xs font-bold">{c.propertyLocation}</strong>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-2.5">
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
+                      <span className="text-sm font-black font-sans text-slate-950 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
+                        {formatNum(c.totalAmount)} د.ع
+                      </span>
+                    </div>
+                    
+                    <p className="text-[11px] font-bold text-slate-800 leading-relaxed font-sans">
+                      كتابة وتفقيطاً: <span className="text-amber-800 font-bold">{numberToArabicWords(Number(c.totalAmount) || 0)}</span>
+                    </p>
+                    
+                    <div className="grid grid-cols-2 gap-4 pt-2 font-sans text-xs border-t border-slate-100 text-slate-800">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-600">الواصل نقداً ومقبوضاً (العربون):</span>
+                        <strong className="text-emerald-700 font-bold font-sans">{formatNum(c.paidDeposit)} د.ع</strong>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-slate-600">المتبقي بذمة المشتري:</span>
+                        <strong className="text-rose-700 font-bold font-sans">{formatNum(c.remainingBalance)} د.ع</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="relative z-10 border border-slate-200 p-3.5 rounded-2xl bg-slate-50/50 space-y-1 text-[11px] text-slate-600 leading-relaxed font-sans">
+                    <strong className="text-slate-950 block text-xs mb-1 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
+                    <p className="whitespace-pre-line text-justify">{c.extraConditions}</p>
+                  </div>
+
+                  <div className="relative z-10 grid grid-cols-4 gap-4 pt-4 text-center text-xs items-end border-t border-slate-200">
                     <div>
-                      <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
-                        جمهورية العراق • جمهورية معتمدة
+                      <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
+                      <p className="text-[10px] text-slate-400">({c.isRent ? 'المؤجر' : 'البائع'})</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
+                    </div>
+
+                    <div>
+                      <p className="font-black text-slate-950 text-xs">توقيع الطرف الثاني</p>
+                      <p className="text-[10px] text-slate-400">({c.isRent ? 'المستأجر' : 'المشتري'})</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
+                    </div>
+
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={qrCodeApiUrl} 
+                          alt="باركود التحقق الإلكتروني" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <span className="font-mono text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-0.5">
+                        <Globe className="w-2.5 h-2.5" /> امسح للتحقق أونلاين
                       </span>
-                      <h1 className="text-xl font-black text-slate-950 leading-tight">شركة البرج المتألق</h1>
-                      <p className="text-[11px] text-slate-600 font-bold">للمقاولات العامة، التجارة، النقل والاستثمار العقاري</p>
+                    </div>
+
+                    <div>
+                      <p className="font-black text-slate-950 text-xs">مصادقة إدارة الشركة</p>
+                      <p className="text-[10px] text-slate-400">الختم والتوثيق المعتمد</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
                     </div>
                   </div>
 
-                  <div className="text-center">
-                    <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-6 py-2 rounded-2xl shadow-md">
-                      <h2 className="text-lg font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
-                      <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
-                        {!c.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
-                      </span>
-                    </div>
+                  <div className="relative z-10 text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between">
+                    <span>شركة البرج المتألق للمقاولات والتجارة العامة والاستثمار العقاري</span>
+                    <span>النجف الأشرف - حي الفرات • هاتف الإدارة: 07868006699</span>
                   </div>
 
-                  <div className="text-left font-mono text-xs space-y-1">
-                    <div className="border border-slate-300 bg-slate-50 px-3 py-1.5 rounded-xl font-black text-slate-950 inline-block text-[11px]">
-                      REF: <span className="text-amber-700">{c.contractNo}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{c.contractDate}</strong></p>
-                  </div>
                 </div>
-
-                <div className="relative z-10 grid grid-cols-2 gap-4">
-                  <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                      <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-slate-950"></span>
-                        الطرف الأول ({c.isRent ? 'المؤجر' : 'البائع / المالك الشرعي'})
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">FIRST PARTY</span>
-                    </div>
-                    <div className="space-y-1 text-[11px]">
-                      <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{c.sellerName || '---'}</strong></p>
-                      <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{c.sellerId || '---'}</strong></p>
-                      <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{c.sellerPhone || '---'}</strong></p>
-                      <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{c.sellerAddress}</span></p>
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                      <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-amber-600"></span>
-                        الطرف الثاني ({c.isRent ? 'المستأجر' : 'المشتري'})
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-mono">SECOND PARTY</span>
-                    </div>
-                    <div className="space-y-1 text-[11px]">
-                      <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{c.buyerName || '---'}</strong></p>
-                      <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{c.buyerId || '---'}</strong></p>
-                      <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{c.buyerPhone || '---'}</strong></p>
-                      <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{c.buyerAddress}</span></p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-white shadow-sm space-y-2">
-                  <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs font-bold">
-                    <span className="text-slate-950 flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-amber-600" />
-                      مواصفات المبيع المتفق عليه وتفاصيله الفنية:
-                    </span>
-                    <span className="text-[10px] text-slate-400 font-mono">SPECIFICATIONS</span>
-                  </div>
-
-                  {c.isVehicle ? (
-                    <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">الماركة والنوع:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.vehicleBrand}</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">سنة الصنع / الموديل:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.vehicleModel}</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">رقم اللوحة والتسجيل:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.vehiclePlate}</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">اللون الخارجي:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.vehicleColor}</strong>
-                      </div>
-                      <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">رقم الشاصي (VIN):</span>
-                        <strong className="text-slate-950 text-xs font-mono uppercase font-bold">{c.vehicleVin || 'غير محدد'}</strong>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
-                      <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">وصف العقار / الدار:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.propertyTitle}</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">المساحة الإجمالية:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.propertyArea} م²</strong>
-                      </div>
-                      <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">رقم القطعة والمقاطعة:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.propertyPlot}</strong>
-                      </div>
-                      <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                        <span className="text-[10px] text-slate-500 block">الموقع الجغرافي:</span>
-                        <strong className="text-slate-950 text-xs font-bold">{c.propertyLocation}</strong>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-2.5">
-                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-                    <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
-                    <span className="text-sm font-black font-sans text-slate-950 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
-                      {formatNum(c.totalAmount)} د.ع
-                    </span>
-                  </div>
-                  
-                  <p className="text-[11px] font-bold text-slate-800 leading-relaxed font-sans">
-                    كتابة وتفقيطاً: <span className="text-amber-800 font-bold">{numberToArabicWords(Number(c.totalAmount) || 0)}</span>
-                  </p>
-                  
-                  <div className="grid grid-cols-2 gap-4 pt-2 font-sans text-xs border-t border-slate-100 text-slate-800">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-600">الواصل نقداً ومقبوضاً (العربون):</span>
-                      <strong className="text-emerald-700 font-bold font-sans">{formatNum(c.paidDeposit)} د.ع</strong>
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-slate-600">المتبقي بذمة المشتري:</span>
-                      <strong className="text-rose-700 font-bold font-sans">{formatNum(c.remainingBalance)} د.ع</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative z-10 border border-slate-200 p-3.5 rounded-2xl bg-slate-50/50 space-y-1 text-[11px] text-slate-600 leading-relaxed font-sans">
-                  <strong className="text-slate-950 block text-xs mb-1 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
-                  <p className="whitespace-pre-line text-justify">{c.extraConditions}</p>
-                </div>
-
-                <div className="relative z-10 grid grid-cols-4 gap-4 pt-4 text-center text-xs items-end border-t border-slate-200">
-                  <div>
-                    <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
-                    <p className="text-[10px] text-slate-400">({c.isRent ? 'المؤجر' : 'البائع'})</p>
-                    <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
-                  </div>
-
-                  <div>
-                    <p className="font-black text-slate-950 text-xs">توقيع الطرف الثاني</p>
-                    <p className="text-[10px] text-slate-400">({c.isRent ? 'المستأجر' : 'المشتري'})</p>
-                    <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center">
-                    <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img 
-                        src={qrCodeApiUrl} 
-                        alt="باركود التحقق الإلكتروني" 
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                    <span className="font-mono text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-0.5">
-                      <Globe className="w-2.5 h-2.5" /> امسح للتحقق أونلاين
-                    </span>
-                  </div>
-
-                  <div>
-                    <p className="font-black text-slate-950 text-xs">مصادقة إدارة الشركة</p>
-                    <p className="text-[10px] text-slate-400">الختم والتوثيق المعتمد</p>
-                    <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
-                  </div>
-                </div>
-
-                <div className="relative z-10 text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between">
-                  <span>شركة البرج المتألق للمقاولات والتجارة العامة والاستثمار العقاري</span>
-                  <span>النجف الأشرف - حي الفرات • هاتف الإدارة: 07868006699</span>
-                </div>
-
               </div>
 
               <div className="h-10 print:hidden print-hidden-element"></div>
