@@ -373,11 +373,11 @@ export default function ElectronicContractsPage() {
   }, [savedContracts, searchQuery]);
 
   const getVerificationUrl = (cNo: string) => {
-    // تحديد رابط الموقع الحي بدقة سواء محلياً أو على النطاق السحابي
+    // توجيه الرابط لبوابة التحقق العام الرسمية دون طلب تسجيل دخول
     const origin = typeof window !== 'undefined' && window.location.origin
       ? window.location.origin
-      : (siteOrigin || 'https://rtco.app');
-    return `${origin}/real-estate/contracts?view=${encodeURIComponent(cNo)}`;
+      : (siteOrigin || 'https://rtco2025.netlify.app');
+    return `${origin}/verify?type=contract&no=${encodeURIComponent(cNo)}`;
   };
 
   return (
