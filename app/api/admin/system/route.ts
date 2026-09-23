@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 async function initSystemGovernanceTables() {
   try {
     // 1. جدول الفترات المالية المقفلة
@@ -108,7 +111,90 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const action = searchParams.get('action');
 
-    // تصدير وتنزيل النسخة الاحتياطية الشاملة
+    // 1. جلب العقود الإلكترونية لتوحيدها بين جميع الأجهزة
+    if (action === 'GET_CONTRACTS') {
+      const res = await query(`
+        SELECT * FROM electronic_contracts 
+        ORDER BY created_at DESC 
+        LIMIT 500
+      `);
+
+      const contracts = (res.rows || []).map((row: any) => {
+        const details = typeof row.details === 'object' && row.details !== null ? row.details : {};
+        return {
+          id: row.id,
+          contractNo: row.contract_number,
+          contractDate: row.contract_date ? new Date(row.contract_date).toISOString().substring(0, 10) : '',
+          category: row.contract_type,
+          title: details.title || 'عقد رسمي',
+          isVehicle: details.isVehicle ?? false,
+          isRent: details.isRent ?? false,
+          sellerName: row.seller_name,
+          sellerId: details.sellerId || '',
+          sellerPhone: details.sellerPhone || '',
+          sellerAddress: details.sellerAddress || 'النجف الأشرف',
+          buyerName: row.buyer_name,
+          buyerId: details.buyerId || '',
+          buyerPhone: details.buyerPhone || '',
+          buyerAddress: details.buyerAddress || 'النجف الأشرف',
+          vehicleBrand: details.vehicleBrand || '',
+          vehicleModel: details.vehicleModel || '',
+          vehiclePlate: details.vehiclePlate || '',
+          vehicleVin: details.vehicleVin || '',
+          vehicleColor: details.vehicleColor || '',
+          propertyTitle: details.propertyTitle || '',
+          propertyArea: details.propertyArea || '',
+          propertyPlot: details.propertyPlot || '',
+          propertyLocation: details.propertyLocation || '',
+          totalAmount: row.price?.toString() || details.totalAmount || '0',
+          paidDeposit: row.paid_amount?.toString() || details.paidDeposit || '0',
+          remainingBalance: row.remaining_amount?.toString() || details.remainingBalance || '0',
+          extraConditions: details.extraConditions || '',
+          createdAt: row.created_at
+        };
+      });
+
+      return NextResponse.json({ success: true, contracts }, {
+        headers: { 'Cache-Control': 'no-store, max-age=0' }
+      });
+    }
+
+    // 2. جلب الكتب والوثائق الرسمية لتوحيدها بين جميع الأجهزة
+    if (action === 'GET_OFFICIAL_DOCS') {
+      const res = await query(`
+        SELECT * FROM official_documents 
+        ORDER BY created_at DESC 
+        LIMIT 500
+      `);
+
+      const documents = (res.rows || []).map((row: any) => ({
+        id: row.id,
+        type: row.type,
+        priority: row.priority || 'NORMAL',
+        status: row.status || 'COMPLETED',
+        docNumber: row.doc_number,
+        docDate: row.doc_date ? new Date(row.doc_date).toISOString().substring(0, 10) : '',
+        senderDocNumber: row.sender_doc_number || '',
+        senderDocDate: row.sender_doc_date ? new Date(row.sender_doc_date).toISOString().substring(0, 10) : '',
+        partyName: row.party_name,
+        subject: row.subject,
+        content: row.content || '',
+        attachments: row.attachments || '',
+        carbonCopy: row.carbon_copy || '',
+        signatoryTitle: row.signatory_title || '',
+        signatoryName: row.signatory_name || '',
+        mainLetterUrl: row.main_letter_url || '',
+        scannedFileUrls: Array.isArray(row.scanned_file_urls) ? row.scanned_file_urls : [],
+        notes: row.notes || '',
+        createdAt: row.created_at
+      }));
+
+      return NextResponse.json({ success: true, documents }, {
+        headers: { 'Cache-Control': 'no-store, max-age=0' }
+      });
+    }
+
+    // 3. تصدير وتنزيل النسخة الاحتياطية الشاملة
     if (action === 'BACKUP_DATABASE') {
       const [
         branches,
@@ -402,7 +488,9 @@ export async function POST(req: Request) {
          (id, type, priority, status, doc_number, doc_date, sender_doc_number, sender_doc_date, party_name, subject, content, attachments, carbon_copy, signatory_title, signatory_name, main_letter_url, scanned_file_urls, notes)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
          ON CONFLICT (id) DO UPDATE SET
-         doc_number = EXCLUDED.doc_number, party_name = EXCLUDED.party_name, subject = EXCLUDED.subject`,
+         doc_number = EXCLUDED.doc_number, party_name = EXCLUDED.party_name, subject = EXCLUDED.subject,
+         content = EXCLUDED.content, attachments = EXCLUDED.attachments, main_letter_url = EXCLUDED.main_letter_url,
+         scanned_file_urls = EXCLUDED.scanned_file_urls`,
         [
           doc.id, doc.type, doc.priority, doc.status, doc.docNumber, doc.docDate,
           doc.senderDocNumber || null, doc.senderDocDate || null, doc.partyName, doc.subject,
@@ -421,7 +509,8 @@ export async function POST(req: Request) {
          (id, contract_type, contract_number, contract_date, seller_name, buyer_name, item_description, price, paid_amount, remaining_amount, details)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
          ON CONFLICT (id) DO UPDATE SET
-         seller_name = EXCLUDED.seller_name, buyer_name = EXCLUDED.buyer_name, price = EXCLUDED.price`,
+         seller_name = EXCLUDED.seller_name, buyer_name = EXCLUDED.buyer_name, price = EXCLUDED.price,
+         paid_amount = EXCLUDED.paid_amount, remaining_amount = EXCLUDED.remaining_amount, details = EXCLUDED.details`,
         [
           contract.id, contract.contractType, contract.contractNumber, contract.contractDate,
           contract.sellerName, contract.buyerName, contract.itemDescription,
@@ -432,7 +521,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 6. مزامنة الأقساط
+    // 6. حذف عقد من السيرفر السحابي
+    if (action === 'DELETE_CONTRACT') {
+      const { contractId } = body;
+      if (contractId) {
+        await query(`DELETE FROM electronic_contracts WHERE id = $1`, [contractId]);
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // 7. حذف كتاب رسمي من السيرفر السحابي
+    if (action === 'DELETE_OFFICIAL_DOC') {
+      const { docId } = body;
+      if (docId) {
+        await query(`DELETE FROM official_documents WHERE id = $1`, [docId]);
+      }
+      return NextResponse.json({ success: true });
+    }
+
+    // 8. مزامنة الأقساط
     if (action === 'SYNC_INSTALLMENT') {
       const { plan } = body;
       await query(

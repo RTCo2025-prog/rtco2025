@@ -189,6 +189,7 @@ export default function ElectronicContractsPage() {
       } catch {}
     }
 
+    // جلب العقود من التخزين المحلي كخطوة أولية وسريعة
     const storedContracts = localStorage.getItem('rtco_electronic_contracts');
     if (storedContracts) {
       try {
@@ -208,6 +209,17 @@ export default function ElectronicContractsPage() {
         }
       } catch {}
     }
+
+    // مزامنة فورية مع السيرفر السحابي لتوحيد العقود عبر اللابتوب والموبايل والآيباد
+    fetch('/api/admin/system?action=GET_CONTRACTS', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.contracts) && data.contracts.length > 0) {
+          setSavedContracts(data.contracts);
+          localStorage.setItem('rtco_electronic_contracts', JSON.stringify(data.contracts));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const isSuperAdmin = useMemo(() => {
@@ -282,7 +294,7 @@ export default function ElectronicContractsPage() {
     setSavedContracts(updatedList);
     localStorage.setItem('rtco_electronic_contracts', JSON.stringify(updatedList));
 
-    // إرسال ومزامنة العقد للسيرفر المركزي لشموله بالنسخ الاحتياطي
+    // إرسال ومزامنة العقد للسيرفر المركزي لشموله بالنسخ الاحتياطي وتوحيد الأجهزة
     const cloudPayload = {
       id: newContractData.id,
       contractType: newContractData.category,
@@ -332,6 +344,15 @@ export default function ElectronicContractsPage() {
     setSavedContracts(updated);
     localStorage.setItem('rtco_electronic_contracts', JSON.stringify(updated));
 
+    // مزامنة حذف العقد على السيرفر المركزي
+    try {
+      await fetch('/api/admin/system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'DELETE_CONTRACT', contractId: id })
+      });
+    } catch {}
+
     await pushSystemNotification(
       `حذف عقد: ${targetContract.contractNo}`,
       `تم حذف ${targetContract.title} ذي الرقم (${targetContract.contractNo}) الخاص بالطرفين (${targetContract.sellerName}) و (${targetContract.buyerName}) من الأرشيف`,
@@ -364,10 +385,17 @@ export default function ElectronicContractsPage() {
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans print:bg-white print:p-0">
         
         <style jsx global>{`
+          /* ضبط المعاينة في شاشة الموبايل للتمرير السلس دون انضغاط */
+          @media screen and (max-width: 768px) {
+            .print-paper-sheet {
+              min-width: 720px !important;
+            }
+          }
+          /* أمر الطباعة الفعلي بمقاس A4 حقيقي موحد */
           @media print {
             @page {
-              size: A4 portrait;
-              margin: 8mm 10mm;
+              size: A4 portrait !important;
+              margin: 0 !important;
             }
             * {
               -webkit-print-color-adjust: exact !important;
@@ -376,18 +404,23 @@ export default function ElectronicContractsPage() {
             body, html {
               background-color: #ffffff !important;
               color: #0f172a !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 210mm !important;
             }
             .print-hidden-element {
               display: none !important;
             }
             .print-paper-sheet {
               box-shadow: none !important;
-              border: 2px solid #0f172a !important;
-              border-radius: 16px !important;
-              padding: 24px !important;
+              border: none !important;
+              border-radius: 0 !important;
+              padding: 10mm 12mm !important;
               margin: 0 !important;
-              width: 100% !important;
-              max-width: 100% !important;
+              width: 210mm !important;
+              max-width: 210mm !important;
+              min-height: 297mm !important;
+              page-break-after: always !important;
             }
           }
         `}</style>
@@ -934,7 +967,7 @@ export default function ElectronicContractsPage() {
 
               {/* حاوية A4 موحدة تمنع تشوه التصميم بين الهواتف والكمبيوتر */}
               <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
-                <div className="print-paper-sheet min-w-[650mm] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-2 print:border-slate-900 print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto">
+                <div className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto">
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
                     <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain" priority />
                   </div>

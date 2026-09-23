@@ -231,6 +231,7 @@ export default function AdministrativeDocumentsPage() {
       } catch {}
     }
 
+    // جلب من التخزين المحلي أولاً
     const stored = localStorage.getItem('rtco_official_documents');
     if (stored) {
       try {
@@ -238,6 +239,17 @@ export default function AdministrativeDocumentsPage() {
         setDocuments(parsed);
       } catch {}
     }
+
+    // مزامنة فورية وجلب الوثائق الرسمية من السيرفر السحابي لتوحيدها بين الأجهزة
+    fetch('/api/admin/system?action=GET_OFFICIAL_DOCS', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.documents) && data.documents.length > 0) {
+          setDocuments(data.documents);
+          localStorage.setItem('rtco_official_documents', JSON.stringify(data.documents));
+        }
+      })
+      .catch(() => {});
 
     setOutDocNumber(generateCode('ص'));
     setInDocNumber(generateCode('و'));
@@ -462,6 +474,15 @@ export default function AdministrativeDocumentsPage() {
 
     const updated = documents.filter(d => d.id !== id);
     if (safeSaveToStorage(updated)) {
+      // مزامنة حذف المستند على السيرفر السحابي
+      try {
+        await fetch('/api/admin/system', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'DELETE_OFFICIAL_DOC', docId: id })
+        });
+      } catch {}
+
       await pushSystemNotification(
         `حذف ${docTypeLabel}: ${docToDelete.docNumber}`,
         `تم حذف ${docTypeLabel} ذي العدد (${docToDelete.docNumber}) والخاص بـ (${docToDelete.partyName}) بموضوع: ${docToDelete.subject}`,
@@ -552,17 +573,29 @@ export default function AdministrativeDocumentsPage() {
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
         <style jsx global>{`
+          /* ضبط المعاينة في شاشة الموبايل للكتب والمرفقات */
+          @media screen and (max-width: 768px) {
+            .print-official-sheet,
+            .print-attachment-sheet {
+              min-width: 720px !important;
+            }
+          }
+          /* أمر الطباعة الفعلي للكتب الرسمية */
           @media print {
             @page {
               size: A4 portrait !important;
               margin: 0 !important;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
             }
             body, html {
               background-color: #ffffff !important;
               color: #0f172a !important;
               margin: 0 !important;
               padding: 0 !important;
-              width: 100% !important;
+              width: 210mm !important;
             }
             .print-hidden-element {
               display: none !important;
@@ -570,18 +603,21 @@ export default function AdministrativeDocumentsPage() {
             .print-official-sheet {
               box-shadow: none !important;
               border: none !important;
+              border-radius: 0 !important;
               margin: 0 !important;
-              width: 100% !important;
+              width: 210mm !important;
+              max-width: 210mm !important;
               min-height: 297mm !important;
-              max-width: none !important;
               padding: 0 !important;
               page-break-after: always !important;
             }
             .print-attachment-sheet {
               box-shadow: none !important;
               border: none !important;
+              border-radius: 0 !important;
               margin: 0 !important;
-              width: 100% !important;
+              width: 210mm !important;
+              max-width: 210mm !important;
               min-height: 297mm !important;
               page-break-before: always !important;
               page-break-after: always !important;
@@ -604,10 +640,10 @@ export default function AdministrativeDocumentsPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-xl md:text-2xl font-black text-white">إدارة الوثائق والكتب الرسمية والصادرة والواردة</h1>
                 <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  محرك ضغط ذكي فوري • مزامنة سحابية
+                  محرك ضغط ذكي فوري • مزامنة سحابية موحدة
                 </span>
               </div>
-              <p className="text-[13px] text-slate-400 mt-0.5">شركة البرج المتألق - فصل الوارد للكتاب الرئيسي والمرفقات المتعددة دون امتلاء الذاكرة</p>
+              <p className="text-[13px] text-slate-400 mt-0.5">شركة البرج المتألق - فصل الوارد للكتاب الرئيسي والمرفقات المتعددة ومزامنة كاملة عبر كافة الأجهزة</p>
             </div>
           </div>
 
@@ -1257,7 +1293,7 @@ export default function AdministrativeDocumentsPage() {
                           <span className="text-[10px] text-slate-300 mt-1 font-bold">صفحة مرفق #{idx + 1}</span>
                           <button
                             type="button"
-                            onClick={() => removeAttachment(idx, setInScannedUrls)}
+                            onClick={() => removeAttachment(idx, setOrderScannedUrls)}
                             className="absolute top-1 left-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full p-1 shadow cursor-pointer"
                             title="حذف هذا المرفق"
                           >
@@ -1544,10 +1580,10 @@ export default function AdministrativeDocumentsPage() {
 
               {/* حاوية متجاوبة بعرض قياسي A4 موحد لجميع الشاشات */}
               <div className="w-full max-w-[210mm] overflow-x-auto pb-6">
-                <div className="w-full min-w-[650px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
+                <div className="w-full min-w-[720px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
                   <div 
                     id="page-first"
-                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300"
+                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300 print:border-none print:m-0 print:p-0"
                   >
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
                       <div className="w-[460px] h-[460px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-25 relative p-6">
@@ -1759,7 +1795,7 @@ export default function AdministrativeDocumentsPage() {
                     <div 
                       id={`att-${aIdx}`}
                       key={aIdx} 
-                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-10 border border-slate-300 flex flex-col justify-start items-center min-h-[1120px]"
+                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-10 border border-slate-300 flex flex-col justify-start items-center min-h-[1120px] print:border-none print:m-0"
                     >
                       <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
                         <div className="flex items-center gap-3">

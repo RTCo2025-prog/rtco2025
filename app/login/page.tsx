@@ -18,18 +18,19 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth/users', {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'LOGIN',
-          username,
-          password
+          username: username.trim(),
+          password: password.trim()
         })
       });
 
       const data = await res.json();
       if (res.ok && data.success) {
+        // حفظ بيانات المستخدم وتوكن الجلسة الحصري للجهاز
         localStorage.setItem('erp_user', JSON.stringify(data.user));
         router.push('/');
       } else {

@@ -32,32 +32,79 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
   const [authorized, setAuthorized] = useState<boolean | null>(null);
 
   useEffect(() => {
-    const raw = localStorage.getItem('erp_user');
-    if (!raw) {
-      setAuthorized(false);
-      router.push('/login');
-      return;
-    }
+    let isMounted = true;
 
-    try {
-      const user = JSON.parse(raw);
-      if (user.status && user.status !== 'ACTIVE') {
-        localStorage.removeItem('erp_user');
-        setAuthorized(false);
-        router.push('/login');
+    const verifyExclusiveSession = async (user: any) => {
+      if (!user?.user_id || !user?.session_token) return true;
+      try {
+        const res = await fetch(
+          `/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(user.user_id)}&session_token=${encodeURIComponent(user.session_token)}`,
+          { cache: 'no-store' }
+        );
+        const data = await res.json();
+        if (data && data.valid === false) {
+          localStorage.removeItem('erp_user');
+          alert('تنبيه أمني: تم فتح هذا الحساب من جهاز آخر، تم إنهاء جلستك على هذا الجهاز تلقائياً.');
+          router.push('/login');
+          return false;
+        }
+        return true;
+      } catch {
+        return true;
+      }
+    };
+
+    const checkAuthAndSession = async () => {
+      const raw = localStorage.getItem('erp_user');
+      if (!raw) {
+        if (isMounted) {
+          setAuthorized(false);
+          router.push('/login');
+        }
         return;
       }
 
-      if (hasPermission(user, moduleName, requiredAction)) {
-        setAuthorized(true);
-      } else {
-        setAuthorized(false);
+      try {
+        const user = JSON.parse(raw);
+        if (user.status && user.status !== 'ACTIVE') {
+          localStorage.removeItem('erp_user');
+          if (isMounted) {
+            setAuthorized(false);
+            router.push('/login');
+          }
+          return;
+        }
+
+        // التحقق من أن هذا الجهاز هو الوحيد النشط
+        const isSessionValid = await verifyExclusiveSession(user);
+        if (!isSessionValid) return;
+
+        if (isMounted) {
+          if (hasPermission(user, moduleName, requiredAction)) {
+            setAuthorized(true);
+          } else {
+            setAuthorized(false);
+          }
+        }
+      } catch {
+        localStorage.removeItem('erp_user');
+        if (isMounted) {
+          setAuthorized(false);
+          router.push('/login');
+        }
       }
-    } catch {
-      localStorage.removeItem('erp_user');
-      setAuthorized(false);
-      router.push('/login');
-    }
+    };
+
+    // فحص فوري عند فتح الصفحة
+    checkAuthAndSession();
+
+    // فحص دوري مستمر لاكتشاف أي تسجيل دخول من جهاز آخر وإغلاق هذا الجهاز فوراً
+    const interval = setInterval(checkAuthAndSession, 4000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [router, moduleName, requiredAction]);
 
   if (authorized === null) {
