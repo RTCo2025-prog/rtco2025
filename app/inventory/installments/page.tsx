@@ -30,7 +30,9 @@ import {
   Layers, 
   ChevronDown, 
   ChevronUp, 
-  MessageSquareShare
+  MessageSquareShare,
+  Globe,
+  ShieldCheck
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -128,7 +130,7 @@ async function pushSystemNotification(title: string, message: string, sector: st
   }
 }
 
-// مزامنة عقد التقسيط مع السيرفر السحابي لحفظه في النسخ الاحتياطي
+// مزامنة عقد التقسيط مع السيرفر وقاعدة البيانات السحابية
 async function syncInstallmentToCloud(plan: any) {
   try {
     await fetch('/api/admin/system', {
@@ -146,6 +148,7 @@ export default function InstallmentsPage() {
   const [plans, setPlans] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [clientTypeFilter, setClientTypeFilter] = useState('ALL');
+  const [siteOrigin, setSiteOrigin] = useState('');
 
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
   const [customerType, setCustomerType] = useState<'INDIVIDUAL' | 'MERCHANT'>('INDIVIDUAL');
@@ -170,19 +173,50 @@ export default function InstallmentsPage() {
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setSiteOrigin(window.location.origin);
+    }
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
-        setCurrentUser(JSON.parse(raw));
+        const u = JSON.parse(raw);
+        setCurrentUser(u);
+
+        // التحقق من الجلسة الحصرية لمنع الدخول المزدوج
+        if (u.user_id && u.session_token) {
+          fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(u.user_id)}&session_token=${encodeURIComponent(u.session_token)}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.valid === false) {
+                localStorage.removeItem('erp_user');
+                alert('تنبيه أمني: تم فتح هذا الحساب من جهاز آخر، سيتم تحويلك لصفحة تسجيل الدخول.');
+                window.location.href = '/login';
+              }
+            })
+            .catch(() => {});
+        }
       } catch {}
     }
 
+    // قراءة أولية سريعة من الذاكرة المحلية
     const stored = localStorage.getItem('rtco_inventory_installments');
     if (stored) {
       try {
         setPlans(JSON.parse(stored));
       } catch {}
     }
+
+    // مزامنة فورية وجلب سجل الأقساط من السيرفر السحابي لتوحيد اللابتوب والموبايل والآيباد
+    fetch('/api/admin/system?action=GET_INSTALLMENTS', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && Array.isArray(data.installments) && data.installments.length > 0) {
+          setPlans(data.installments);
+          localStorage.setItem('rtco_inventory_installments', JSON.stringify(data.installments));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const isSuperAdmin = useMemo(() => {
@@ -306,7 +340,7 @@ export default function InstallmentsPage() {
     setPlans(updated);
     localStorage.setItem('rtco_inventory_installments', JSON.stringify(updated));
 
-    // مزامنة عقد التقسيط مع السيرفر السحابي لحفظه في النسخ الاحتياطي
+    // مزامنة عقد التقسيط مع السيرفر السحابي
     await syncInstallmentToCloud(newPlan);
 
     await pushSystemNotification(
@@ -467,6 +501,17 @@ export default function InstallmentsPage() {
     setPlans(updated);
     localStorage.setItem('rtco_inventory_installments', JSON.stringify(updated));
 
+    // حذف القيد من السيرفر السحابي
+    try {
+      await fetch('/api/admin/system', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'DELETE_INSTALLMENT', planId: id })
+      });
+    } catch (e) {
+      console.error('Failed to delete installment from cloud:', e);
+    }
+
     await pushSystemNotification(
       `حذف عقد تقسيط: ${planToDelete.id}`,
       `تم حذف عقد التقسيط ذي الرقم (${planToDelete.id}) للعميل (${planToDelete.customerName}) وإلغاء جدولة أقساطه من المنظومة`,
@@ -489,6 +534,13 @@ export default function InstallmentsPage() {
     const cleanPhone = phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/964${cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  const getVerificationUrl = (planId: string) => {
+    const origin = typeof window !== 'undefined' && window.location.origin
+      ? window.location.origin
+      : (siteOrigin || 'https://rtco2025.netlify.app');
+    return `${origin}/verify?type=installment&no=${encodeURIComponent(planId)}`;
   };
 
   const mergedClientsDisplay = useMemo(() => {
@@ -571,8 +623,60 @@ export default function InstallmentsPage() {
     <AuthGuard moduleName="installments" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
+        <style jsx global>{`
+          /* ضبط المعاينة في شاشة الموبايل للتمرير السلس */
+          @media screen and (max-width: 768px) {
+            .print-paper-sheet,
+            .print-voucher-sheet {
+              min-width: 720px !important;
+            }
+          }
+          /* أمر الطباعة الفعلي بمقاس A4 حقيقي موحد */
+          @media print {
+            @page {
+              size: A4 portrait !important;
+              margin: 0 !important;
+            }
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+            body, html {
+              background-color: #ffffff !important;
+              color: #0f172a !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              width: 210mm !important;
+            }
+            .print-hidden-element {
+              display: none !important;
+            }
+            .print-paper-sheet {
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              padding: 8mm 10mm !important;
+              margin: 0 !important;
+              width: 210mm !important;
+              max-width: 210mm !important;
+              min-height: 297mm !important;
+              page-break-after: always !important;
+            }
+            .print-voucher-sheet {
+              box-shadow: none !important;
+              border: none !important;
+              border-radius: 0 !important;
+              padding: 10mm 12mm !important;
+              margin: 0 !important;
+              width: 210mm !important;
+              max-width: 210mm !important;
+              page-break-after: always !important;
+            }
+          }
+        `}</style>
+
         {/* الترويسة الرئيسية */}
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden print-hidden-element">
           <div className="flex items-center gap-3.5">
             <div className="bg-emerald-500 p-3 rounded-2xl text-slate-950 font-black shadow-lg shadow-emerald-500/10">
               <CreditCard className="w-7 h-7" />
@@ -581,7 +685,7 @@ export default function InstallmentsPage() {
               <div className="flex items-center gap-2">
                 <h1 className="text-xl md:text-2xl font-black text-white">منظومة المبيعات بالأقساط والمواد المدمجة</h1>
                 <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  دمج كامل للعملاء والتجار
+                  مزامنة سحابية • باركود تحقق A4
                 </span>
               </div>
               <p className="text-[13px] text-slate-400 mt-0.5">تجميع كل مواد وفواتير العميل أو التاجر في حساب واحد مع إرسال التنبيهات وتفاصيل الحساب الكاملة</p>
@@ -610,7 +714,7 @@ export default function InstallmentsPage() {
         </div>
 
         {/* المؤشرات المالية */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 print:hidden">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 print:hidden print-hidden-element">
           <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-3xl shadow-xl">
             <span className="text-xs text-slate-400 font-semibold block">إجمالي مبيعات الأقساط الكلية</span>
             <div className="text-2xl font-black font-mono text-emerald-400 mt-2">
@@ -637,7 +741,7 @@ export default function InstallmentsPage() {
         </div>
 
         {/* أدوات البحث والفلترة */}
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 print:hidden">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 mt-6 print:hidden print-hidden-element">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-80">
               <Search className="w-4 h-4 text-slate-400 absolute right-3.5 top-3" />
@@ -667,7 +771,7 @@ export default function InstallmentsPage() {
         </div>
 
         {/* كروت العرض المدمجة */}
-        <div className="max-w-7xl mx-auto space-y-6 mt-4 print:hidden">
+        <div className="max-w-7xl mx-auto space-y-6 mt-4 print:hidden print-hidden-element">
           {mergedClientsDisplay.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 p-10 rounded-3xl text-center text-slate-500 text-xs">
               لا توجد عقود تقسيط مسجلة مطابقة للبحث. اضغط على "فتح عقد تقسيط جديد" للبدء.
@@ -1097,7 +1201,7 @@ export default function InstallmentsPage() {
         {/* سند قبض القسط A4 */}
         {receiptVoucherForPrint && (
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
-            <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
+            <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden print-hidden-element shadow-xl">
               <button
                 onClick={() => window.print()}
                 className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer"
@@ -1109,189 +1213,231 @@ export default function InstallmentsPage() {
               </button>
             </div>
 
-            <div className="w-full max-w-3xl bg-white text-slate-950 rounded-3xl p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6 font-sans">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                    <Image src="/logo.png" alt="شركة البرج المتألق" width={56} height={56} className="object-contain" priority />
+            <div className="w-full max-w-3xl overflow-x-auto pb-4">
+              <div className="print-voucher-sheet min-w-[720px] sm:min-w-0 bg-white text-slate-950 rounded-3xl p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6 font-sans">
+                <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                      <Image src="/logo.png" alt="شركة البرج المتألق" width={56} height={56} className="object-contain" priority />
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
+                      <p className="text-xs text-slate-600 font-bold">قسم التجارة العامة والتوزيع بالتقسيط</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | 07868006699</p>
+                    </div>
+                  </div>
+                  <div className="text-left font-mono text-xs">
+                    <div className="border-2 border-slate-900 px-3 py-1 font-black bg-emerald-600 text-white rounded-lg inline-block">
+                      سند قبض قسط شهري
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-800 mt-2">رقم الوصل: {receiptVoucherForPrint.voucherNo}</p>
+                    <p className="text-[11px] text-slate-500">التاريخ: {receiptVoucherForPrint.date}</p>
+                  </div>
+                </div>
+
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 text-xs">
+                  <p>استلمنا من السيد/ة: <strong className="text-slate-950 text-sm">{receiptVoucherForPrint.customerName}</strong></p>
+                  <p>مبلغاً وقدره: <strong className="font-mono text-emerald-700 text-base">{formatNum(receiptVoucherForPrint.amount)} د.ع</strong></p>
+                  <p className="font-bold text-slate-700">{receiptVoucherForPrint.amountWords}</p>
+                  <p className="pt-2 border-t border-slate-200">
+                    وذلك عن: <strong>سداد القسط رقم ({receiptVoucherForPrint.installmentNumber}) من أصل ({receiptVoucherForPrint.totalInstallments}) أقساط عن بضاعة ({receiptVoucherForPrint.goodsDescription}).</strong>
+                  </p>
+                  <p className="text-[11px] font-mono text-slate-600">
+                    المتبقي بذمة العميل بعد هذا السداد: <strong className="text-rose-700">{formatNum(receiptVoucherForPrint.remainingAfterPayment)} د.ع</strong>
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-3 gap-6 pt-10 text-center text-xs">
+                  <div>
+                    <p className="font-bold text-slate-700">المستلم / المحاسب</p>
+                    <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
                   <div>
-                    <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold">قسم التجارة العامة والتوزيع بالتقسيط</p>
-                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | 07868006699</p>
+                    <p className="font-bold text-slate-700">المسدد / العميل</p>
+                    <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
-                </div>
-                <div className="text-left font-mono text-xs">
-                  <div className="border-2 border-slate-900 px-3 py-1 font-black bg-emerald-600 text-white rounded-lg inline-block">
-                    سند قبض قسط شهري
+                  <div>
+                    <p className="font-bold text-slate-700">ختم الشركة المعتمد</p>
+                    <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
-                  <p className="text-[11px] font-bold text-slate-800 mt-2">رقم الوصل: {receiptVoucherForPrint.voucherNo}</p>
-                  <p className="text-[11px] text-slate-500">التاريخ: {receiptVoucherForPrint.date}</p>
-                </div>
-              </div>
-
-              <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 text-xs">
-                <p>استلمنا من السيد/ة: <strong className="text-slate-950 text-sm">{receiptVoucherForPrint.customerName}</strong></p>
-                <p>مبلغاً وقدره: <strong className="font-mono text-emerald-700 text-base">{formatNum(receiptVoucherForPrint.amount)} د.ع</strong></p>
-                <p className="font-bold text-slate-700">{receiptVoucherForPrint.amountWords}</p>
-                <p className="pt-2 border-t border-slate-200">
-                  وذلك عن: <strong>سداد القسط رقم ({receiptVoucherForPrint.installmentNumber}) من أصل ({receiptVoucherForPrint.totalInstallments}) أقساط عن بضاعة ({receiptVoucherForPrint.goodsDescription}).</strong>
-                </p>
-                <p className="text-[11px] font-mono text-slate-600">
-                  المتبقي بذمة العميل بعد هذا السداد: <strong className="text-rose-700">{formatNum(receiptVoucherForPrint.remainingAfterPayment)} د.ع</strong>
-                </p>
-              </div>
-
-              <div className="grid grid-cols-3 gap-6 pt-10 text-center text-xs">
-                <div>
-                  <p className="font-bold text-slate-700">المستلم / المحاسب</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700">المسدد / العميل</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700">ختم الشركة المعتمد</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* وثيقة العقد وجدول الأقساط A4 */}
-        {selectedPlanForPrint && (
-          <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
-            <div className="w-full max-w-4xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
-              <button
-                onClick={() => window.print()}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer"
-              >
-                <Printer className="w-4 h-4" /> طباعة جدول وعقد التقسيط (A4)
-              </button>
-              <button onClick={() => setSelectedPlanForPrint(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        {/* وثيقة العقد وجدول الأقساط A4 مع الباركود السحابي المباشر */}
+        {selectedPlanForPrint && (() => {
+          const verificationUrl = getVerificationUrl(selectedPlanForPrint.id);
+          const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
 
-            <div className="w-full max-w-4xl bg-white text-slate-950 rounded-3xl p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-5 font-sans">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4">
-                <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                    <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+          return (
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static">
+              <div className="w-full max-w-[210mm] flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden print-hidden-element shadow-xl">
+                <button
+                  onClick={() => window.print()}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
+                >
+                  <Printer className="w-4 h-4" /> طباعة جدول وعقد التقسيط (A4)
+                </button>
+                <button onClick={() => setSelectedPlanForPrint(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
+                <div className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-950 rounded-3xl p-6 sm:p-8 md:p-10 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 font-sans my-auto">
+                  
+                  {/* رأس ورقة التقسيط */}
+                  <div className="flex justify-between items-center border-b-2 border-slate-900 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                        <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mb-0.5">
+                          قسم التجارة العامة • سجل الأقساط
+                        </span>
+                        <h1 className="text-xl font-black text-slate-950">شركة البرج المتألق</h1>
+                        <p className="text-xs text-slate-600 font-bold">عقد بيع بالتقسيط المريح وجدولة الاستحقاق</p>
+                      </div>
+                    </div>
+                    <div className="text-left font-mono text-xs">
+                      <div className="border-2 border-slate-900 px-3 py-1 font-black bg-slate-950 text-white rounded-lg inline-block">
+                        عقد رقم: {selectedPlanForPrint.id}
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
+                    </div>
                   </div>
+
+                  {/* بيانات المشتري والحساب */}
+                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+                    <div className="space-y-1">
+                      <strong className="text-slate-950 block border-b border-slate-200 pb-1">معلومات المشتري:</strong>
+                      <p>الاسم: <strong className="text-slate-950">{selectedPlanForPrint.customerName}</strong></p>
+                      <p>الهاتف: <span className="font-mono">{selectedPlanForPrint.customerPhone}</span></p>
+                      <p>الهوية / السجل: <span className="font-mono">{selectedPlanForPrint.customerIdCard || '---'}</span></p>
+                      <p>العنوان: {selectedPlanForPrint.customerAddress}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <strong className="text-slate-950 block border-b border-slate-200 pb-1">ملخص الحساب:</strong>
+                      <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono text-emerald-700">{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
+                      <p>المقدمة المستلمة: <strong className="font-mono text-slate-950">{formatNum(selectedPlanForPrint.downPayment)} د.ع</strong></p>
+                      <p>المتبقي بالأقساط: <strong className="font-mono text-rose-700">{formatNum(selectedPlanForPrint.remainingBalance)} د.ع</strong></p>
+                      <p>الكفيل الضامن: {selectedPlanForPrint.guarantorName || 'بدون كفيل'} ({selectedPlanForPrint.guarantorPhone || '---'})</p>
+                    </div>
+                  </div>
+
+                  {/* قائمة المواد والبضائع */}
+                  {selectedPlanForPrint.items && selectedPlanForPrint.items.length > 0 && (
+                    <div>
+                      <strong className="text-xs font-bold text-slate-950 block mb-1">قائمة المواد والبضائع المدمجة بالعقد:</strong>
+                      <div className="border border-slate-300 rounded-xl overflow-hidden">
+                        <table className="w-full text-right text-xs">
+                          <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+                            <tr>
+                              <th className="p-2">المادة</th>
+                              <th className="p-2 text-center">الكمية</th>
+                              <th className="p-2">سعر الوحدة</th>
+                              <th className="p-2 text-left">الإجمالي النقدي</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 font-mono text-[11px]">
+                            {selectedPlanForPrint.items.map((it: any, iIdx: number) => (
+                              <tr key={iIdx}>
+                                <td className="p-2 font-sans font-bold text-slate-950">{it.itemName}</td>
+                                <td className="p-2 text-center">{it.qty} {it.unit}</td>
+                                <td className="p-2">{formatNum(it.price)} د.ع</td>
+                                <td className="p-2 text-left font-bold text-slate-900">{formatNum(it.total)} د.ع</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* جدول استحقاق الأقساط */}
                   <div>
-                    <h1 className="text-xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold">عقد بيع بالتقسيط المريح وجدولة الاستحقاق</p>
-                  </div>
-                </div>
-                <div className="text-left font-mono text-xs">
-                  <div className="border-2 border-slate-900 px-3 py-1 font-black bg-slate-950 text-white rounded-lg inline-block">
-                    عقد رقم: {selectedPlanForPrint.id}
-                  </div>
-                  <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs">
-                <div className="space-y-1">
-                  <strong className="text-slate-950 block border-b border-slate-200 pb-1">معلومات المشتري:</strong>
-                  <p>الاسم: <strong className="text-slate-950">{selectedPlanForPrint.customerName}</strong></p>
-                  <p>الهاتف: <span className="font-mono">{selectedPlanForPrint.customerPhone}</span></p>
-                  <p>الهوية / السجل: <span className="font-mono">{selectedPlanForPrint.customerIdCard || '---'}</span></p>
-                  <p>العنوان: {selectedPlanForPrint.customerAddress}</p>
-                </div>
-                <div className="space-y-1">
-                  <strong className="text-slate-950 block border-b border-slate-200 pb-1">ملخص الحساب:</strong>
-                  <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono text-emerald-700">{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
-                  <p>المقدمة المستلمة: <strong className="font-mono">{formatNum(selectedPlanForPrint.downPayment)} د.ع</strong></p>
-                  <p>المتبقي بالأقساط: <strong className="font-mono text-rose-700">{formatNum(selectedPlanForPrint.remainingBalance)} د.ع</strong></p>
-                  <p>الكفيل الضامن: {selectedPlanForPrint.guarantorName || 'بدون كفيل'} ({selectedPlanForPrint.guarantorPhone || '---'})</p>
-                </div>
-              </div>
-
-              {selectedPlanForPrint.items && selectedPlanForPrint.items.length > 0 && (
-                <div>
-                  <strong className="text-xs font-bold text-slate-950 block mb-1.5">قائمة المواد والبضائع المدمجة بالعقد:</strong>
-                  <div className="border border-slate-300 rounded-xl overflow-hidden">
-                    <table className="w-full text-right text-xs">
-                      <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
-                        <tr>
-                          <th className="p-2">المادة</th>
-                          <th className="p-2 text-center">الكمية</th>
-                          <th className="p-2">سعر الوحدة</th>
-                          <th className="p-2 text-left">الإجمالي النقدي</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200 font-mono text-[11px]">
-                        {selectedPlanForPrint.items.map((it: any, iIdx: number) => (
-                          <tr key={iIdx}>
-                            <td className="p-2 font-sans font-bold text-slate-950">{it.itemName}</td>
-                            <td className="p-2 text-center">{it.qty} {it.unit}</td>
-                            <td className="p-2">{formatNum(it.price)} د.ع</td>
-                            <td className="p-2 text-left font-bold text-slate-900">{formatNum(it.total)} د.ع</td>
+                    <strong className="text-xs font-bold text-slate-950 block mb-1">جدول استحقاق الأقساط الشهرية:</strong>
+                    <div className="border border-slate-300 rounded-xl overflow-hidden">
+                      <table className="w-full text-right text-xs font-mono">
+                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+                          <tr>
+                            <th className="p-2 text-center">القسط</th>
+                            <th className="p-2">المبلغ المطلوب</th>
+                            <th className="p-2">تاريخ الاستحقاق</th>
+                            <th className="p-2 text-center">حالة السداد</th>
+                            <th className="p-2 text-center">تاريخ السداد / الوصل</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-200 text-[11px]">
+                          {selectedPlanForPrint.installments.map((inst: any) => (
+                            <tr key={inst.installmentNumber}>
+                              <td className="p-1.5 text-center font-bold">#{inst.installmentNumber}</td>
+                              <td className="p-1.5 font-black text-slate-900">{formatNum(inst.amount)} د.ع</td>
+                              <td className="p-1.5 text-slate-600">{inst.dueDate}</td>
+                              <td className="p-1.5 text-center font-sans">
+                                {inst.status === 'PAID' ? (
+                                  <span className="text-emerald-700 font-bold">تم السداد ✓</span>
+                                ) : (
+                                  <span className="text-amber-700 font-bold">مستحق</span>
+                                )}
+                              </td>
+                              <td className="p-1.5 text-center text-slate-500 text-[10px]">
+                                {inst.voucherNo ? `${inst.voucherNo} (${inst.paidAt})` : '---'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
-                </div>
-              )}
 
-              <div>
-                <strong className="text-xs font-bold text-slate-950 block mb-1.5">جدول استحقاق الأقساط الشهرية:</strong>
-                <div className="border border-slate-300 rounded-xl overflow-hidden">
-                  <table className="w-full text-right text-xs font-mono">
-                    <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                      <tr>
-                        <th className="p-2 text-center">القسط</th>
-                        <th className="p-2">المبلغ المطلوب</th>
-                        <th className="p-2">تاريخ الاستحقاق</th>
-                        <th className="p-2 text-center">حالة السداد</th>
-                        <th className="p-2 text-center">تاريخ السداد / الوصل</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {selectedPlanForPrint.installments.map((inst: any) => (
-                        <tr key={inst.installmentNumber}>
-                          <td className="p-2 text-center font-bold">#{inst.installmentNumber}</td>
-                          <td className="p-2 font-black text-slate-900">{formatNum(inst.amount)} د.ع</td>
-                          <td className="p-2 text-slate-600">{inst.dueDate}</td>
-                          <td className="p-2 text-center font-sans">
-                            {inst.status === 'PAID' ? (
-                              <span className="text-emerald-700 font-bold">تم السداد ✓</span>
-                            ) : (
-                              <span className="text-amber-700 font-bold">مستحق</span>
-                            )}
-                          </td>
-                          <td className="p-2 text-center text-slate-500 text-[11px]">
-                            {inst.voucherNo ? `${inst.voucherNo} (${inst.paidAt})` : '---'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+                  {/* منطقة التواقيع والباركود التوثيقي */}
+                  <div className="grid grid-cols-4 gap-4 pt-4 text-center text-xs items-end border-t border-slate-200">
+                    <div>
+                      <p className="font-bold text-slate-950 text-xs">توقيع المشتري</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                    </div>
 
-              <div className="grid grid-cols-3 gap-6 pt-6 text-center text-xs border-t border-slate-200">
-                <div>
-                  <p className="font-bold text-slate-700">توقيع المشتري</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-6"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700">توقيع الكفيل</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-6"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700">مصادقة إدارة الشركة</p>
-                  <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-6"></div>
+                    <div>
+                      <p className="font-bold text-slate-950 text-xs">توقيع الكفيل الضامن</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                    </div>
+
+                    {/* الباركود السحابي للتحقق المباشر */}
+                    <div className="flex flex-col items-center justify-center">
+                      <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img 
+                          src={qrCodeApiUrl} 
+                          alt="باركود التحقق الإلكتروني وسجل الأقساط" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                      <span className="font-mono text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-0.5">
+                        <Globe className="w-2.5 h-2.5" /> امسح لسجل الأقساط أونلاين
+                      </span>
+                    </div>
+
+                    <div>
+                      <p className="font-bold text-slate-950 text-xs">مصادقة إدارة الشركة</p>
+                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                    </div>
+                  </div>
+
+                  {/* ذيل الورقة */}
+                  <div className="text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between">
+                    <span>شركة البرج المتألق للتجارة العامة والمقاولات والاستثمار العقاري</span>
+                    <span>النجف الأشرف - حي الفرات • هاتف الإدارة: 07868006699 - 07737006699</span>
+                  </div>
+
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
       </div>
     </AuthGuard>

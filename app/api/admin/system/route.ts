@@ -194,7 +194,45 @@ export async function GET(req: Request) {
       });
     }
 
-    // 3. تصدير وتنزيل النسخة الاحتياطية الشاملة
+    // 3. جلب عقود المبيعات بالأقساط لتوحيدها بين جميع الأجهزة
+    if (action === 'GET_INSTALLMENTS') {
+      const res = await query(`
+        SELECT * FROM installment_contracts 
+        ORDER BY created_at DESC 
+        LIMIT 500
+      `);
+
+      const installments = (res.rows || []).map((row: any) => ({
+        id: row.id,
+        customerType: row.customer_type,
+        customerName: row.customer_name,
+        customerPhone: row.customer_phone || '',
+        customerIdCard: row.customer_id_card || '',
+        customerAddress: row.customer_address || '',
+        items: typeof row.items === 'string' ? JSON.parse(row.items) : (row.items || []),
+        goodsDescription: row.goods_description || '',
+        cashPrice: Number(row.cash_price) || 0,
+        profitRate: Number(row.profit_rate) || 0,
+        totalInstallmentPrice: Number(row.total_installment_price) || 0,
+        downPayment: Number(row.down_payment) || 0,
+        remainingBalance: Number(row.remaining_balance) || 0,
+        totalPaid: Number(row.total_paid) || 0,
+        monthsCount: Number(row.months_count) || 1,
+        monthlyInstallment: Number(row.monthly_installment) || 0,
+        startDate: row.start_date ? new Date(row.start_date).toISOString().substring(0, 10) : '',
+        guarantorName: row.guarantor_name || '',
+        guarantorPhone: row.guarantor_phone || '',
+        status: row.status || 'ACTIVE',
+        installments: typeof row.installments === 'string' ? JSON.parse(row.installments) : (row.installments || []),
+        createdAt: row.created_at
+      }));
+
+      return NextResponse.json({ success: true, installments }, {
+        headers: { 'Cache-Control': 'no-store, max-age=0' }
+      });
+    }
+
+    // 4. تصدير وتنزيل النسخة الاحتياطية الشاملة
     if (action === 'BACKUP_DATABASE') {
       const [
         branches,
@@ -539,7 +577,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 8. مزامنة الأقساط
+    // 8. مزامنة وحفظ الأقساط سحابياً
     if (action === 'SYNC_INSTALLMENT') {
       const { plan } = body;
       await query(
@@ -547,16 +585,36 @@ export async function POST(req: Request) {
          (id, customer_type, customer_name, customer_phone, customer_id_card, customer_address, items, goods_description, cash_price, profit_rate, total_installment_price, down_payment, remaining_balance, total_paid, months_count, monthly_installment, start_date, guarantor_name, guarantor_phone, status, installments)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
          ON CONFLICT (id) DO UPDATE SET
-         remaining_balance = EXCLUDED.remaining_balance, total_paid = EXCLUDED.total_paid, status = EXCLUDED.status, installments = EXCLUDED.installments`,
+         customer_name = EXCLUDED.customer_name, customer_phone = EXCLUDED.customer_phone,
+         customer_id_card = EXCLUDED.customer_id_card, customer_address = EXCLUDED.customer_address,
+         items = EXCLUDED.items, goods_description = EXCLUDED.goods_description,
+         cash_price = EXCLUDED.cash_price, profit_rate = EXCLUDED.profit_rate,
+         total_installment_price = EXCLUDED.total_installment_price, down_payment = EXCLUDED.down_payment,
+         remaining_balance = EXCLUDED.remaining_balance, total_paid = EXCLUDED.total_paid,
+         months_count = EXCLUDED.months_count, monthly_installment = EXCLUDED.monthly_installment,
+         start_date = EXCLUDED.start_date, guarantor_name = EXCLUDED.guarantor_name,
+         guarantor_phone = EXCLUDED.guarantor_phone, status = EXCLUDED.status,
+         installments = EXCLUDED.installments`,
         [
-          plan.id, plan.customerType, plan.customerName, plan.customerPhone, plan.customerIdCard,
-          plan.customerAddress, JSON.stringify(plan.items || []), plan.goodsDescription,
-          plan.cashPrice || 0, plan.profitRate || 0, plan.totalInstallmentPrice || 0,
-          plan.downPayment || 0, plan.remainingBalance || 0, plan.totalPaid || 0,
-          plan.monthsCount || 1, plan.monthlyInstallment || 0, plan.startDate,
-          plan.guarantorName, plan.guarantorPhone, plan.status || 'ACTIVE', JSON.stringify(plan.installments || [])
+          plan.id, plan.customerType || 'INDIVIDUAL', plan.customerName, plan.customerPhone || '',
+          plan.customerIdCard || '', plan.customerAddress || '', JSON.stringify(plan.items || []),
+          plan.goodsDescription || '', plan.cashPrice || 0, plan.profitRate || 0,
+          plan.totalInstallmentPrice || 0, plan.downPayment || 0, plan.remainingBalance || 0,
+          plan.totalPaid || 0, plan.monthsCount || 1, plan.monthlyInstallment || 0,
+          plan.startDate || new Date().toISOString().substring(0, 10),
+          plan.guarantorName || '', plan.guarantorPhone || '', plan.status || 'ACTIVE',
+          JSON.stringify(plan.installments || [])
         ]
       );
+      return NextResponse.json({ success: true });
+    }
+
+    // 9. حذف خطة تقسيط من السيرفر السحابي
+    if (action === 'DELETE_INSTALLMENT') {
+      const { planId } = body;
+      if (planId) {
+        await query(`DELETE FROM installment_contracts WHERE id = $1`, [planId]);
+      }
       return NextResponse.json({ success: true });
     }
 
