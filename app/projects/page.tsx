@@ -40,7 +40,9 @@ import {
   ArrowUpRight,
   PieChart,
   Coins,
-  Eye
+  Eye,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -1135,59 +1137,81 @@ export default function ProjectsPage() {
     <AuthGuard moduleName="contracting" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
-        {/* الترويسة الرئيسية */}
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden">
-          <div className="flex items-center gap-3.5">
-            <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-slate-900 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10 p-1">
-              <Image 
-                src="/logo.png" 
-                alt="شركة البرج المتألق" 
-                width={40} 
-                height={40} 
-                className="object-contain" 
-                priority
-              />
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
+        <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الشعار والعنوان والشارة */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
+                <Image 
+                  src="/logo.png" 
+                  alt="شركة البرج المتألق" 
+                  width={48} 
+                  height={48} 
+                  className="object-contain" 
+                  priority
+                />
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    إدارة مشاريع المقاولات والإعمار (ERP المتكامل)
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    General Contracting
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق للمقاولات العامة والاستثمارات العقارية
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-black text-white">إدارة مشاريع المقاولات والإعمار (ERP المتكامل)</h1>
-              <p className="text-[13px] text-slate-400 mt-0.5">شركة البرج المتألق للمقاولات العامة والاستثمارات العقارية</p>
-            </div>
-          </div>
 
-          <div className="flex items-center gap-3 self-end md:self-auto">
-            <div className="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-2xl">
-              <div className="w-9 h-9 rounded-full overflow-hidden border border-amber-500/50 bg-slate-800 flex items-center justify-center">
-                {currentUser.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-4 h-4 text-amber-400" />
-                )}
+            {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع في سطر واحد ثابت */}
+            <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-500/50 bg-slate-800 flex items-center justify-center shrink-0">
+                  {currentUser.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4 text-amber-400" />
+                  )}
+                </div>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">{currentUser.full_name}</p>
+                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border inline-block mt-0.5 ${roleColor}`}>
+                    {roleTitle}
+                  </span>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="text-slate-400 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition mr-0.5 cursor-pointer"
+                  title="تسجيل الخروج"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
               </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-white leading-tight">{currentUser.full_name}</p>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold border inline-block mt-0.5 ${roleColor}`}>
-                  {roleTitle}
-                </span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="text-slate-400 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition mr-1"
-                title="تسجيل الخروج"
+
+              {permissions.canManageVouchers && (
+                <Link 
+                  href="/vouchers" 
+                  className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-purple-400 border border-purple-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer shadow-sm"
+                >
+                  <Receipt className="w-4 h-4" /> شاشة السندات
+                </Link>
+              )}
+
+              <Link 
+                href="/" 
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
-              </button>
+                <Home className="w-4 h-4" /> الرئيسية
+              </Link>
             </div>
 
-            {permissions.canManageVouchers && (
-              <Link href="/vouchers" className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-700 transition">
-                <Receipt className="w-4 h-4 text-purple-400" /> شاشة السندات المالية
-              </Link>
-            )}
-
-            <Link href="/" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-800 transition">
-              <ArrowLeft className="w-4 h-4" /> الرئيسية
-            </Link>
           </div>
         </div>
 

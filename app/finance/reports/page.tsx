@@ -31,7 +31,8 @@ import {
   Sparkles,
   ShieldCheck,
   CheckCircle2,
-  TrendingDown
+  TrendingDown,
+  Home
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -459,50 +460,63 @@ export default function FinancialReportsPage() {
     <AuthGuard moduleName="vouchers" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
-        {/* الترويسة الرئيسية المنظمة */}
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-900 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-xl shadow-amber-500/10 p-1">
-              <Image 
-                src="/logo.png" 
-                alt="شركة البرج المتألق" 
-                width={48} 
-                height={48} 
-                className="object-contain" 
-                priority 
-              />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-black text-white">التقرير المالي التنفيذي وتحليل الاستثمار الموحد</h1>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  RTCO Executive Analytics 2026
-                </span>
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
+        <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الشعار والعنوان والشارة */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
+                <Image 
+                  src="/logo.png" 
+                  alt="شركة البرج المتألق" 
+                  width={48} 
+                  height={48} 
+                  className="object-contain" 
+                  priority 
+                />
               </div>
-              <p className="text-xs text-slate-400 mt-1">المركز المالي لشركة البرج المتألق - التحليل الزمني، الرسوم البيانية، واستقلالية القطاعات</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    التقرير المالي التنفيذي وتحليل الاستثمار الموحد
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    RTCO Executive Analytics 2026
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق • المركز المالي، التحليل الزمني، الرسوم البيانية، واستقلالية القطاعات
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2.5 self-end md:self-auto flex-nowrap">
-            <button 
-              onClick={loadAllData} 
-              className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer" 
-              title="تحديث ومزامنة البيانات اللحظية"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button 
-              onClick={() => window.print()} 
-              className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer whitespace-nowrap"
-            >
-              <Printer className="w-4 h-4" /> طباعة الميزانية والقوائم (A4)
-            </button>
-            <Link 
-              href="/" 
-              className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs font-bold hover:bg-slate-800 transition text-slate-300 whitespace-nowrap"
-            >
-              <ArrowLeft className="w-4 h-4" /> الرئيسية
-            </Link>
+            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع في سطر واحد ثابت */}
+            <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
+              <button 
+                onClick={loadAllData} 
+                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer active:scale-95 shadow-sm"
+                title="تحديث ومزامنة البيانات اللحظية"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+
+              <button 
+                onClick={() => window.print()} 
+                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-amber-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" /> طباعة الميزانية والقوائم (A4)
+              </button>
+
+              <Link 
+                href="/" 
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
+              >
+                <Home className="w-4 h-4" /> الرئيسية
+              </Link>
+            </div>
+
           </div>
         </div>
 

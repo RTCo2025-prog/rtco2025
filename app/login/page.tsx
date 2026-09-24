@@ -18,7 +18,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/auth', {
+      // الاعتماد الكلي على مسار نظام المستخدمين الحديث system_users
+      const res = await fetch('/api/auth/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -30,11 +31,11 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // حفظ بيانات المستخدم وتوكن الجلسة الحصري للجهاز
+        // حفظ بيانات المستخدم وصلاحياته الحديثة في الـ localStorage
         localStorage.setItem('erp_user', JSON.stringify(data.user));
         router.push('/');
       } else {
-        setErrorMsg(data.error || 'فشل تسجيل الدخول، تأكد من صحة البيانات');
+        setErrorMsg(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
       }
     } catch {
       setErrorMsg('حدث خطأ في الاتصال بقاعدة البيانات');
@@ -51,7 +52,7 @@ export default function LoginPage() {
             <Image src="/logo.png" alt="شركة البرج المتألق" width={48} height={48} className="object-contain" priority />
           </div>
           <h1 className="text-xl font-black text-white">منظومة شركة البرج المتألق</h1>
-          <p className="text-xs text-slate-400">بوابة الدخول الرسمية - الدخول مقيد بالحسابات المعتمدة</p>
+          <p className="text-xs text-slate-400">بوابة الدخول الرسمية - النظام المتقدم</p>
         </div>
 
         {errorMsg && (
@@ -69,7 +70,7 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
-                placeholder="أدخل اسم المستخدم المعتمد..."
+                placeholder="أدخل اسم المستخدم (مثال: eng_nawres)"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-10 pl-3 py-2.5 text-white outline-none focus:border-emerald-500 font-mono"
@@ -103,7 +104,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-[11px] text-slate-500 text-center leading-relaxed">
-          إنشاء الحسابات وتحديد الصلاحيات يتم حصراً عبر المدير المفوض للشركة.
+          إشاء الحسابات وإدارة الصلاحيات تتم حصراً عبر لوحة المدير المفوض.
         </p>
       </div>
     </div>

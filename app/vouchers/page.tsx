@@ -17,22 +17,24 @@ import {
   RotateCcw, 
   HardHat, 
   Link2, 
-  Truck, 
+  Truck,
   Layers, 
-  FileSpreadsheet,
-  PieChart,
-  Package,
-  User,
-  Coins,
-  Building,
-  Boxes,
-  Users,
-  Eye,
-  Info,
-  Calendar,
-  CreditCard,
-  Languages,
-  Lock
+  FileSpreadsheet, 
+  PieChart, 
+  Package, 
+  User, 
+  Coins, 
+  Building, 
+  Boxes, 
+  Users, 
+  Eye, 
+  Info, 
+  Calendar, 
+  CreditCard, 
+  Languages, 
+  Lock,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -299,7 +301,6 @@ export default function VouchersPage() {
     }
   }, []);
 
-  // فحص الصلاحيات الدقيقة لقسم المالية والسندات
   const canAdd = useMemo(() => {
     return hasPermission(currentUser, 'vouchers', 'add');
   }, [currentUser]);
@@ -553,36 +554,171 @@ export default function VouchersPage() {
     setFilterSector('ALL');
   };
 
+  // دالة تصدير ملف إكسل منسق بتصميم شركة البرج المتألق مع تلوين السندات الملغية بالأحمر والخط 14pt
   const exportCSV = () => {
     if (filteredVouchers.length === 0) {
       alert('لا توجد بيانات لتصديرها');
       return;
     }
-    const headers = ['رقم السند', 'النوع', 'المبلغ', 'العملة', 'المستفيد / الطرف', 'القطاع / المشروع', 'البيان', 'التاريخ'];
-    const rows = filteredVouchers.map(v => {
+
+    const escapeXml = (unsafe: any) => {
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
+
+    const headers = [
+      'رقم السند',
+      'تاريخ السند',
+      'نوع السند',
+      'المبلغ المحرر',
+      'العملة',
+      'المستفيد / الطرف',
+      'القطاع / المشروع',
+      'طريقة الدفع',
+      'البيان والغرض من الصرف',
+      'حالة السند'
+    ];
+
+    let rowsXml = '';
+
+    filteredVouchers.forEach((v) => {
       const d = parseVoucherData(v);
-      const sectorTitle = d.sector === 'FLEET' || d.sector === 'TRANSPORT_LOGISTICS' ? 'أسطول النقل' : 
-                          d.sector === 'INVENTORY' ? 'المخزن والتجارة' :
-                          d.sector === 'REAL_ESTATE' ? 'العقارات والاستثمار' :
-                          d.sector === 'HR' ? 'الموارد البشرية' :
-                          v.project_name || 'عام';
-      return [
-        `"${v.voucher_number}"`,
-        v.voucher_type === 'RECEIPT' ? 'وصل قبض' : 'سند صرف',
-        v.total_amount,
-        v.currency,
-        `"${d.partyAr}"`,
-        `"${sectorTitle}"`,
-        `"${d.forReasonAr}"`,
-        `"${String(v.issue_date || '').split('T')[0]}"`
-      ];
+      const isCancelled = v.status === 'CANCELLED' || v.status === 'VOID' || d.isCancelled;
+      const isReceipt = String(v.voucher_type || '').toUpperCase() === 'RECEIPT';
+
+      const sec = String(d.sector || '').toUpperCase();
+      const sectorTitle = 
+        sec === 'FLEET' || sec === 'TRANSPORT_LOGISTICS' ? 'أسطول النقل اللوجستي' : 
+        sec === 'INVENTORY' ? 'المخزن والتجارة العامة' :
+        sec === 'REAL_ESTATE' ? 'العقارات والاستثمار' :
+        sec === 'HR' ? 'الموارد البشرية والرواتب' :
+        v.project_name ? `مشروع: ${v.project_name}` : 'مصروفات وإيرادات عامة';
+
+      const payMethodStr = d.method === 'CHEQUE' 
+        ? `شيك (${d.chequeNo || 'بدون رقم'}) - ${d.bank || 'المصرف'}` 
+        : 'نقداً (Cash)';
+
+      const statusTitle = isCancelled ? 'ملغي (VOID)' : 'جاري (ACTIVE)';
+
+      // تلوين الصف بالكامل: أحمر فاتح للسند الملغي، وأبيض أو تدرج رمادي فاتح للسند الجاري
+      const rowBg = isCancelled ? '#fee2e2' : '#ffffff';
+      const textColor = isCancelled ? '#991b1b' : '#0f172a';
+      const numStrike = isCancelled ? 'text-decoration: line-through;' : '';
+      const statusBadgeBg = isCancelled ? '#f87171' : (isReceipt ? '#34d399' : '#fb7185');
+      const statusBadgeText = isCancelled ? '#7f1d1d' : (isReceipt ? '#064e3b' : '#881337');
+
+      rowsXml += `
+        <tr style="background-color: ${rowBg}; color: ${textColor}; height: 38px;">
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-weight: bold; color: ${isCancelled ? '#b91c1c' : '#b45309'}; ${numStrike}">
+            ${escapeXml(v.voucher_number)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-family: monospace;">
+            ${escapeXml(String(v.issue_date || v.created_at || '').split('T')[0])}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-weight: bold; color: ${isReceipt ? '#059669' : '#dc2626'};">
+            ${isReceipt ? 'وصل قبض' : 'سند صرف'}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: left; font-weight: bold; font-family: monospace; ${numStrike}">
+            ${escapeXml(formatNum(v.total_amount || v.amount))}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center;">
+            ${escapeXml(v.currency)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right; font-weight: bold;">
+            ${escapeXml(d.partyAr)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right;">
+            ${escapeXml(sectorTitle)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right;">
+            ${escapeXml(payMethodStr)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: right;">
+            ${escapeXml(d.forReasonAr)}
+          </td>
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-weight: bold; background-color: ${statusBadgeBg}; color: ${statusBadgeText};">
+            ${escapeXml(statusTitle)}
+          </td>
+        </tr>
+      `;
     });
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    const fullHtml = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>سجل السندات والقيود المالية</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayRightToLeft/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif;
+            font-size: 14pt;
+            direction: rtl;
+          }
+        </style>
+      </head>
+      <body>
+        <div style="direction: rtl; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif; padding: 20px;">
+          
+          <!-- ترويسة وهوية شركة البرج المتألق الرسمية -->
+          <table style="width: 100%; border-bottom: 3px solid #d97706; margin-bottom: 15px; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif;">
+            <tr>
+              <td style="text-align: right; vertical-align: middle; width: 65%;">
+                <h1 style="color: #d97706; margin: 0; font-size: 20pt; font-weight: 900;">شركة البرج المتألق</h1>
+                <p style="color: #0f172a; margin: 4px 0 0 0; font-size: 12pt; font-weight: bold;">للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام</p>
+                <p style="color: #64748b; margin: 2px 0 0 0; font-size: 10pt;">النجف الأشرف - حي الفرات | الإدارة المالية والمحاسبية: 07868006699 - 07737006699</p>
+              </td>
+              <td style="text-align: left; vertical-align: middle; width: 35%;">
+                <div style="border: 2px solid #0f172a; background-color: #f8fafc; padding: 10px 18px; border-radius: 10px; display: inline-block;">
+                  <strong style="color: #0f172a; font-size: 14pt; display: block;">سجل السندات والقيود المالية</strong>
+                  <span style="color: #d97706; font-size: 11pt; font-weight: bold;">تاريخ التصدير: ${new Date().toISOString().substring(0, 10)}</span>
+                </div>
+              </td>
+            </tr>
+          </table>
+
+          <!-- جدول البيانات المنسق بالكامل مع خط 14pt وتلوين الحالات -->
+          <table border="1" cellpadding="8" cellspacing="0" style="width: 100%; border-collapse: collapse; border: 1.5px solid #0f172a; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif; font-size: 14pt;">
+            <thead>
+              <tr style="background-color: #0f172a; color: #ffffff; text-align: center; font-weight: bold; height: 42px;">
+                ${headers.map(h => `<th style="border: 1px solid #334155; padding: 10px; font-size: 14pt; background-color: #0f172a; color: #f8fafc;">${escapeXml(h)}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>
+              ${rowsXml}
+            </tbody>
+          </table>
+
+          <p style="color: #94a3b8; font-size: 11pt; margin-top: 15px; text-align: left; direction: ltr;">
+            Generated automatically by Al Burj Al Mutalaa'iq Management System - Financial Accounting Unit
+          </p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    const blob = new Blob(['\uFEFF' + fullHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `سندات_وحسابات_البرج_المتألق_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `سجل_السندات_المالية_البرج_المتألق_${new Date().toISOString().substring(0, 10)}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -644,41 +780,63 @@ export default function VouchersPage() {
 
         {/* 1. قسم إدارة السندات */}
         <div className="print-hide">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-slate-900 border border-amber-500/30 flex items-center justify-center shrink-0 shadow-lg shadow-amber-500/10 p-1">
-                <Image 
-                  src="/logo.png" 
-                  alt="شركة البرج المتألق" 
-                  width={40} 
-                  height={40} 
-                  className="object-contain" 
-                  priority
-                />
-              </div>
-              <div>
-                <h1 className="text-xl font-black text-white">إدارة السندات والقيود المالية المركزية</h1>
-                <p className="text-[13px] text-slate-400">شركة البرج المتألق - نظام السندات الدفتري والمالي لجميع قطاعات الشركة</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-3 flex-wrap">
-              <Link 
-                href="/finance/reports" 
-                className="flex items-center gap-2 bg-sky-500/15 border border-sky-500/40 text-sky-400 px-4 py-2.5 rounded-xl text-[14px] hover:bg-sky-500/25 transition font-bold shadow-lg shadow-sky-500/10"
-              >
-                <PieChart className="w-4 h-4" /> التقارير وقائمة الدخل
-              </Link>
+          
+          {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
+          <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80">
+            <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
               
-              <Link href="/fleet" className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-700 transition text-emerald-400">
-                <Truck className="w-4 h-4" /> أسطول النقل اللوجستي
-              </Link>
-              <Link href="/projects" className="flex items-center gap-2 bg-slate-800 border border-slate-700 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-700 transition text-amber-400">
-                <HardHat className="w-4 h-4" /> إدارة المشاريع
-              </Link>
-              <Link href="/" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-800 transition">
-                <ArrowLeft className="w-4 h-4" /> العودة للرئيسية
-              </Link>
+              {/* الطرف الأيمن: الشعار والعنوان والشارة */}
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
+                  <Image 
+                    src="/logo.png" 
+                    alt="شركة البرج المتألق" 
+                    width={48} 
+                    height={48} 
+                    className="object-contain" 
+                    priority
+                  />
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                      إدارة السندات والقيود المالية المركزية
+                    </h1>
+                    <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                      <Sparkles className="w-3 h-3 text-amber-400" />
+                      Financial Vouchers Ledger
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 font-medium">
+                    شركة البرج المتألق • نظام السندات الدفتري والمالي لجميع قطاعات الشركة
+                  </p>
+                </div>
+              </div>
+
+              {/* الطرف الأيسر: شريط الإجراءات والتنقل السريع في سطر واحد ثابت بعد حذف زر الأسطول */}
+              <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
+                <Link 
+                  href="/finance/reports" 
+                  className="px-4 py-2.5 bg-sky-500/15 hover:bg-sky-500/25 border border-sky-500/40 text-sky-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-sky-500/10 whitespace-nowrap active:scale-95 cursor-pointer"
+                >
+                  <PieChart className="w-4 h-4" /> التقارير وقائمة الدخل
+                </Link>
+
+                <Link 
+                  href="/projects" 
+                  className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-amber-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer shadow-sm"
+                >
+                  <HardHat className="w-4 h-4" /> إدارة المشاريع
+                </Link>
+
+                <Link 
+                  href="/" 
+                  className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
+                >
+                  <Home className="w-4 h-4" /> الرئيسية
+                </Link>
+              </div>
+
             </div>
           </div>
 

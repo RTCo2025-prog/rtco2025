@@ -24,7 +24,9 @@ import {
   ShoppingBag, 
   Printer, 
   FileText,
-  CreditCard
+  CreditCard,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -326,39 +328,56 @@ export default function InventoryPage() {
     <AuthGuard moduleName="inventory" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
-        {/* الترويسة الرئيسية مع تنظيم الأزرار بشكل احترافي ومرتب */}
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between pb-6 border-b border-slate-800 gap-6 print:hidden">
-          
-          <div className="flex items-center gap-3.5">
-            <div className="bg-amber-500 p-3 rounded-2xl text-slate-950 font-black shadow-lg shadow-amber-500/10 shrink-0">
-              <Boxes className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl md:text-2xl font-black text-white">قطاع التجارة العامة والمخزن المركزي وإدارة التوريدات</h1>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  Enterprise Inventory & Smart Orders
-                </span>
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل دون التفاف أو نزول للأزرار */}
+        <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-amber-500/20 shrink-0 flex items-center justify-center">
+                <Boxes className="w-8 h-8" />
               </div>
-              <p className="text-[13px] text-slate-400 mt-1">شركة البرج المتألق - أذونات الاستلام، الصرف الموقعي، والنواقص، والتحليل المالي</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    قطاع التجارة العامة والمخزن المركزي وإدارة التوريدات
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                    <Sparkles className="w-3 h-3 text-amber-400" />
+                    Enterprise Inventory & Smart Orders
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق • أذونات الاستلام، الصرف الموقعي، والنواقص، والتحليل المالي
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2.5 self-end lg:self-auto flex-wrap justify-start lg:justify-end">
-            <Link 
-              href="/inventory/installments" 
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold px-4 py-2.5 rounded-2xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-600/20 border border-emerald-400/30"
-            >
-              <CreditCard className="w-4 h-4" /> نظام بيع الأقساط والتجارة الآجلة
-            </Link>
+            {/* الطرف الأيسر: شريط الإجراءات في سطر واحد ثابت يمنع التكدس */}
+            <div className="flex items-center gap-2 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
+              <Link 
+                href="/inventory/installments" 
+                className="px-3.5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition shadow-md whitespace-nowrap active:scale-95 cursor-pointer"
+              >
+                <CreditCard className="w-4 h-4" /> نظام بيع الأقساط والتجارة الآجلة
+              </Link>
 
-            <button onClick={loadData} className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer" title="تحديث البيانات">
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
+              <button 
+                onClick={loadData} 
+                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer active:scale-95 shadow-sm" 
+                title="تحديث البيانات"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
 
-            <Link href="/" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-[14px] hover:bg-slate-800 transition font-bold text-slate-300">
-              <ArrowLeft className="w-4 h-4" /> الرئيسية
-            </Link>
+              <Link 
+                href="/" 
+                className="px-3.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md whitespace-nowrap active:scale-95 cursor-pointer"
+              >
+                <Home className="w-4 h-4" /> الرئيسية
+              </Link>
+            </div>
+
           </div>
         </div>
 

@@ -36,9 +36,10 @@ import {
   Layers, 
   ChevronDown, 
   AlertTriangle, 
-  Plus,
-  FileCode,
-  Zap
+  Plus, 
+  FileCode, 
+  Zap, 
+  Home
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -732,47 +733,241 @@ export default function AdministrativeDocumentsPage() {
     }
   };
 
+  // دالة تصدير ملف إكسل رسمي متعدد الأوراق بنظام XML SpreadsheetML الحقيقي
   const exportActiveTabExcel = () => {
-    const list = documents.filter(d => d.type === activeTab);
-    if (list.length === 0) {
-      alert('لا توجد وثائق في هذا السجل لتصديرها');
-      return;
-    }
-    const tabName = activeTab === 'OUTGOING' ? 'سجل_الصادر' : activeTab === 'INCOMING' ? 'سجل_الوارد' : 'سجل_الأوامر';
-    
-    let headers: string[] = [];
-    let rows: any[] = [];
+    const outgoingDocs = documents.filter(d => d.type === 'OUTGOING');
+    const incomingDocs = documents.filter(d => d.type === 'INCOMING');
+    const orderDocs = documents.filter(d => d.type === 'INTERNAL_ORDER');
 
-    if (activeTab === 'OUTGOING' || activeTab === 'INTERNAL_ORDER') {
-      headers = ['العدد', 'التاريخ', 'الأسبقية', 'الجهة', 'الموضوع', 'المرفقات', 'الموقع'];
-      rows = list.map(d => [
-        `"${d.docNumber}"`,
-        `"${d.docDate}"`,
-        d.priority === 'URGENT' ? 'عاجل' : d.priority === 'TOP_SECRET' ? 'سري' : 'اعتيادي',
-        `"${d.partyName}"`,
-        `"${d.subject}"`,
-        `"${d.attachments || 'لا يوجد'}"`,
-        `"${d.signatoryName || ''}"`
-      ]);
-    } else {
-      headers = ['رقم قيد الوارد', 'تاريخ الورود', 'رقم كتاب الجهة', 'تاريخ كتاب الجهة', 'من / الجهة الوارد منها', 'الموضوع', 'المرفقات'];
-      rows = list.map(d => [
-        `"${d.docNumber}"`,
-        `"${d.docDate}"`,
-        `"${d.senderDocNumber || '---'}"`,
-        `"${d.senderDocDate || '---'}"`,
-        `"${d.partyName}"`,
-        `"${d.subject}"`,
-        `"${d.attachments || 'لا يوجد'}"`
-      ]);
-    }
+    const escapeXml = (unsafe: any) => {
+      if (unsafe === null || unsafe === undefined) return '';
+      return String(unsafe)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&apos;');
+    };
 
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const buildXmlWorksheet = (sheetName: string, titleArabic: string, headers: string[], rows: any[][]) => {
+      let rowsXml = '';
+
+      // سطر الترويسة 1: اسم الشركة الرسمي بحجم 16pt غامق ذهبي
+      rowsXml += `
+        <Row ss:Height="32">
+          <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sCompanyHeader">
+            <Data ss:Type="String">شركة البرج المتألق للمقاولات العامة والاستثمارات العقارية والتجارة والنقل العام</Data>
+          </Cell>
+        </Row>
+      `;
+
+      // سطر الترويسة 2: عنوان السجل الحالي وتاريخ التصدير
+      rowsXml += `
+        <Row ss:Height="26">
+          <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sSubHeader">
+            <Data ss:Type="String">${escapeXml(titleArabic)}  |  تاريخ التصدير: ${new Date().toISOString().substring(0, 10)}</Data>
+          </Cell>
+        </Row>
+      `;
+
+      // سطر فارغ فاصل
+      rowsXml += `<Row ss:Height="12" />`;
+
+      // سطر عناوين الأعمدة بحجم خط 14pt ولون كحلي
+      rowsXml += `<Row ss:Height="28">`;
+      headers.forEach(h => {
+        rowsXml += `
+          <Cell ss:StyleID="sColHeader">
+            <Data ss:Type="String">${escapeXml(h)}</Data>
+          </Cell>
+        `;
+      });
+      rowsXml += `</Row>`;
+
+      // سطور البيانات بحجم خط 14pt وتنسيق منسق
+      if (rows.length === 0) {
+        rowsXml += `
+          <Row ss:Height="30">
+            <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sDataCenter">
+              <Data ss:Type="String">لا توجد وثائق مسجلة في هذا السجل حالياً.</Data>
+            </Cell>
+          </Row>
+        `;
+      } else {
+        rows.forEach((row, rIdx) => {
+          const isEven = rIdx % 2 === 0;
+          const styleId = isEven ? 'sDataRow' : 'sDataRowAlt';
+          const styleIdCenter = isEven ? 'sDataCenter' : 'sDataCenterAlt';
+
+          rowsXml += `<Row ss:Height="26">`;
+          row.forEach((cellVal, cIdx) => {
+            const isCenterCol = cIdx === 0 || cIdx === 1 || cIdx === 2;
+            const targetStyle = isCenterCol ? styleIdCenter : styleId;
+            rowsXml += `
+              <Cell ss:StyleID="${targetStyle}">
+                <Data ss:Type="String">${escapeXml(cellVal)}</Data>
+              </Cell>
+            `;
+          });
+          rowsXml += `</Row>`;
+        });
+      }
+
+      return `
+        <Worksheet ss:Name="${escapeXml(sheetName)}">
+          <Table ss:DefaultColumnWidth="140" ss:DefaultRowHeight="24">
+            <Column ss:Width="160" />
+            <Column ss:Width="130" />
+            <Column ss:Width="110" />
+            <Column ss:Width="230" />
+            <Column ss:Width="280" />
+            <Column ss:Width="180" />
+            <Column ss:Width="160" />
+            ${rowsXml}
+          </Table>
+          <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+            <DisplayRightToLeft/>
+            <Selected/>
+            <Panes>
+              <Pane>
+                <Number>3</Number>
+                <ActiveRow>1</ActiveRow>
+              </Pane>
+            </Panes>
+            <ProtectObjects>False</ProtectObjects>
+            <ProtectScenarios>False</ProtectScenarios>
+          </WorksheetOptions>
+        </Worksheet>
+      `;
+    };
+
+    // إعداد بيانات السجلات الثلاثة
+    const outgoingHeaders = ['العدد الإداري', 'تاريخ الصادر', 'درجة الأسبقية', 'الجهة الموجه إليها', 'موضوع الكتاب', 'المرفقات', 'الموقع على الكتاب'];
+    const outgoingRows = outgoingDocs.map(d => [
+      d.docNumber,
+      d.docDate,
+      d.priority === 'URGENT' ? 'عاجل وفوري' : d.priority === 'TOP_SECRET' ? 'سري وشخصي' : 'اعتيادي',
+      d.partyName,
+      d.subject,
+      d.attachments || 'لا يوجد',
+      d.signatoryName || 'المدير المفوض'
+    ]);
+
+    const incomingHeaders = ['رقم قيد الوارد', 'تاريخ الاستلام', 'عدد كتاب الجهة', 'تاريخ كتاب الجهة', 'الجهة الوارد منها', 'موضوع الكتاب', 'المرفقات'];
+    const incomingRows = incomingDocs.map(d => [
+      d.docNumber,
+      d.docDate,
+      d.senderDocNumber || '---',
+      d.senderDocDate || '---',
+      d.partyName,
+      d.subject,
+      d.attachments || 'لا يوجد'
+    ]);
+
+    const orderHeaders = ['رقم الأمر الإداري', 'تاريخ الأمر', 'الأسبقية', 'الجهة المعنية / الموجه إليها', 'موضوع القرار', 'المرفقات', 'الموقع'];
+    const orderRows = orderDocs.map(d => [
+      d.docNumber,
+      d.docDate,
+      'اعتيادي',
+      d.partyName,
+      d.subject,
+      d.attachments || 'لا يوجد',
+      d.signatoryName || 'المدير المفوض'
+    ]);
+
+    // تجميع مصنف الإكسل المتكامل والمتوافق مع أحدث معايير مايكروسوفت أوفيس
+    const excelXmlWorkbook = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:html="http://www.w3.org/TR/REC-html40">
+ <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
+  <Author>شركة البرج المتألق</Author>
+  <Company>Al Burj Al Mutalaa'iq Co</Company>
+  <Created>${new Date().toISOString()}</Created>
+ </DocumentProperties>
+ <Styles>
+  <Style ss:ID="Default" ss:Name="Normal">
+   <Alignment ss:Vertical="Center" ss:ReadingOrder="RightToLeft" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Color="#0F172A" />
+  </Style>
+  <Style ss:ID="sCompanyHeader">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="16" ss:Bold="1" ss:Color="#D97706" />
+   <Interior ss:Color="#FEF3C7" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#D97706" />
+   </Borders>
+  </Style>
+  <Style ss:ID="sSubHeader">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="12" ss:Bold="1" ss:Color="#334155" />
+   <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
+  </Style>
+  <Style ss:ID="sColHeader">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="#FFFFFF" />
+   <Interior ss:Color="#0F172A" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#334155" />
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#334155" />
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#334155" />
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#334155" />
+   </Borders>
+  </Style>
+  <Style ss:ID="sDataRow">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Color="#0F172A" />
+   <Interior ss:Color="#FFFFFF" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+   </Borders>
+  </Style>
+  <Style ss:ID="sDataRowAlt">
+   <Alignment ss:Horizontal="Right" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Color="#0F172A" />
+   <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+   </Borders>
+  </Style>
+  <Style ss:ID="sDataCenter">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="#B45309" />
+   <Interior ss:Color="#FFFFFF" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+   </Borders>
+  </Style>
+  <Style ss:ID="sDataCenterAlt">
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="#B45309" />
+   <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
+   <Borders>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
+   </Borders>
+  </Style>
+ </Styles>
+ ${buildXmlWorksheet('سجل الكتب الصادرة', 'سجل الكتب الرسمية الصادرة للشركة', outgoingHeaders, outgoingRows)}
+ ${buildXmlWorksheet('سجل الكتب الواردة', 'سجل الكتب والمخاطبات الرسمية الواردة', incomingHeaders, incomingRows)}
+ ${buildXmlWorksheet('سجل الأوامر الإدارية', 'سجل الأوامر والقرارات الإدارية الداخلية', orderHeaders, orderRows)}
+</Workbook>`;
+
+    const blob = new Blob([excelXmlWorkbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `${tabName}_البرج_المتألق_${new Date().toISOString().substring(0, 10)}.csv`);
+    link.setAttribute('download', `أرشيف_الكتب_الرسمية_البرج_المتألق_${new Date().toISOString().substring(0, 10)}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -867,7 +1062,7 @@ export default function AdministrativeDocumentsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية المحسنة بتصميم متناسق وأنيق */}
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
@@ -892,8 +1087,8 @@ export default function AdministrativeDocumentsPage() {
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات والأزرار المنسقة على سطر واحد */}
-            <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap">
+            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل في سطر واحد ثابت */}
+            <div className="flex items-center gap-2 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               {canAdd && (
                 <>
                   <button
@@ -902,7 +1097,7 @@ export default function AdministrativeDocumentsPage() {
                       setOutScannedUrls([]);
                       setShowOutgoingModal(true);
                     }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer active:scale-95"
+                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
                   >
                     <Send className="w-4 h-4" /> صادر جديد +
                   </button>
@@ -914,7 +1109,7 @@ export default function AdministrativeDocumentsPage() {
                       setInScannedUrls([]);
                       setShowIncomingModal(true);
                     }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 hover:to-sky-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-sky-500/20 cursor-pointer active:scale-95"
+                    className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 hover:to-sky-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-sky-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
                   >
                     <Inbox className="w-4 h-4" /> وارد جديد +
                   </button>
@@ -925,7 +1120,7 @@ export default function AdministrativeDocumentsPage() {
                       setOrderScannedUrls([]);
                       setShowOrderModal(true);
                     }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
                   >
                     <Bookmark className="w-4 h-4" /> أمر إداري +
                   </button>
@@ -934,7 +1129,7 @@ export default function AdministrativeDocumentsPage() {
 
               <button
                 onClick={exportActiveTabExcel}
-                className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer shadow-sm"
                 title="تصدير السجل المفتوح حالياً إلى Excel"
               >
                 <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
@@ -942,9 +1137,9 @@ export default function AdministrativeDocumentsPage() {
 
               <Link
                 href="/"
-                className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
               >
-                <ArrowLeft className="w-4 h-4" /> الرئيسية
+                <Home className="w-4 h-4" /> الرئيسية
               </Link>
             </div>
 
@@ -1444,7 +1639,7 @@ export default function AdministrativeDocumentsPage() {
                       placeholder="مثال: م / المصادقة على المخططات الفنية"
                       value={inSubject}
                       onChange={(e) => setInSubject(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
                     />
                   </div>
                   <div>

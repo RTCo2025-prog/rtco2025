@@ -7,22 +7,30 @@ import { ShieldAlert } from 'lucide-react';
 
 interface AuthGuardProps {
   children: React.ReactNode;
-  moduleName?: string; // اسم القسم: fleet, hr, vouchers, contracting, realestate, trading...
+  moduleName?: string; // اسم القسم: fleet, hr, vouchers, contracting, realestate, inventory...
   requiredAction?: 'view' | 'add' | 'edit' | 'delete';
-  allowedRoles?: string[]; // للتوافق العكسي
 }
 
+/**
+ * دالة التحقق من الصلاحيات بناءً على النظام الحديث (system_users و JSONB)
+ */
 export function hasPermission(
   user: any,
   moduleName?: string,
   action: 'view' | 'add' | 'edit' | 'delete' = 'view'
 ): boolean {
   if (!user) return false;
-  // المدير المفوض يمتلك كافة الصلاحيات بدون قيود
-  if (user.is_super_admin || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') return true;
+  
+  // المدير المفوض أو الحساب الشامل يمتلك كافة الصلاحيات تلقائياً
+  if (user.is_super_admin || user.username === 'admin' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+    return true;
+  }
+  
   if (!moduleName) return true;
 
   const perms = user.permissions || {};
+  
+  // التحقق من الصلاحية الشاملة أو الصلاحية الخاصة بالقسم المجدول
   if (perms.all && perms.all[action]) return true;
   return !!(perms[moduleName] && perms[moduleName][action]);
 }
@@ -33,26 +41,6 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
 
   useEffect(() => {
     let isMounted = true;
-
-    const verifyExclusiveSession = async (user: any) => {
-      if (!user?.user_id || !user?.session_token) return true;
-      try {
-        const res = await fetch(
-          `/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(user.user_id)}&session_token=${encodeURIComponent(user.session_token)}`,
-          { cache: 'no-store' }
-        );
-        const data = await res.json();
-        if (data && data.valid === false) {
-          localStorage.removeItem('erp_user');
-          alert('تنبيه أمني: تم فتح هذا الحساب من جهاز آخر، تم إنهاء جلستك على هذا الجهاز تلقائياً.');
-          router.push('/login');
-          return false;
-        }
-        return true;
-      } catch {
-        return true;
-      }
-    };
 
     const checkAuthAndSession = async () => {
       const raw = localStorage.getItem('erp_user');
@@ -66,6 +54,8 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
 
       try {
         const user = JSON.parse(raw);
+        
+        // التحقق من حالة الحساب (نشط أو موقوف)
         if (user.status && user.status !== 'ACTIVE') {
           localStorage.removeItem('erp_user');
           if (isMounted) {
@@ -75,11 +65,8 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
           return;
         }
 
-        // التحقق من أن هذا الجهاز هو الوحيد النشط
-        const isSessionValid = await verifyExclusiveSession(user);
-        if (!isSessionValid) return;
-
         if (isMounted) {
+          // التحقق من الصلاحية وفقاً للنظام الحديث
           if (hasPermission(user, moduleName, requiredAction)) {
             setAuthorized(true);
           } else {
@@ -95,16 +82,7 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
       }
     };
 
-    // فحص فوري عند فتح الصفحة
     checkAuthAndSession();
-
-    // فحص دوري مستمر لاكتشاف أي تسجيل دخول من جهاز آخر وإغلاق هذا الجهاز فوراً
-    const interval = setInterval(checkAuthAndSession, 4000);
-
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
   }, [router, moduleName, requiredAction]);
 
   if (authorized === null) {
@@ -112,7 +90,7 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 font-cairo">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs">جاري التحقق من أذونات الدخول...</span>
+          <span className="text-xs">جاري التحقق من أذونات الدخول الحديثة...</span>
         </div>
       </div>
     );
