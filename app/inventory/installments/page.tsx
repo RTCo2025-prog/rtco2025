@@ -32,7 +32,9 @@ import {
   ChevronUp, 
   MessageSquareShare,
   Globe,
-  ShieldCheck
+  ShieldCheck,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -675,41 +677,60 @@ export default function InstallmentsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية */}
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden print-hidden-element">
-          <div className="flex items-center gap-3.5">
-            <div className="bg-emerald-500 p-3 rounded-2xl text-slate-950 font-black shadow-lg shadow-emerald-500/10">
-              <CreditCard className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl md:text-2xl font-black text-white">منظومة المبيعات بالأقساط والمواد المدمجة</h1>
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  مزامنة سحابية • باركود تحقق A4
-                </span>
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر */}
+        <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-emerald-500/20 shrink-0 flex items-center justify-center">
+                <CreditCard className="w-8 h-8" />
               </div>
-              <p className="text-[13px] text-slate-400 mt-0.5">تجميع كل مواد وفواتير العميل أو التاجر في حساب واحد مع إرسال التنبيهات وتفاصيل الحساب الكاملة</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    منظومة المبيعات بالأقساط والمواد المدمجة
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    مزامنة سحابية • باركود تحقق A4
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق • تجميع فواتير ومواد العميل في حساب موحد مع إرسال التنبيهات وإصدار الوصولات
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {canAdd && (
-              <button
-                onClick={() => {
-                  setItemLines([{ itemName: '', qty: 1, unit: 'قطعة', price: 0, total: 0 }]);
-                  setShowNewPlanModal(true);
-                }}
-                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-500/20 cursor-pointer"
+            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع */}
+            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap self-end sm:self-auto">
+              {canAdd && (
+                <button
+                  onClick={() => {
+                    setItemLines([{ itemName: '', qty: 1, unit: 'قطعة', price: 0, total: 0 }]);
+                    setShowNewPlanModal(true);
+                  }}
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
+                >
+                  <PlusCircle className="w-4 h-4" /> فتح عقد تقسيط جديد +
+                </button>
+              )}
+
+              <Link
+                href="/inventory"
+                className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
               >
-                <PlusCircle className="w-4 h-4" /> فتح عقد تقسيط جديد (دمج مواد)
-              </button>
-            )}
-            <Link
-              href="/inventory"
-              className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs hover:bg-slate-800 transition text-slate-300"
-            >
-              <ArrowLeft className="w-4 h-4" /> العودة للمخزن
-            </Link>
+                <ArrowLeft className="w-4 h-4" /> المخزن
+              </Link>
+
+              <Link
+                href="/"
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95"
+              >
+                <Home className="w-4 h-4" /> الرئيسية
+              </Link>
+            </div>
+
           </div>
         </div>
 

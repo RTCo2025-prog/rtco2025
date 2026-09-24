@@ -425,30 +425,48 @@ export default function ElectronicContractsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية */}
-        <div className="max-w-5xl mx-auto flex flex-col sm:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4 print:hidden print-hidden-element">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 relative rounded-2xl overflow-hidden bg-slate-900 border border-purple-500/30 flex items-center justify-center shrink-0 p-1 shadow-lg shadow-purple-500/10">
-              <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-white">منظومة العقود الإلكترونية الرسمية</h1>
-                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-mono px-2 py-0.5 rounded-full font-bold">
-                  أرشيف العقود • باركود تحقق مباشر
-                </span>
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر */}
+        <div className="max-w-5xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الشعار والعنوان والوصف */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-purple-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-purple-500/10">
+                <Image src="/logo.png" alt="شركة البرج المتألق" width={48} height={48} className="object-contain" priority />
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">عقود معتمدة لبيع وإيجار السيارات، الدراجات، والدور السكنية والأملاك</p>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    منظومة العقود الإلكترونية الرسمية
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
+                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                    أرشيف العقود • باركود تحقق مباشر
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق • عقود معتمدة لبيع وإيجار السيارات، الدراجات، والدور السكنية والأملاك
+                </p>
+              </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            <Link
-              href="/real-estate"
-              className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-xs hover:bg-slate-800 transition text-slate-300"
-            >
-              <ArrowLeft className="w-4 h-4" /> العودة للعقارات
-            </Link>
+            {/* الطرف الأيسر: أزرار التنقل السريع */}
+            <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap self-end sm:self-auto">
+              <Link
+                href="/real-estate"
+                className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+              >
+                <ArrowLeft className="w-4 h-4" /> العقارات
+              </Link>
+
+              <Link
+                href="/"
+                className="px-4 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-purple-500/20 cursor-pointer active:scale-95"
+              >
+                <Home className="w-4 h-4" /> الرئيسية
+              </Link>
+            </div>
+
           </div>
         </div>
 

@@ -36,7 +36,9 @@ import {
   Layers, 
   ChevronDown, 
   AlertTriangle, 
-  Plus 
+  Plus,
+  FileCode,
+  Zap
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -272,6 +274,240 @@ export default function AdministrativeDocumentsPage() {
     return Boolean(isSuperAdmin || hasPermission(currentUser, 'admin_docs', 'delete'));
   }, [currentUser, isSuperAdmin]);
 
+  // مكتبة النماذج والصيغ الرسمية الشاملة والموسعة (24 نموذجاً تخصصياً)
+  const documentTemplates = useMemo(() => {
+    return {
+      OUTGOING: [
+        {
+          label: 'طلب صرف سلفة إنجاز',
+          badge: 'مالية وعقود',
+          recipient: 'إلى / ديوان محافظة النجف الأشرف - قسم الحسابات وتدقيق العقود',
+          subject: 'م / طلب صرف السلفة المرحلية رقم (   )',
+          content: 'تحية طيبة واعتزاز...\nإشارةً إلى العقد المبرم معنا المرقم (...........) الخاص بتنفيذ مشروع (................................)، ونظراً لإتمام الأعمال المحددة ضمن الذرعة الحالية ومصادقة دائرة المهندس المقيم عليها.\nيرجى تفضلكم بالموافقة على تدقيق وصرف مبلغ السلفة المرحلية المستحقة والبالغة (............) دينار عراقي، ليتسنى لنا الاستمرار في تمويل وتيرة العمل دون توقف.\n\nشاكرين عالي اهتمامكم وتعاونكم.',
+          attachments: 'طياً ذرعة العمل المنجز + كشف الحساب المصادق'
+        },
+        {
+          label: 'تأييد استمرارية خدمة',
+          badge: 'موارد بشرية',
+          recipient: 'إلى / من يهمه الأمر',
+          subject: 'م / تأييد استمرار بالخدمة',
+          content: 'تهديكم شركة البرج المتألق للمقاولات والتجارة العامة أطيب التحيات.\nنؤيد لكم بأن السيد/ة (..................) مستمر/ة بالعمل والخدمة الوظيفية لدى شركتنا بصفة (مهندس موقع / إداري) وذلك اعتباراً من تاريخ (   /   / 202  ) ولحد الآن، ويتقاضى راتباً شهرياً قدره (............) دينار عراقي.\nوقد زُوّد بهذا التأييد بناءً على طلبه/ا لتقديمه إلى جهتكم الموقرة دون أدنى مسؤولية مالية أو قانونية مترتبة على شركتنا تجاه الغير.\n\nمع فائق الشكر والتقدير.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'إشعار إنجاز وتسليم موقعي',
+          badge: 'هندسة وتنفيذ',
+          recipient: 'إلى / دائرة المهندس المقيم - مشروع (....................)',
+          subject: 'م / إشعار بإنجاز كافة الأعمال التعاقدية وتسليم أولي',
+          content: 'تحية طيبة...\nنود إعلامكم بأن شركتنا قد أتمت بنجاح كافة الفقرات والأعمال الإنشائية والخدمية التعاقدية الخاصة بالمشروع المذكور أعلاه، ووفقاً لأرقى المواصفات الفنية وجداول الكميات والشروط العامة للمقاولات.\nيرجى التفضل بمفاتحة الجهة المعنية لتشكيل لجنة الاستلام الأولي للمشروع لإجراء الفحص والتدقيق الموقعي واستلام الأعمال.\n\nتفضلوا بقبول وافر الاحترام.',
+          attachments: 'طياً تقرير الإنجاز النهائي + المخططات المنفذة (As-Built)'
+        },
+        {
+          label: 'عرض أسعار وتوريد مواد',
+          badge: 'تجارة ومشتريات',
+          recipient: 'إلى / السادة إدارة مشتريات ومشاريع (................) المحترمون',
+          subject: 'م / تقديم عرض أسعار ومواصفات تجارية',
+          content: 'تحية طيبة...\nيسر شركة البرج المتألق للتجارة العامة والمقاولات أن ترفق لكم طياً العرض الفني والمالي الخاص بتجهيز وتوريد المواد المطلوبة لمشروعكم الموقر.\nنحيطكم علماً بأن أسعارنا تشمل التوريد والتوصيل والفحص المختبري مع منح ضمان الجودة وسرعة التجهيز المباشر فور التعاقد.\n\nآملين أن ينال عرضنا ثقتكم وقبولكم.',
+          attachments: 'طياً جدول الكميات وعروض الأسعار التنافسية'
+        },
+        {
+          label: 'إصدار / تمديد خطاب ضمان',
+          badge: 'مصارف وتأمين',
+          recipient: 'إلى / إدارة المصرف (................) - فرع النجف الأشرف',
+          subject: 'م / طلب إصدار خطاب ضمان (حسن تنفيذ / سلفة أولية)',
+          content: 'تحية طيبة...\nيرجى التفضل بالموافقة على إصدار خطاب ضمان مصرفي (حسن تنفيذ / دفعة أولية) لصالح (اسم الجهة المستفيدة) بمبلغ إجمالي قدره (............) دينار عراقي، وذلك تأييداً لالتزاماتنا التعاقدية الخاصة بمناقصة/مشروع (................).\nنرجو قيد التأمينات والعمولات المصرفية اللازمة على حسابنا الجاري المفتوح لديكم برقم (........).\n\nمع وافر التقدير والامتنان.',
+          attachments: 'طياً نسخة من كتاب الإحالة وبيانات المناقصة'
+        },
+        {
+          label: 'إشعار تذكير ومطالبة مالية',
+          badge: 'حسابات ومتابعة',
+          recipient: 'إلى / السادة إدارة شركة (................) المحترمون',
+          subject: 'م / تذكير باستحقاق مالي مترتب',
+          content: 'تحية طيبة...\nنود تذكير عنايتكم الكريمة بوجود مستحقات مالية واجبة السداد مترتبة بذمتكم لصالح شركتنا عن تجهيز وتنفيذ أعمال (................) والبالغ قدرها (............) دينار عراقي، والتي مضى على استحقاقها أكثر من (30) يوماً.\nيرجى التكرم بالإيعاز للقسم المالي بإجراء التسوية وصرف المبلغ المتبقي لضمان استمرار الحسابات التعاقدية بين الطرفين بسلاسة.\n\nشاكرين تعاونكم الدائم.',
+          attachments: 'طياً نسخة كشف الحساب المالي والفواتير'
+        },
+        {
+          label: 'طلب تمديد مدة تعاقدية',
+          badge: 'مشاريع وعقود',
+          recipient: 'إلى / ديوان محافظة النجف الأشرف - هيئة الإعمار',
+          subject: 'م / طلب تمديد المدة الزمنية للمشروع (تعويض مدد إضافية)',
+          content: 'تحية طيبة...\nإشارة إلى العقد المرقم (........) الخاص بمشروع شركتنا، ونظراً للأسباب القاهرة والظروف الموقعية الخارجة عن إرادتنا (تأخر إخلاء الموقع / هطول الأمطار الغزيرة / تأخر استلام المخططات التعديلية) والمثبتة بمحاضر رسمية لدى دائرة المهندس المقيم.\nنرجو تفضلكم بالموافقة على تمديد مدة المقاولة بواقع (   ) يوماً كمدة إضافية مشروعة تعويضاً عن فترات التوقف، مع التزامنا بإكمال العمل بأسرع وقت.\n\nمع فائق الاحترام والتقدير.',
+          attachments: 'طياً محاضر توقف العمل وتأييد دائرة المهندس المقيم'
+        },
+        {
+          label: 'تفويض وتخويل مندوب',
+          badge: 'قانونية وإدارة',
+          recipient: 'إلى / الدوائر والجهات ذات العلاقة المحترمون',
+          subject: 'م / كتاب تخويل ومتابعة رسمية',
+          content: 'تهديكم شركة البرج المتألق أطيب التحيات.\nنود إعلامكم بأننا خولنا السيد (................) حامل البطاقة الوطنية رقم (................) لمراجعة دائرتكم الموقرة ومتابعة كافة الإجراءات والمعاملات الإدارية والمالية المتعلقة بشركتنا واستلام وتسليم المكاتبات دون توقيع الالتزامات المالية الكبرى، وذلك لمدة (30) يوماً من تاريخه.\n\nشاكرين حسن تعاونكم وتسهيل مهمته.',
+          attachments: 'طياً صورة البطاقة الوطنية للمخول'
+        },
+        {
+          label: 'إخطار قانوني للمستأجر',
+          badge: 'استثمار وعقارات',
+          recipient: 'إلى / السيد (................) المحترم - مستأجر العقار رقم (   )',
+          subject: 'م / إخطار وتنبيه بضرورة سداد بدل الإيجار المتأخر',
+          content: 'تحية طيبة...\nنظراً لعدم قيامكم بسداد بدل الإيجار الشهري المستحق عن إشغالكم للعقار العائد لشركتنا والكائن في (................) للأشهر (................) بإجمالي مبلغ قدره (............) دينار عراقي.\nننذركم بضرورة مراجعة مقر الشركة وتسديد كامل المبلغ المترتب خلال مدة أقصاها (7) أيام من تاريخ تبليغكم بهذا الكتاب، وتفادياً لاتخاذ الإجراءات القانونية وفسخ عقد الإيجار والمطالبة بالتعويض.\n\nللعلم والإجراء الفوري.',
+          attachments: 'طياً نسخة من عقد الإيجار المبرم'
+        },
+        {
+          label: 'طلب مصادقة مخططات استثمارية',
+          badge: 'تخطيط وتطوير',
+          recipient: 'إلى / هيئة استثمار النجف الأشرف - القسم الفني والهندسي',
+          subject: 'م / تقديم التصاميم المعمارية والمخططات التنفيذية للمصادقة',
+          content: 'تحية طيبة...\nاستناداً إلى الإجازة الاستثمارية المرقمة (...........) الممنوحة لشركتنا، نرفق طياً التصاميم المعمارية والإنشائية وجداول المواصفات العامة لمشروع (................) والمعدة من قبل المكاتب الاستشارية المعتمدة.\nيرجى تفضلكم بالاطلاع والمصادقة الفنية على المخططات تمهيداً للشروع بإجراءات استلام الأرض والمباشرة الميدانية.\n\nمع التقدير والامتنان.',
+          attachments: 'طياً ألبوم المخططات الكامل + قرص ليزري بالتصاميم'
+        },
+        {
+          label: 'اعتذار رسمي عن دخول مناقصة',
+          badge: 'مناقصات وعقود',
+          recipient: 'إلى / السادة لجنة فتح وتحليل العطاءات المحترمون',
+          subject: 'م / اعتذار عن المشاركة في المناقصة المرقمة (   )',
+          content: 'تحية طيبة واعتزاز...\nنشكر دعوتكم الكريمة الموجهة إلى شركة البرج المتألق للمشاركة في المناقصة رقم (...........) الخاصة بمشروع (................).\nنود إعلامكم باعتذارنا عن تقديم العطاء لهذه المناقصة في الوقت الراهن لانشغال كوادرنا الهندسية ومعداتنا الثقيلة بعدة مشاريع كبرى قيد التنفيذ، متطلعين إلى دوام التعاون والتنسيق في المشاريع القادمة بإذن الله.\n\nدمتم برعاية الله وحفظه.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'تسهيل مهمة كادر ميداني',
+          badge: 'عمليات وميدان',
+          recipient: 'إلى / قيادة شرطة النجف الأشرف / السيطرات والطرق الخارجية',
+          subject: 'م / تسهيل مهمة كادر هندسي وآليات ثقيلة',
+          content: 'تحية طيبة واحتراماً...\nنرجو تفضلكم بتسهيل مهمة مرور الكادر الهندسي والفني والآليات الثقيلة (شاحنات، خباطات مركزية، قلابات) التابعة لشركتنا والمكلفة بنقل المواد الإنشائية إلى موقع عمل مشروع (................).\nنرفق طياً جدولاً بأرقام الآليات وأسماء السائقين والكوادر الميدانية المكلفة بالواجب.\n\nشاكرين دعمكم الكبير وحرصكم الدائم على حفظ الأمن ودعم الإعمار.',
+          attachments: 'طياً جدول ببيانات الآليات وأسماء الكوادر'
+        }
+      ],
+      INTERNAL_ORDER: [
+        {
+          label: 'تشكيل لجنة استلام هندسي',
+          badge: 'لجان وكوادر',
+          recipient: 'إلى / الكوادر الهندسية والفنية المدرجة أسماؤهم أدناه',
+          subject: 'م / تشكيل لجنة استلام موقعي وتدقيق أولي',
+          content: 'بناءً على الصلاحيات المخولة لنا ولمقتضيات مصلحة العمل في شركة البرج المتألق، تقرر ما يلي:\n\n1. تشكيل لجنة استلام هندسية برئاسة المهندس (................) وعضوية كل من المهندس (................) والمشرف الفني (................).\n2. تتولى اللجنة إجراء الكشف الموقعي الشامل لفقرات مشروع (................) والتأكد من مطابقتها للمواصفات الهندسية القياسية.\n3. تقدم اللجنة تقريرها الفني المفصل وقوائم الملاحظات إن وجدت للإدارة العليا خلال مدة لا تتجاوز (48) ساعة من تاريخ صدور أمرنا.\n\nيُنفذ هذا الأمر اعتباراً من تاريخ صدوره.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'أمر تكليف بمهام إدارة موقع',
+          badge: 'إدارة وتكليف',
+          recipient: 'إلى / المهندس (................) المحترم',
+          subject: 'م / أمر تكليف وإدارة موقع العمل',
+          content: 'لمقتضيات حسن سير العمل وتنظيمه الميداني بكفاءة، تقرر تكليفكم بمهام (مدير موقع المشروع) لمشروع (................) اعتباراً من تاريخ صدور هذا الأمر.\nتخولون بكافة الصلاحيات التنفيذية لإدارة الكوادر والمعدات والتعامل مع استفسارات دائرة المهندس المقيم والالتزام التام بالجدول الزمني ومعايير السلامة المهنية.\n\nراجين لكم التوفيق والسداد في أداء مهامكم.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'كتاب شكر وتقدير ومكافأة',
+          badge: 'حوافز وظيفية',
+          recipient: 'إلى / كوادر قسم الهندسة والمشاريع المحترمون',
+          subject: 'م / شكر وتقدير وتثمين جهود متميزة',
+          content: 'نظراً للجهود المتميزة والمخلصة المبذولة من قبلكم في إنجاز الأعمال الموكلة إليكم في مشروع (................) قبل الموعد التعاقدي المحدد وبدقة واحترافية هندسية عالية نالت استحسان الجهات المشرفة.\nلا يسعنا إلا أن نتقدم لكم بوافر الشكر وعظيم الامتنان، مع منحكم مكافأة تشجيعية مجزية تقديراً لعطائكم.\nآملين منكم الاستمرار بهذا النهج المشرف خدمةً لأهداف وتطور شركة البرج المتألق.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'لجنة الجرد السنوي للمخازن',
+          badge: 'رقابة ومخازن',
+          recipient: 'إلى / السادة أعضاء لجنة الجرد المحترمون',
+          subject: 'م / تشكيل لجنة الجرد السنوي العام للمخازن والمعدات',
+          content: 'لمقتضيات التدقيق الداخلي وإعداد الحسابات الختامية السنوية، تقرر تشكيل لجنة الجرد برئاسة السيد (................) وعضوية السادة (................) و (................).\nتباشر اللجنة مهام الجرد الفعلي لكافة المواد الإنشائية والأجهزة والآليات والعدد المخزنية ومطابقتها مع السجلات الرقمية للنظام المحاسبي.\nتوقف حركة الصرف والإدخال المخزني أثناء فترة الجرد وتقدم النتائج بمحضر رسمي مصادق.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'توجيه عقوبة إنذار ولفت نظر',
+          badge: 'انضباط وظيفي',
+          recipient: 'إلى / الموظف (................) المحترم',
+          subject: 'م / عقوبة لفت نظر وتنبيه نهائي',
+          content: 'نظراً لتقصيركم في أداء الواجبات الموكلة إليكم والمتمثلة بـ (الغياب دون إشعار مسبق / الإهمال في متابعة صيانة الآليات والمعدات) ومخالفتكم لتعليمات لائحة العمل الداخلي.\nتقرر توجيه عقوبة (لفت نظر / إنذار) لكم مع استقطاع أجر الأيام المهدورة من راتبكم، وننبهكم بضرورة الالتزام مستقبلاً لتفادي اتخاذ عقوبات قانونية أشد تصل لإنهاء التعاقد.\n\nللعلم وتفادي التكرار.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'إيقاف مؤقت لأعمال الموقع',
+          badge: 'سلامة وميدان',
+          recipient: 'إلى / كافة كوادر مشروع (................) المحترمون',
+          subject: 'م / إيقاف مؤقت لأعمال التنفيذ لظروف طارئة',
+          content: 'نظراً لسوء الأحوال الجوية وهطول الأمطار الغزيرة وتحذيرات الدفاع المدني والأنواء الجوية وحرصاً على سلامة الكوادر والآليات والمعدات وضمان جودة الخرسانة.\nتقرر إيقاف كافة الأعمال الإنشائية في الموقع المذكور اعتباراً من اليوم وحتى إشعار آخر، مع تكليف كادر الحراسة والأمن الصناعي باتخاذ أقصى تدابير الحماية الموقعية.\n\nيُنفذ فوراً.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'أمر استئناف العمل بالمشروع',
+          badge: 'مشاريع وميدان',
+          recipient: 'إلى / الكوادر الهندسية والفنية والتشغيلية المحترمون',
+          subject: 'م / استئناف المباشرة بأعمال التنفيذ',
+          content: 'نظراً لزوال المانع والظروف الطارئة التي استوجبت إيقاف الأعمال في مشروع (................).\nتقرر استئناف العمل والمباشرة الفورية بكافة الفقرات الإنشائية والخدمية اعتباراً من صباح يوم غدٍ، مع تكثيف الجهود وساعات العمل لتعويض فترة التوقف والالتزام التام بالجدول الزمني المعتمد.\n\nللتنفيذ الفوري كلٌ حسب موقعه.',
+          attachments: 'لا يوجد'
+        },
+        {
+          label: 'صرف سلفة تشغيلية ونثرية',
+          badge: 'مالية وحسابات',
+          recipient: 'إلى / القسم المالي والحسابات المحترمون',
+          subject: 'م / تخويل وصرف سلفة تشغيلية نقدية للمشروع',
+          content: 'يُخوّل السيد (................) بصفته مسؤول الموقع باستلام سلفة نقدية تشغيلية قدرها (............) دينار عراقي مخصصة للصرف على متطلبات المواد الطارئة وأجور النقل والنثريات لموقع مشروع (................).\nتُسوى هذه السلفة بوصولات وفواتير أصولية معتمدة وفق الضوابط والتعليمات المالية للشركة في نهاية كل أسبوع.\n\nللتنفيذ والصرف أصولياً.',
+          attachments: 'لا يوجد'
+        }
+      ],
+      INCOMING: [
+        {
+          label: 'كتاب إحالة مشروع مقاولة',
+          badge: 'إحالات وعقود',
+          senderName: 'ديوان محافظة النجف الأشرف - قسم العقود العامة',
+          senderNumber: '1092 / ع',
+          subject: 'م / إشعار بإحالة مناقصة مشروع (................)',
+          notes: 'ورد كتاب الإحالة الرسمي للشركة، يرجى التوجيه بمراجعة ديوان المحافظة لتوقيع العقد وتقديم خطاب ضمان حسن التنفيذ.'
+        },
+        {
+          label: 'كتاب مصادقة مخططات استثمارية',
+          badge: 'استثمار وتخطيط',
+          senderName: 'هيئة استثمار النجف الأشرف - قسم التخطيط والمصادقات',
+          senderNumber: '5421 / ت',
+          subject: 'م / المصادقة على المخططات والتصاميم الهندسية',
+          notes: 'تمت مصادقة المخططات الفنية للمشروع، يرجى التوجيه للقسم الهندسي بالمباشرة بمراحل التنفيذ الفعلي.'
+        },
+        {
+          label: 'شهادة فحص مختبري إنشائي',
+          badge: 'فحوصات وجودة',
+          senderName: 'المختبر الإنشائي التخصصي للفحوصات الهندسية',
+          senderNumber: '312 / ف',
+          subject: 'م / نتائج فحص المكعبات الخرسانية وحديد التسليح',
+          notes: 'نتائج الفحص ناجحة ومطابقة للمواصفات القياسية للجهاز المركزي للتقييس والسيطرة النوعية.'
+        },
+        {
+          label: 'إشعار تسليم موقع رسمي',
+          badge: 'مشاريع ومواقع',
+          senderName: 'دائرة المهندس المقيم - مشروع (................)',
+          senderNumber: '784 / م',
+          subject: 'م / محضر تسليم الموقع وتحديد نقطة الصفر (Benchmark)',
+          notes: 'تم تثبيت محضر تسليم الموقع خالياً من التعارضات وجاهزاً لنزول الآليات الثقيلة والمباشرة بالحفريات.'
+        }
+      ]
+    };
+  }, []);
+
+  const handleApplyTemplate = (tpl: any) => {
+    if (activeTab === 'OUTGOING') {
+      setOutDocNumber(generateCode('ص'));
+      setOutRecipient(tpl.recipient || '');
+      setOutSubject(tpl.subject || '');
+      setOutContent(tpl.content || '');
+      setOutAttachments(tpl.attachments || 'لا يوجد');
+      setOutScannedUrls([]);
+      setShowOutgoingModal(true);
+    } else if (activeTab === 'INTERNAL_ORDER') {
+      setOrderDocNumber(generateCode('أ.إ'));
+      setOrderRecipient(tpl.recipient || 'إلى / كافة الأقسام والمشاريع والكوادر الهندسية');
+      setOrderSubject(tpl.subject || 'م / أمر إداري');
+      setOrderContent(tpl.content || '');
+      setOrderAttachments(tpl.attachments || 'لا يوجد');
+      setOrderScannedUrls([]);
+      setShowOrderModal(true);
+    } else if (activeTab === 'INCOMING') {
+      setInDocNumber(generateCode('و'));
+      setInSenderName(tpl.senderName || '');
+      setInSenderNumber(tpl.senderNumber || '');
+      setInSenderDate(new Date().toISOString().substring(0, 10));
+      setInSubject(tpl.subject || '');
+      setInNotes(tpl.notes || '');
+      setInMainLetterUrl('');
+      setInScannedUrls([]);
+      setShowIncomingModal(true);
+    }
+  };
+
   const handleSingleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -312,7 +548,6 @@ export default function AdministrativeDocumentsPage() {
     setter((prev) => prev.filter((_, i) => i !== index));
   };
 
-  // حفظ مرن يحفظ أحدث 30 وثيقة محلياً ويتجاوز مشكلة امتلاء الذاكرة لوجود السحابة
   const safeSaveToStorage = (updatedDocs: OfficialDoc[]) => {
     try {
       const lightStorageList = updatedDocs.slice(0, 30);
@@ -320,7 +555,6 @@ export default function AdministrativeDocumentsPage() {
       setDocuments(updatedDocs);
       return true;
     } catch {
-      // في حال امتلاء ذاكرة المتصفح، يتم التحديث في الذاكرة الحية والسيرفر السحابي بسلاسة
       setDocuments(updatedDocs);
       return true;
     }
@@ -480,7 +714,6 @@ export default function AdministrativeDocumentsPage() {
 
     const updated = documents.filter(d => d.id !== id);
     if (safeSaveToStorage(updated)) {
-      // مزامنة حذف المستند على السيرفر السحابي
       try {
         await fetch('/api/admin/system', {
           method: 'POST',
@@ -579,14 +812,12 @@ export default function AdministrativeDocumentsPage() {
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
         <style jsx global>{`
-          /* ضبط المعاينة في شاشة الموبايل للكتب والمرفقات */
           @media screen and (max-width: 768px) {
             .print-official-sheet,
             .print-attachment-sheet {
               min-width: 720px !important;
             }
           }
-          /* أمر الطباعة الفعلي للكتب الرسمية */
           @media print {
             @page {
               size: A4 portrait !important;
@@ -636,76 +867,130 @@ export default function AdministrativeDocumentsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية */}
-        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row items-start lg:items-center justify-between pb-6 border-b border-slate-800 gap-6 print:hidden print-hidden-element">
-          <div className="flex items-center gap-3.5">
-            <div className="bg-gradient-to-tr from-amber-600 to-amber-400 p-3 rounded-2xl text-slate-950 font-black shadow-lg shadow-amber-500/20 shrink-0">
-              <Building2 className="w-7 h-7" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl md:text-2xl font-black text-white">إدارة الوثائق والكتب الرسمية والصادرة والواردة</h1>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-mono px-2.5 py-0.5 rounded-full font-bold">
-                  محرك ضغط ذكي فوري • مزامنة سحابية موحدة
-                </span>
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق وأنيق */}
+        <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
+          <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
+            
+            {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-amber-500/20 shrink-0 flex items-center justify-center">
+                <Building2 className="w-8 h-8" />
               </div>
-              <p className="text-[13px] text-slate-400 mt-0.5">شركة البرج المتألق - فصل الوارد للكتاب الرئيسي والمرفقات المتعددة ومزامنة كاملة عبر كافة الأجهزة</p>
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-3 flex-wrap">
+                  <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
+                    إدارة الوثائق والكتب الرسمية
+                  </h1>
+                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-1 rounded-full shadow-inner">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    مكتبة النماذج التخصصية ({documentTemplates[activeTab].length} نموذجاً)
+                  </span>
+                </div>
+                <p className="text-xs text-slate-400 font-medium">
+                  شركة البرج المتألق • الصادر والوارد والأوامر الإدارية مع المزامنة السحابية الفورية
+                </p>
+              </div>
             </div>
+
+            {/* الطرف الأيسر: شريط الإجراءات والأزرار المنسقة على سطر واحد */}
+            <div className="flex items-center gap-2 flex-wrap xl:flex-nowrap">
+              {canAdd && (
+                <>
+                  <button
+                    onClick={() => {
+                      setOutDocNumber(generateCode('ص'));
+                      setOutScannedUrls([]);
+                      setShowOutgoingModal(true);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer active:scale-95"
+                  >
+                    <Send className="w-4 h-4" /> صادر جديد +
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setInDocNumber(generateCode('و'));
+                      setInMainLetterUrl('');
+                      setInScannedUrls([]);
+                      setShowIncomingModal(true);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 hover:to-sky-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-sky-500/20 cursor-pointer active:scale-95"
+                  >
+                    <Inbox className="w-4 h-4" /> وارد جديد +
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setOrderDocNumber(generateCode('أ.إ'));
+                      setOrderScannedUrls([]);
+                      setShowOrderModal(true);
+                    }}
+                    className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
+                  >
+                    <Bookmark className="w-4 h-4" /> أمر إداري +
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={exportActiveTabExcel}
+                className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                title="تصدير السجل المفتوح حالياً إلى Excel"
+              >
+                <FileSpreadsheet className="w-4 h-4" /> تصدير Excel
+              </button>
+
+              <Link
+                href="/"
+                className="px-3.5 py-2.5 bg-slate-950 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95"
+              >
+                <ArrowLeft className="w-4 h-4" /> الرئيسية
+              </Link>
+            </div>
+
+          </div>
+        </div>
+
+        {/* شريط النماذج والصيغ التخصصية الموسعة */}
+        <div className="max-w-7xl mx-auto mt-6 print:hidden print-hidden-element bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 p-4 rounded-3xl space-y-3 shadow-xl">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-bold text-amber-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-400" />
+              مكتبة النماذج والصيغ الرسمية الجاهزة ({activeTab === 'OUTGOING' ? 'كتب صادرة' : activeTab === 'INCOMING' ? 'كتب واردة' : 'أوامر إدارية'}):
+            </span>
+            <span className="text-[11px] text-slate-400 font-mono">
+              انقر على أي نموذج ليتم استدعاؤه وملء الحقول والنص بالكامل فوراً
+            </span>
           </div>
 
-          <div className="flex items-center gap-2.5 flex-wrap w-full lg:w-auto justify-start lg:justify-end">
-            <button
-              onClick={exportActiveTabExcel}
-              className="bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/30 px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-sm"
-              title="تصدير السجل المفتوح حالياً إلى Excel"
-            >
-              <FileSpreadsheet className="w-4 h-4" /> تصدير السجل (Excel)
-            </button>
-
-            {canAdd && (
-              <>
-                <button
-                  onClick={() => {
-                    setOutDocNumber(generateCode('ص'));
-                    setOutScannedUrls([]);
-                    setShowOutgoingModal(true);
-                  }}
-                  className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer"
-                >
-                  <Send className="w-4 h-4" /> صادر جديد +
-                </button>
-
-                <button
-                  onClick={() => {
-                    setInDocNumber(generateCode('و'));
-                    setInMainLetterUrl('');
-                    setInScannedUrls([]);
-                    setShowIncomingModal(true);
-                  }}
-                  className="bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-sky-500/20 cursor-pointer"
-                >
-                  <Inbox className="w-4 h-4" /> وارد جديد +
-                </button>
-
-                <button
-                  onClick={() => {
-                    setOrderDocNumber(generateCode('أ.إ'));
-                    setOrderScannedUrls([]);
-                    setShowOrderModal(true);
-                  }}
-                  className="bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black px-4 py-2.5 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20 cursor-pointer"
-                >
-                  <Bookmark className="w-4 h-4" /> أمر إداري +
-                </button>
-              </>
-            )}
-
-            <Link
-              href="/"
-              className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2.5 rounded-xl text-xs hover:bg-slate-800 transition text-slate-300 font-bold"
-            >
-              <ArrowLeft className="w-4 h-4" /> الرئيسية
-            </Link>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5 pt-1">
+            {documentTemplates[activeTab].map((tpl: any, idx: number) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleApplyTemplate(tpl)}
+                className="p-3 bg-slate-950 hover:bg-slate-800/80 border border-slate-800 hover:border-amber-500/50 rounded-2xl text-right transition flex flex-col justify-between space-y-2 group cursor-pointer shadow-sm hover:scale-[1.01]"
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                    {tpl.badge}
+                  </span>
+                  <Zap className="w-3.5 h-3.5 text-slate-600 group-hover:text-amber-400 transition" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-white text-xs group-hover:text-amber-300 transition line-clamp-1">
+                    {tpl.label}
+                  </h4>
+                  <p className="text-[11px] text-slate-400 line-clamp-1 mt-0.5">
+                    {tpl.subject}
+                  </p>
+                </div>
+                <div className="text-[10px] text-emerald-400 font-bold flex items-center gap-1 pt-1 border-t border-slate-900">
+                  <span>استدعاء النموذج</span>
+                  <span>←</span>
+                </div>
+              </button>
+            ))}
           </div>
         </div>
 
@@ -1159,7 +1444,7 @@ export default function AdministrativeDocumentsPage() {
                       placeholder="مثال: م / المصادقة على المخططات الفنية"
                       value={inSubject}
                       onChange={(e) => setInSubject(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
                     />
                   </div>
                   <div>
@@ -1530,12 +1815,10 @@ export default function AdministrativeDocumentsPage() {
           const isIncoming = doc.type === 'INCOMING';
           const isOrder = doc.type === 'INTERNAL_ORDER';
           
-          // استخراج الرابط الحي لضمان عمل الباركود أونلاين ومحلياً
           const activeOrigin = typeof window !== 'undefined' && window.location.origin
             ? window.location.origin
             : (siteOrigin || 'https://rtco2025.netlify.app');
 
-          // توجيه الرابط لبوابة التحقق العام الرسمية دون طلب تسجيل دخول
           const verificationUrl = `${activeOrigin}/verify?type=doc&no=${encodeURIComponent(doc.docNumber)}`;
           const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
           const attachmentsList = doc.scannedFileUrls || [];
