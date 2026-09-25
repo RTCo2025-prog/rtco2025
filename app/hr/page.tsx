@@ -73,6 +73,20 @@ function getArabicMonthName(monthStr: string): string {
 
 export default function HRManagementPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [employees, setEmployees] = useState<any[]>([]);
   const [adjustments, setAdjustments] = useState<any[]>([]);
   const [payrollRuns, setPayrollRuns] = useState<any[]>([]);
@@ -85,7 +99,6 @@ export default function HRManagementPage() {
   const [selectedDept, setSelectedDept] = useState('ALL');
   const [expandedEmpId, setExpandedEmpId] = useState<string | null>(null);
 
-  // الشهر المختار الحالي دائماً
   const [filterMonth, setFilterMonth] = useState('2026-09');
 
   // حقول إضافة موظف جديد
@@ -162,7 +175,6 @@ export default function HRManagementPage() {
 
   const [processingPayroll, setProcessingPayroll] = useState(false);
 
-  // استخراج الصلاحيات الدقيقة لهذا المستخدم في قسم الموارد البشرية والرواتب
   const canAdd = useMemo(() => {
     return hasPermission(currentUser, 'hr', 'add');
   }, [currentUser]);
@@ -174,6 +186,20 @@ export default function HRManagementPage() {
   const canDelete = useMemo(() => {
     return hasPermission(currentUser, 'hr', 'delete');
   }, [currentUser]);
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -199,6 +225,8 @@ export default function HRManagementPage() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -628,7 +656,7 @@ export default function HRManagementPage() {
       phoneWithCountry = '964' + phoneWithCountry;
     }
 
-    const message = `*شركة البرج المتألق للمقاولات والتجارة*\nإشعار صرف راتب شهر: ${run.payroll_month}\n----------------------------------------\nالسيد/ة: *${run.full_name}* (${run.job_title})\nالرقم الوظيفي: ${run.emp_code}\n\n* الراتب الأساسي: ${formatNum(run.base_salary)} د.ع\n* البدلات والحوافز: +${formatNum(Number(run.allowances) + Number(run.bonuses))} د.ع\n* الساعات الإضافية: +${formatNum(run.overtime_amount)} د.ع\n* الاستقطاعات وأقساط السلف: -${formatNum(Number(run.loans_deducted) + Number(run.penalties))} د.ع\n${run.deduction_reasons ? `* بيان الاستقطاع: ${run.deduction_reasons}\n` : ''}----------------------------------------\n*صافي الراتب المستلم: ${formatNum(run.net_salary)} د.ع*\n\nتم الصرف والترحيل من الإدارة المالية.`;
+    const message = `*${companySettings.company_name}*\nإشعار صرف راتب شهر: ${run.payroll_month}\n----------------------------------------\nالسيد/ة: *${run.full_name}* (${run.job_title})\nالرقم الوظيفي: ${run.emp_code}\n\n* الراتب الأساسي: ${formatNum(run.base_salary)} د.ع\n* البدلات والحوافز: +${formatNum(Number(run.allowances) + Number(run.bonuses))} د.ع\n* الساعات الإضافية: +${formatNum(run.overtime_amount)} د.ع\n* الاستقطاعات وأقساط السلف: -${formatNum(Number(run.loans_deducted) + Number(run.penalties))} د.ع\n${run.deduction_reasons ? `* بيان الاستقطاع: ${run.deduction_reasons}\n` : ''}----------------------------------------\n*صافي الراتب المستلم: ${formatNum(run.net_salary)} د.ع*\n\nتم الصرف والترحيل من الإدارة المالية.`;
 
     window.open(`https://wa.me/${phoneWithCountry}?text=${encodeURIComponent(message)}`, '_blank');
   };
@@ -722,6 +750,11 @@ export default function HRManagementPage() {
     };
   }, [employees, adjustments, leaves, filterMonth]);
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
+
   if (!currentUser) return null;
 
   return (
@@ -734,37 +767,52 @@ export default function HRManagementPage() {
             
             {/* الطرف الأيمن: الشعار والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-rose-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-rose-500/10">
-                <Image 
-                  src="/logo.png" 
-                  alt="شركة البرج المتألق" 
-                  width={48} 
-                  height={48} 
-                  className="object-contain" 
-                  priority 
-                />
+              <div 
+                className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 p-2 shadow-xl"
+                style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
+              >
+                {hasLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={companySettings.logo_url} 
+                    alt={companySettings.company_name} 
+                    className="w-full h-full object-contain" 
+                  />
+                ) : (
+                  <Image 
+                    src="/logo.png" 
+                    alt="شركة البرج المتألق" 
+                    width={48} 
+                    height={48} 
+                    className="object-contain" 
+                    priority 
+                  />
+                )}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     منظومة الموارد البشرية والرواتب وبودرة المسير
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-rose-500/10 text-rose-300 border border-rose-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-rose-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}40` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     Enterprise HR
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • بطاقات الكوادر، السير الذاتية (CV)، السلف المقسطة، وتأييد الرواتب
+                  {companySettings.company_name} • بطاقات الكوادر، السير الذاتية (CV)، السلف المقسطة، وتأييد الرواتب
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع في سطر واحد ثابت */}
+            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع */}
             <div className="flex items-center gap-2 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <button 
                 onClick={loadData} 
-                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-rose-400 transition cursor-pointer active:scale-95 shadow-sm"
+                className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer active:scale-95 shadow-sm"
                 title="تحديث البيانات"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -794,7 +842,7 @@ export default function HRManagementPage() {
             <span className="text-xs text-slate-400 font-semibold block">
               كتلة الرواتب الأساسية ({currentMonthArabic})
             </span>
-            <div className="text-xl font-black font-mono text-amber-400 mt-2">
+            <div className="text-xl font-black font-mono mt-2" style={{ color: primaryCol }}>
               {formatNum(topCardsData.totalMonthlyPayroll)} <span className="text-xs font-sans text-slate-500">د.ع</span>
             </div>
           </div>
@@ -803,7 +851,7 @@ export default function HRManagementPage() {
             <span className="text-xs text-slate-400 font-semibold block">
               صافي الرواتب ({currentMonthArabic})
             </span>
-            <div className="text-xl font-black font-mono text-rose-400 mt-2">
+            <div className="text-xl font-black font-mono mt-2" style={{ color: secondaryCol }}>
               {formatNum(topCardsData.totalActualNetPayroll)} <span className="text-xs font-sans text-slate-500">د.ع</span>
             </div>
           </div>
@@ -834,32 +882,36 @@ export default function HRManagementPage() {
               <button
                 onClick={() => setActiveTab('EMPLOYEES_HUB')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'EMPLOYEES_HUB' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-400 hover:text-white bg-slate-800/40'
+                  activeTab === 'EMPLOYEES_HUB' ? 'text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white bg-slate-800/40'
                 }`}
+                style={activeTab === 'EMPLOYEES_HUB' ? { backgroundColor: primaryCol } : {}}
               >
                 <Users className="w-3.5 h-3.5" /> بطاقات الكوادر ({employees.length})
               </button>
               <button
                 onClick={() => setActiveTab('PAYROLL_SHEET')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'PAYROLL_SHEET' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-400 hover:text-white bg-slate-800/40'
+                  activeTab === 'PAYROLL_SHEET' ? 'text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white bg-slate-800/40'
                 }`}
+                style={activeTab === 'PAYROLL_SHEET' ? { backgroundColor: primaryCol } : {}}
               >
                 <FileSpreadsheet className="w-3.5 h-3.5 text-amber-300" /> مسير الرواتب والبودرة A4
               </button>
               <button
                 onClick={() => setActiveTab('LEDGER')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'LEDGER' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-400 hover:text-white bg-slate-800/40'
+                  activeTab === 'LEDGER' ? 'text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white bg-slate-800/40'
                 }`}
+                style={activeTab === 'LEDGER' ? { backgroundColor: primaryCol } : {}}
               >
                 <FileText className="w-3.5 h-3.5 text-sky-400" /> سجل الحركات والإجازات
               </button>
               <button
                 onClick={() => setActiveTab('APPRAISALS')}
                 className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap cursor-pointer ${
-                  activeTab === 'APPRAISALS' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/20' : 'text-slate-400 hover:text-white bg-slate-800/40'
+                  activeTab === 'APPRAISALS' ? 'text-slate-950 font-black shadow-md' : 'text-slate-400 hover:text-white bg-slate-800/40'
                 }`}
+                style={activeTab === 'APPRAISALS' ? { backgroundColor: primaryCol } : {}}
               >
                 <Award className="w-3.5 h-3.5 text-emerald-400" /> التقييمات والجزاءات ({penaltiesAppraisals.length})
               </button>
@@ -867,9 +919,9 @@ export default function HRManagementPage() {
 
             <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl w-full lg:w-auto justify-between lg:justify-start">
               <div className="flex items-center gap-1.5">
-                <Calendar className="w-3.5 h-3.5 text-rose-400" />
+                <Calendar className="w-3.5 h-3.5" style={{ color: primaryCol }} />
                 <span className="text-xs text-slate-400 font-semibold">شهر التتبع:</span>
-                <span className="text-xs font-bold text-amber-400 font-sans">{currentMonthArabic}</span>
+                <span className="text-xs font-bold font-sans" style={{ color: primaryCol }}>{currentMonthArabic}</span>
               </div>
               <input 
                 type="month" 
@@ -885,7 +937,8 @@ export default function HRManagementPage() {
               <>
                 <button
                   onClick={() => setShowAddEmpModal(true)}
-                  className="bg-rose-600 hover:bg-rose-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                  className="text-slate-950 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   <PlusCircle className="w-3.5 h-3.5" /> إضافة موظف جديد
                 </button>
@@ -945,7 +998,7 @@ export default function HRManagementPage() {
                     placeholder="ابحث بالاسم، الرمز، أو العنوان..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-2 text-xs text-white outline-none focus:border-rose-500"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pr-9 pl-3 py-2 text-xs text-white outline-none focus:border-amber-500"
                   />
                 </div>
                 <select 
@@ -962,8 +1015,8 @@ export default function HRManagementPage() {
                   <option value="الإدارة المركزية">الإدارة المركزية</option>
                 </select>
               </div>
-              <span className="text-xs text-amber-400/90 font-mono">
-                حركات شهر: <strong className="text-white font-sans">{currentMonthArabic} ({filterMonth})</strong>
+              <span className="text-xs text-slate-400 font-mono">
+                حركات شهر: <strong className="font-sans font-bold" style={{ color: primaryCol }}>{currentMonthArabic} ({filterMonth})</strong>
               </span>
             </div>
 
@@ -1004,7 +1057,10 @@ export default function HRManagementPage() {
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <h3 className="text-sm font-bold text-white">{emp.full_name}</h3>
-                              <span className="font-mono text-[11px] text-rose-400 bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 font-bold">
+                              <span 
+                                className="font-mono text-[11px] px-2 py-0.5 rounded border font-bold"
+                                style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                              >
                                 {emp.emp_code}
                               </span>
                               {isContractExpiring && (
@@ -1013,7 +1069,7 @@ export default function HRManagementPage() {
                                 </span>
                               )}
                             </div>
-                            <p className="text-xs text-slate-400 mt-0.5">{emp.job_title} • <span className="text-rose-400">{emp.department}</span></p>
+                            <p className="text-xs text-slate-400 mt-0.5">{emp.job_title} • <span style={{ color: primaryCol }}>{emp.department}</span></p>
                           </div>
                         </div>
 
@@ -1035,7 +1091,7 @@ export default function HRManagementPage() {
                             <span className="font-black text-sm text-emerald-400">{formatNum(netCalculated)} د.ع</span>
                           </div>
                           <div className="p-1 text-slate-400">
-                            {isExpanded ? <ChevronUp className="w-4 h-4 text-rose-400" /> : <ChevronDown className="w-4 h-4" />}
+                            {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4" />}
                           </div>
                         </div>
                       </div>
@@ -1044,7 +1100,7 @@ export default function HRManagementPage() {
                         <div className="p-5 border-t border-slate-800 bg-slate-950 space-y-4">
                           <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/80">
                             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-                              <FileText className="w-3.5 h-3.5 text-amber-400" /> حركات شهر {currentMonthArabic} ({filterMonth})
+                              <FileText className="w-3.5 h-3.5" style={{ color: primaryCol }} /> حركات شهر {currentMonthArabic} ({filterMonth})
                             </span>
                             <div className="flex items-center gap-1.5 flex-wrap text-xs">
                               {canEdit && (
@@ -1065,7 +1121,10 @@ export default function HRManagementPage() {
                                 </button>
                               )}
                               <button
-                                onClick={() => setCvPrintEmp(emp)}
+                                onClick={async () => {
+                                  await loadSettings();
+                                  setCvPrintEmp(emp);
+                                }}
                                 className="px-2.5 py-1 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 rounded-lg font-bold transition flex items-center gap-1 text-[11px] cursor-pointer"
                               >
                                 <Printer className="w-3 h-3" /> طباعة CV
@@ -1127,7 +1186,6 @@ export default function HRManagementPage() {
                           </div>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {/* إجازات الشهر */}
                             <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
                               <h4 className="text-xs font-bold text-sky-400 flex items-center gap-1">
                                 <Palmtree className="w-3.5 h-3.5" /> إجازات شهر {currentMonthArabic} ({empLeaves.length})
@@ -1168,7 +1226,6 @@ export default function HRManagementPage() {
                               )}
                             </div>
 
-                            {/* حركات الشهر */}
                             <div className="bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-2">
                               <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1">
                                 <Scissors className="w-3.5 h-3.5" /> حركات شهر {currentMonthArabic} ({empAdjustments.length})
@@ -1235,7 +1292,7 @@ export default function HRManagementPage() {
             <div className="bg-slate-900 border border-slate-800 p-4 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-3 print:hidden shadow-md">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <Sparkles className="w-4 h-4" style={{ color: primaryCol }} />
                   مسير رواتب شهر {currentMonthArabic} ({filterMonth})
                 </h3>
                 <p className="text-xs text-slate-400 mt-0.5">اعتماد المسير وحساب الخصومات والسلف وترحيل السندات للصندوق</p>
@@ -1255,7 +1312,8 @@ export default function HRManagementPage() {
                     <button
                       onClick={handleProcessPayroll}
                       disabled={processingPayroll}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                      className="text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-sm whitespace-nowrap cursor-pointer"
+                      style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                     >
                       <Coins className="w-3.5 h-3.5" />
                       {processingPayroll ? 'جاري الترحيل...' : `اعتماد وترحيل رواتب شهر ${currentMonthArabic}`}
@@ -1264,7 +1322,10 @@ export default function HRManagementPage() {
                 )}
 
                 <button
-                  onClick={() => window.print()}
+                  onClick={async () => {
+                    await loadSettings();
+                    window.print();
+                  }}
                   className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer"
                 >
                   <Printer className="w-3.5 h-3.5" /> طباعة البودرة (A4)
@@ -1273,30 +1334,47 @@ export default function HRManagementPage() {
             </div>
 
             <div className="bg-white text-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xl print:border-none print:shadow-none print:p-0 space-y-5">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
-                    <Image 
-                      src="/logo.png" 
-                      alt="شركة البرج المتألق" 
-                      width={50} 
-                      height={50} 
-                      className="object-contain" 
-                      priority 
-                    />
+              
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image 
+                          src="/logo.png" 
+                          alt="شركة البرج المتألق" 
+                          width={50} 
+                          height={50} 
+                          className="object-contain" 
+                          priority 
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <h2 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h2>
+                      <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-xl font-black text-slate-950">شركة البرج المتألق</h2>
-                    <p className="text-xs text-slate-600 font-bold">جدول مسير رواتب الكوادر والموظفين</p>
+                  <div className="text-left font-mono">
+                    <span 
+                      className="border px-3 py-1 font-bold text-xs text-slate-950 rounded-lg inline-block shadow-sm"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      مسير شهر: {currentMonthArabic} ({filterMonth})
+                    </span>
+                    <p className="text-[11px] text-slate-500 mt-1 font-sans">تاريخ الاعتماد: {new Date().toISOString().substring(0, 10)}</p>
                   </div>
                 </div>
-                <div className="text-left font-mono">
-                  <span className="border border-rose-600 px-3 py-1 font-bold text-xs bg-rose-600 text-white rounded-lg inline-block">
-                    مسير شهر: {currentMonthArabic} ({filterMonth})
-                  </span>
-                  <p className="text-[11px] text-slate-500 mt-1 font-sans">تاريخ الاعتماد: {new Date().toISOString().substring(0, 10)}</p>
-                </div>
-              </div>
+              )}
 
               <div className="border border-slate-300 rounded-xl overflow-hidden">
                 <table className="w-full text-right text-[12px] border-collapse">
@@ -1375,7 +1453,7 @@ export default function HRManagementPage() {
                         <td className="p-2.5 border-l border-slate-300"></td>
                         <td className="p-2.5 font-mono text-rose-700 border-l border-slate-300 whitespace-nowrap">-{formatNum(sheetTotals.totalDeductions)}</td>
                         <td className="p-2.5 border-l border-slate-300"></td>
-                        <td className="p-2.5 font-mono font-black text-rose-700 text-sm border-l border-slate-300 whitespace-nowrap">
+                        <td className="p-2.5 font-mono font-black text-sm border-l border-slate-300 whitespace-nowrap" style={{ color: primaryCol }}>
                           {formatNum(sheetTotals.totalNet)} <span className="text-[10px] font-sans font-normal">د.ع</span>
                         </td>
                         <td className="print:hidden border-l border-slate-300"></td>
@@ -1396,7 +1474,7 @@ export default function HRManagementPage() {
                   <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
                 </div>
                 <div>
-                  <p className="font-bold text-slate-800">المدير التنفيذي للشركة</p>
+                  <p className="font-bold text-slate-800">المدير المفوض للشركة</p>
                   <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
                 </div>
               </div>
@@ -1577,7 +1655,7 @@ export default function HRManagementPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <FileCheck className="w-4 h-4 text-amber-400" /> توجيه كتاب تأييد الراتب
+                  <FileCheck className="w-4 h-4" style={{ color: primaryCol }} /> توجيه كتاب تأييد الراتب
                 </h3>
                 <button onClick={() => setTargetDestinationPrompt(null)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
@@ -1592,7 +1670,8 @@ export default function HRManagementPage() {
                   value={certificateDestination}
                   onChange={(e) => setCertificateDestination(e.target.value)}
                   placeholder="مثال: مصرف الرشيد / فرع النجف..."
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-400 font-bold"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
+                  style={{ borderColor: primaryCol }}
                 />
               </div>
 
@@ -1606,11 +1685,13 @@ export default function HRManagementPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={async () => {
+                    await loadSettings();
                     setSalaryCertEmp({ ...targetDestinationPrompt.emp, net: targetDestinationPrompt.net });
                     setTargetDestinationPrompt(null);
                   }}
-                  className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer"
+                  className="px-5 py-2 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer"
+                  style={{ backgroundColor: primaryCol }}
                 >
                   عرض وطباعة التأييد
                 </button>
@@ -1623,7 +1704,11 @@ export default function HRManagementPage() {
         {cvPrintEmp && (
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
             <div className="w-full max-w-4xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
-              <button onClick={() => window.print()} className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer">
+              <button 
+                onClick={() => window.print()} 
+                className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+              >
                 <Printer className="w-4 h-4" /> طباعة السيرة الذاتية الرسمية (A4)
               </button>
               <button onClick={() => setCvPrintEmp(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
@@ -1632,31 +1717,47 @@ export default function HRManagementPage() {
             </div>
 
             <div className="w-full max-w-4xl bg-white text-slate-900 rounded-2xl p-8 md:p-10 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
-                    <Image 
-                      src="/logo.png" 
-                      alt="شركة البرج المتألق" 
-                      width={56} 
-                      height={56} 
-                      className="object-contain" 
-                      priority 
-                    />
+              
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image 
+                          src="/logo.png" 
+                          alt="شركة البرج المتألق" 
+                          width={56} 
+                          height={56} 
+                          className="object-contain" 
+                          priority 
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                      <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold">للمقاولات العامة والتجارة والنقل والاستثمار العقاري</p>
-                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">قسم إدارة الموارد البشرية والتوظيف</p>
+                  <div className="text-left font-mono">
+                    <div 
+                      className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      السيرة الذاتية الرسمية
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 font-mono">تاريخ الإصدار: {new Date().toISOString().substring(0, 10)}</p>
                   </div>
                 </div>
-                <div className="text-left font-mono">
-                  <div className="border-2 border-slate-900 px-3 py-1 font-black text-xs uppercase bg-purple-600 text-white rounded-lg inline-block">
-                    السيرة الذاتية الرسمية
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1 font-mono">تاريخ الإصدار: {new Date().toISOString().substring(0, 10)}</p>
-                </div>
-              </div>
+              )}
 
               <div className="flex flex-col sm:flex-row items-center gap-5 bg-slate-50 border border-slate-200 p-5 rounded-2xl">
                 <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shrink-0">
@@ -1670,11 +1771,14 @@ export default function HRManagementPage() {
                 <div className="flex-1 text-right space-y-1">
                   <div className="flex items-center justify-between">
                     <h2 className="text-lg font-black text-slate-950">{cvPrintEmp.full_name}</h2>
-                    <span className="font-mono text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 px-2 py-0.5 rounded">
+                    <span 
+                      className="font-mono text-xs font-bold px-2 py-0.5 rounded border"
+                      style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                    >
                       {cvPrintEmp.emp_code}
                     </span>
                   </div>
-                  <p className="text-xs font-bold text-purple-700">{cvPrintEmp.job_title} - <span className="text-slate-700">{cvPrintEmp.department}</span></p>
+                  <p className="text-xs font-bold" style={{ color: primaryCol }}>{cvPrintEmp.job_title} - <span className="text-slate-700">{cvPrintEmp.department}</span></p>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs text-slate-600 font-mono">
                     <div>الهاتف: <strong className="text-slate-900 font-sans">{cvPrintEmp.phone || 'غير مسجل'}</strong></div>
                     <div>تاريخ التعيين: <strong className="text-slate-900">{formatDateOnly(cvPrintEmp.hire_date)}</strong></div>
@@ -1686,7 +1790,7 @@ export default function HRManagementPage() {
               <div className="space-y-3.5 text-xs leading-relaxed">
                 <div className="border border-slate-200 p-4 rounded-xl bg-white space-y-1.5 text-right">
                   <h3 className="font-bold text-slate-950 flex items-center gap-1.5 text-sm">
-                    <User className="w-4 h-4 text-purple-600" /> النبذة المهنية الموجزة
+                    <User className="w-4 h-4" style={{ color: primaryCol }} /> النبذة المهنية الموجزة
                   </h3>
                   <p className="text-slate-800 font-sans text-xs leading-relaxed whitespace-pre-line">
                     {cvPrintEmp.cv_data?.bio ? cvPrintEmp.cv_data.bio : 'لا توجد نبذة مهنية مسجلة حتى الآن.'}
@@ -1717,7 +1821,7 @@ export default function HRManagementPage() {
 
                 <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-2">
                   <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
-                    <Paperclip className="w-3.5 h-3.5 text-purple-600" /> المستمسكات والشهادات الرسمية
+                    <Paperclip className="w-3.5 h-3.5" style={{ color: primaryCol }} /> المستمسكات والشهادات الرسمية
                   </h3>
                   {cvPrintEmp.cv_data?.documents && cvPrintEmp.cv_data.documents.length > 0 ? (
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono">
@@ -1752,7 +1856,11 @@ export default function HRManagementPage() {
         {salaryCertEmp && (
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
             <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
-              <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer">
+              <button 
+                onClick={() => window.print()} 
+                className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+              >
                 <Printer className="w-4 h-4" /> طباعة تأييد الراتب (A4)
               </button>
               <button onClick={() => setSalaryCertEmp(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
@@ -1761,33 +1869,50 @@ export default function HRManagementPage() {
             </div>
 
             <div className="w-full max-w-3xl bg-white text-slate-900 rounded-2xl p-8 md:p-10 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-4">
-                <div className="flex items-center gap-3.5">
-                  <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
-                    <Image 
-                      src="/logo.png" 
-                      alt="شركة البرج المتألق" 
-                      width={56} 
-                      height={56} 
-                      className="object-contain" 
-                      priority 
-                    />
+              
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-3.5">
+                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image 
+                          src="/logo.png" 
+                          alt="شركة البرج المتألق" 
+                          width={56} 
+                          height={56} 
+                          className="object-contain" 
+                          priority 
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                      <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold">للمقاولات العامة والتجارة والنقل والاستثمار العقاري</p>
+                  <div className="text-left font-mono">
+                    <div 
+                      className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      شهادة تأييد راتب
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-1 font-mono">التاريخ: {new Date().toISOString().substring(0, 10)}</p>
                   </div>
                 </div>
-                <div className="text-left font-mono">
-                  <div className="border-2 border-slate-900 px-3 py-1 font-black text-xs uppercase bg-rose-500 text-white rounded-lg inline-block">
-                    شهادة تأييد راتب
-                  </div>
-                  <p className="text-[11px] text-slate-500 mt-1 font-mono">التاريخ: {new Date().toISOString().substring(0, 10)}</p>
-                </div>
-              </div>
+              )}
 
               <div className="text-center py-2">
-                <h3 className="text-lg font-black text-slate-950 underline underline-offset-8">
+                <h3 className="text-lg font-black text-slate-950 underline underline-offset-8" style={{ textDecorationColor: primaryCol }}>
                   {certificateDestination && certificateDestination !== 'إلى من يهمه الأمر' 
                     ? `إلى / ${certificateDestination} المحترمون` 
                     : 'إلى من يهمه الأمر / تأييد استمرار بالخدمة'}
@@ -1796,7 +1921,7 @@ export default function HRManagementPage() {
 
               <div className="space-y-3.5 text-xs text-slate-800 leading-loose">
                 <p>
-                  تشهد إدارة <strong>شركة البرج المتألق للمقاولات والتجارة العامة</strong> بأن السيد/ة: <strong className="text-slate-950 text-sm">{salaryCertEmp.full_name}</strong>، الحامل للرقم الوظيفي (<span className="font-mono font-bold">{salaryCertEmp.emp_code}</span>), يعمل لدينا بصفة: <strong>{salaryCertEmp.job_title}</strong> في قسم: <strong>{salaryCertEmp.department}</strong> منذ تاريخ: <span className="font-mono font-bold text-slate-950">{formatDateOnly(salaryCertEmp.hire_date)}</span> وما زال مستمراً بعمله حتى الآن.
+                  تشهد إدارة <strong>{companySettings.company_name}</strong> بأن السيد/ة: <strong className="text-slate-950 text-sm">{salaryCertEmp.full_name}</strong>، الحامل للرقم الوظيفي (<span className="font-mono font-bold" style={{ color: primaryCol }}>{salaryCertEmp.emp_code}</span>)، يعمل لدينا بصفة: <strong>{salaryCertEmp.job_title}</strong> في قسم: <strong>{salaryCertEmp.department}</strong> منذ تاريخ: <span className="font-mono font-bold text-slate-950">{formatDateOnly(salaryCertEmp.hire_date)}</span> وما زال مستمراً بعمله حتى الآن.
                 </p>
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-xl space-y-2 text-xs">
                   <div className="flex justify-between items-center">
@@ -1807,7 +1932,7 @@ export default function HRManagementPage() {
                     <span>المخصصات والبدلات الثابتة:</span>
                     <strong className="font-mono text-slate-900">{formatNum(salaryCertEmp.allowances)} د.ع</strong>
                   </div>
-                  <div className="flex justify-between items-center text-sm font-bold border-t border-slate-200 pt-2 text-rose-700">
+                  <div className="flex justify-between items-center text-sm font-bold border-t border-slate-200 pt-2" style={{ color: primaryCol }}>
                     <span>صافي الراتب التعاقدي:</span>
                     <strong className="font-mono">{formatNum(Number(salaryCertEmp.base_salary) + Number(salaryCertEmp.allowances))} دينار عراقي</strong>
                   </div>
@@ -1845,7 +1970,6 @@ export default function HRManagementPage() {
               </div>
 
               <div className="space-y-3 text-xs">
-                {/* رفع ومعاينة الصورة الشخصية للموظف */}
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
                   <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-900 flex items-center justify-center shrink-0">
                     {cvAvatar ? (
@@ -2006,7 +2130,7 @@ export default function HRManagementPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Edit3 className="w-5 h-5 text-amber-400" /> تعديل بيانات الموظف: {editingEmployee.full_name}
+                  <Edit3 className="w-5 h-5" style={{ color: primaryCol }} /> تعديل بيانات الموظف: {editingEmployee.full_name}
                 </h3>
                 <button onClick={() => setEditingEmployee(null)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
                   <X className="w-5 h-5" />
@@ -2184,7 +2308,8 @@ export default function HRManagementPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-amber-500/25 cursor-pointer"
+                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
                   </button>
@@ -2362,7 +2487,8 @@ export default function HRManagementPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-4 py-1.5 font-bold rounded-xl text-white bg-rose-600 hover:bg-rose-500 transition text-xs cursor-pointer"
+                    className="px-4 py-1.5 font-bold rounded-xl text-slate-950 transition text-xs cursor-pointer shadow-md"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الاعتماد...' : 'اعتماد الإجراء'}
                   </button>
@@ -2495,7 +2621,7 @@ export default function HRManagementPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Users className="w-5 h-5 text-rose-400" /> إضافة موظف جديد لكادر الشركة
+                  <Users className="w-5 h-5" style={{ color: primaryCol }} /> إضافة موظف جديد لكادر الشركة
                 </h3>
                 <button onClick={() => setShowAddEmpModal(false)} className="text-slate-400 hover:text-white p-1 cursor-pointer">
                   <X className="w-5 h-5" />
@@ -2590,7 +2716,8 @@ export default function HRManagementPage() {
                         name="contractType" 
                         checked={contractType === 'PERMANENT'} 
                         onChange={() => setContractType('PERMANENT')} 
-                        className="accent-rose-500 w-4 h-4 cursor-pointer"
+                        className="w-4 h-4 cursor-pointer"
+                        style={{ accentColor: primaryCol }}
                       />
                       <label htmlFor="permanent" className="text-white font-bold cursor-pointer">مستمر بالدوام الرسمي</label>
                     </div>
@@ -2602,7 +2729,8 @@ export default function HRManagementPage() {
                         name="contractType" 
                         checked={contractType === 'FIXED'} 
                         onChange={() => setContractType('FIXED')} 
-                        className="accent-rose-500 w-4 h-4 cursor-pointer"
+                        className="w-4 h-4 cursor-pointer"
+                        style={{ accentColor: primaryCol }}
                       />
                       <label htmlFor="fixed" className="text-white font-bold cursor-pointer">تاريخ انتهاء محدد</label>
                     </div>
@@ -2678,7 +2806,8 @@ export default function HRManagementPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-6 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-rose-600/25 cursor-pointer"
+                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ وتسجيل الموظف'}
                   </button>

@@ -37,6 +37,20 @@ function formatNum(val: number | string): string {
 
 export default function InventoryPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [items, setItems] = useState<any[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -75,6 +89,20 @@ export default function InventoryPage() {
   // إذن مخزني رسمي للطباعة A4
   const [printedReceipt, setPrintedReceipt] = useState<any | null>(null);
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -94,6 +122,8 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -322,19 +352,30 @@ export default function InventoryPage() {
     });
   }, [items]);
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
+
   if (!currentUser) return null;
 
   return (
     <AuthGuard moduleName="inventory" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
-        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل دون التفاف أو نزول للأزرار */}
+        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
             {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-amber-500/20 shrink-0 flex items-center justify-center">
+              <div 
+                className="w-14 h-14 p-3 rounded-2xl text-slate-950 font-black shadow-xl shrink-0 flex items-center justify-center transition-all"
+                style={{ 
+                  background: `linear-gradient(135deg, ${primaryCol}, ${secondaryCol})`,
+                  boxShadow: `0 10px 25px -5px ${primaryCol}40`
+                }}
+              >
                 <Boxes className="w-8 h-8" />
               </div>
               <div className="space-y-1">
@@ -342,18 +383,21 @@ export default function InventoryPage() {
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     قطاع التجارة العامة والمخزن المركزي وإدارة التوريدات
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     Enterprise Inventory & Smart Orders
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • أذونات الاستلام، الصرف الموقعي، والنواقص، والتحليل المالي
+                  {companySettings.company_name} • أذونات الاستلام، الصرف الموقعي، والنواقص، والتحليل المالي
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات في سطر واحد ثابت يمنع التكدس */}
+            {/* الطرف الأيسر: شريط الإجراءات */}
             <div className="flex items-center gap-2 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <Link 
                 href="/inventory/installments" 
@@ -400,7 +444,7 @@ export default function InventoryPage() {
         {/* شريط فلترة التاريخ المتقدم */}
         <div className="max-w-7xl mx-auto mt-6 bg-slate-900/90 border border-slate-800 p-4 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl print:hidden">
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-            <div className="flex items-center gap-2 text-amber-400 font-bold text-[14px]">
+            <div className="flex items-center gap-2 font-bold text-[14px]" style={{ color: primaryCol }}>
               <Calendar className="w-4 h-4" />
               <span>نطاق التحليل المالي للمخزون والتجارة:</span>
             </div>
@@ -411,7 +455,7 @@ export default function InventoryPage() {
                 type="date" 
                 value={startDate} 
                 onChange={(e) => setStartDate(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none focus:border-amber-500 text-xs"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none text-xs"
               />
             </div>
 
@@ -421,7 +465,7 @@ export default function InventoryPage() {
                 type="date" 
                 value={endDate} 
                 onChange={(e) => setEndDate(e.target.value)}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none focus:border-amber-500 text-xs"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none text-xs"
               />
             </div>
           </div>
@@ -441,7 +485,8 @@ export default function InventoryPage() {
             </button>
             <button
               onClick={() => setQuickRange('ALL')}
-              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 text-xs font-semibold rounded-xl transition flex items-center gap-1 cursor-pointer"
+              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl transition flex items-center gap-1 cursor-pointer"
+              style={{ color: primaryCol }}
             >
               <RotateCcw className="w-3.5 h-3.5" /> الكل
             </button>
@@ -505,13 +550,13 @@ export default function InventoryPage() {
             <div className="flex justify-between items-start">
               <div>
                 <span className="text-[13px] text-slate-400 font-semibold block flex items-center gap-1.5">
-                  <HardHat className="w-4 h-4 text-amber-400" /> مواد مصروفة لمشاريع الشركة
+                  <HardHat className="w-4 h-4" style={{ color: primaryCol }} /> مواد مصروفة لمشاريع الشركة
                 </span>
-                <div className="text-2xl font-black font-mono text-amber-400 mt-2">
+                <div className="text-2xl font-black font-mono mt-2" style={{ color: primaryCol }}>
                   {formatNum(financialAnalytics.periodProjectIssues)} <span className="text-xs font-sans text-slate-400">د.ع</span>
                 </div>
               </div>
-              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+              <div className="p-2.5 rounded-2xl border" style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}20` }}>
                 <HardHat className="w-5 h-5" />
               </div>
             </div>
@@ -525,24 +570,27 @@ export default function InventoryPage() {
             <button
               onClick={() => setActiveTab('ITEMS_LIST')}
               className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'ITEMS_LIST' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-white'
+                activeTab === 'ITEMS_LIST' ? 'text-slate-950 font-black shadow-lg' : 'text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'ITEMS_LIST' ? { backgroundColor: primaryCol } : {}}
             >
               <Boxes className="w-4 h-4" /> جرد الأصناف والمخزون ({items.length})
             </button>
             <button
               onClick={() => setActiveTab('TRANSACTIONS_LOG')}
               className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'TRANSACTIONS_LOG' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-white'
+                activeTab === 'TRANSACTIONS_LOG' ? 'text-slate-950 font-black shadow-lg' : 'text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'TRANSACTIONS_LOG' ? { backgroundColor: primaryCol } : {}}
             >
               <FileText className="w-4 h-4" /> سجل أذونات الحركات والطباعة ({transactions.length})
             </button>
             <button
               onClick={() => setActiveTab('LOW_STOCK')}
               className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
-                activeTab === 'LOW_STOCK' ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20' : 'text-slate-400 hover:text-white'
+                activeTab === 'LOW_STOCK' ? 'text-slate-950 font-black shadow-lg' : 'text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'LOW_STOCK' ? { backgroundColor: primaryCol } : {}}
             >
               <AlertTriangle className="w-4 h-4 text-rose-400" /> النواقص وحد الطلب ({lowStockItemsList.length})
             </button>
@@ -552,7 +600,8 @@ export default function InventoryPage() {
             {canAdd && (
               <button
                 onClick={() => setShowAddModal(true)}
-                className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2.5 rounded-2xl text-[13px] flex items-center gap-1.5 transition shadow-md shadow-amber-500/20 cursor-pointer"
+                className="text-slate-950 font-bold px-4 py-2.5 rounded-2xl text-[13px] flex items-center gap-1.5 transition shadow-md cursor-pointer"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
               >
                 <PlusCircle className="w-4 h-4" /> تعريف صنف جديد
               </button>
@@ -624,7 +673,7 @@ export default function InventoryPage() {
 
                         return (
                           <tr key={item.item_id} className="hover:bg-slate-800/40 transition">
-                            <td className="p-3.5 text-amber-400 font-bold">{item.item_code}</td>
+                            <td className="p-3.5 font-bold" style={{ color: primaryCol }}>{item.item_code}</td>
                             <td className="p-3.5 font-bold text-white font-sans flex items-center gap-2">
                               <span>{item.name || item.item_name}</span>
                               {isLow && (
@@ -698,7 +747,7 @@ export default function InventoryPage() {
             <div className="bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
               <div className="p-4 border-b border-slate-800 flex justify-between items-center">
                 <h4 className="text-[14px] font-bold text-white flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-amber-400" /> سجل أذونات التوريد، الصرف للمشاريع، والبيع التجاري
+                  <FileText className="w-4 h-4" style={{ color: primaryCol }} /> سجل أذونات التوريد، الصرف للمشاريع، والبيع التجاري
                 </h4>
                 <span className="text-[12px] text-slate-400 font-mono">
                   إجمالي الأذونات بالفترة: {filteredTransactions.length}
@@ -736,7 +785,10 @@ export default function InventoryPage() {
                                   <ArrowDownLeft className="w-3.5 h-3.5" /> توريد واستيراد (IN)
                                 </span>
                               ) : tr.purpose === 'PROJECT_ISSUE' || tr.project_id ? (
-                                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1 w-fit">
+                                <span 
+                                  className="px-2.5 py-0.5 rounded-full text-[11px] font-bold border flex items-center gap-1 w-fit"
+                                  style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                                >
                                   <HardHat className="w-3.5 h-3.5" /> صرف لمشروع (OUT)
                                 </span>
                               ) : (
@@ -752,10 +804,10 @@ export default function InventoryPage() {
                               {formatNum(tr.quantity)} <span className="text-xs text-slate-400 font-sans">{tr.unit}</span>
                             </td>
                             <td className="p-3.5 text-slate-300 font-bold">{formatNum(tr.unit_price)} د.ع</td>
-                            <td className="p-3.5 text-amber-400 font-black">{formatNum(tr.total_amount)} د.ع</td>
+                            <td className="p-3.5 font-black" style={{ color: primaryCol }}>{formatNum(tr.total_amount)} د.ع</td>
                             <td className="p-3.5 font-sans text-slate-200">
                               {tr.project_name ? (
-                                <span className="text-amber-300 font-bold">مشروع: {tr.project_name}</span>
+                                <span className="font-bold" style={{ color: primaryCol }}>مشروع: {tr.project_name}</span>
                               ) : (
                                 <span>{tr.supplier_or_recipient || 'المخزن العام'}</span>
                               )}
@@ -763,8 +815,12 @@ export default function InventoryPage() {
                             <td className="p-3.5 text-slate-500">{String(tr.created_at || '').substring(0, 10)}</td>
                             <td className="p-3.5 text-center font-sans">
                               <button
-                                onClick={() => setPrintedReceipt(tr)}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg border border-slate-700 transition cursor-pointer"
+                                onClick={async () => {
+                                  await loadSettings();
+                                  setPrintedReceipt(tr);
+                                }}
+                                className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition cursor-pointer"
+                                style={{ color: primaryCol }}
                                 title="طباعة الإذن المخزني الرسمي A4"
                               >
                                 <Printer className="w-4 h-4" />
@@ -813,7 +869,7 @@ export default function InventoryPage() {
                   return (
                     <div key={item.item_id} className="bg-slate-900 border border-rose-500/30 p-6 rounded-3xl space-y-3.5 shadow-xl">
                       <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span className="font-mono text-xs text-amber-400 font-bold">{item.item_code}</span>
+                        <span className="font-mono text-xs font-bold" style={{ color: primaryCol }}>{item.item_code}</span>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30 font-sans">
                           رصيد حرج
                         </span>
@@ -865,7 +921,11 @@ export default function InventoryPage() {
         {printedReceipt && (
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
             <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
-              <button onClick={() => window.print()} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-6 py-2.5 rounded-xl text-[14px] flex items-center gap-2 transition cursor-pointer">
+              <button 
+                onClick={() => window.print()} 
+                className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-[14px] flex items-center gap-2 transition cursor-pointer shadow-lg"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+              >
                 <Printer className="w-4 h-4" /> طباعة الإذن المخزني الرسمي (A4)
               </button>
               <button onClick={() => setPrintedReceipt(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
@@ -874,24 +934,41 @@ export default function InventoryPage() {
             </div>
 
             <div className="w-full max-w-3xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-18 h-18 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                    <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" />
+              
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" />
+                      )}
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                      <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold">إدارة المخازن المركزية والتجارة العامة والتوريدات الميدانية</p>
+                  <div className="text-left font-mono">
+                    <div 
+                      className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      {printedReceipt.trans_type === 'IN' ? 'إذن استلام وتوريد مخزني (GRN)' : 'إذن صرف مواد وبضائع (Goods Issue)'}
+                    </div>
+                    <p className="text-[12px] text-slate-700 mt-2 font-bold font-mono">رقم الإذن: <span style={{ color: primaryCol }}>{printedReceipt.trans_code}</span></p>
+                    <p className="text-[11px] text-slate-500 mt-0.5">التاريخ: {String(printedReceipt.created_at || '').substring(0, 10)}</p>
                   </div>
                 </div>
-                <div className="text-left font-mono">
-                  <div className="border-2 border-slate-900 px-3 py-1 font-black text-xs uppercase bg-amber-500 text-slate-950 rounded-lg inline-block">
-                    {printedReceipt.trans_type === 'IN' ? 'إذن استلام وتوريد مخزني (GRN)' : 'إذن صرف مواد وبضائع (Goods Issue)'}
-                  </div>
-                  <p className="text-[12px] text-slate-600 mt-2 font-bold">رقم الإذن: {printedReceipt.trans_code}</p>
-                  <p className="text-[11px] text-slate-500 mt-0.5">التاريخ: {String(printedReceipt.created_at || '').substring(0, 10)}</p>
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-[14px] font-semibold">
                 <div>
@@ -925,11 +1002,11 @@ export default function InventoryPage() {
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     <tr>
-                      <td className="p-3 font-bold text-amber-700">{printedReceipt.item_code}</td>
+                      <td className="p-3 font-bold" style={{ color: primaryCol }}>{printedReceipt.item_code}</td>
                       <td className="p-3 font-bold font-sans text-slate-950">{printedReceipt.item_name || printedReceipt.name}</td>
                       <td className="p-3 font-black text-slate-950">{formatNum(printedReceipt.quantity)} {printedReceipt.unit}</td>
                       <td className="p-3 text-slate-800">{formatNum(printedReceipt.unit_price)} د.ع</td>
-                      <td className="p-3 font-black text-slate-950">{formatNum(printedReceipt.total_amount)} د.ع</td>
+                      <td className="p-3 font-black" style={{ color: primaryCol }}>{formatNum(printedReceipt.total_amount)} د.ع</td>
                     </tr>
                   </tbody>
                 </table>
@@ -951,9 +1028,14 @@ export default function InventoryPage() {
                   <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
                 </div>
                 <div>
-                  <p className="font-bold text-slate-700">مصادقة الحسابات العامة</p>
+                  <p className="font-bold text-slate-700">مصادقة الإدارة العامة</p>
                   <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
                 </div>
+              </div>
+
+              <div className="mt-8 pt-3 border-t text-[10px] text-slate-500 flex justify-between font-mono">
+                <span>{companySettings.company_name} - {companySettings.address}</span>
+                <span>هاتف: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
               </div>
             </div>
           </div>
@@ -965,7 +1047,7 @@ export default function InventoryPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Package className="w-4 h-4 text-amber-400" /> تعريف صنف / بضاعة جديدة بالمخزن
+                  <Package className="w-4 h-4" style={{ color: primaryCol }} /> تعريف صنف / بضاعة جديدة بالمخزن
                 </h3>
                 <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
@@ -1087,7 +1169,12 @@ export default function InventoryPage() {
 
                 <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
                   <button type="button" onClick={() => setShowAddModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
-                  <button type="submit" disabled={loading} className="px-5 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition cursor-pointer">
+                  <button 
+                    type="submit" 
+                    disabled={loading} 
+                    className="px-5 py-2 text-slate-950 font-bold rounded-xl transition cursor-pointer shadow-md"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+                  >
                     {loading ? 'جاري الحفظ...' : 'حفظ وتعريف الصنف'}
                   </button>
                 </div>
@@ -1107,7 +1194,7 @@ export default function InventoryPage() {
                   ) : isExternalSale ? (
                     <Store className="w-4 h-4 text-sky-400" />
                   ) : (
-                    <ArrowUpRight className="w-4 h-4 text-amber-400" />
+                    <ArrowUpRight className="w-4 h-4" style={{ color: primaryCol }} />
                   )}
                   {transType === 'IN' 
                     ? 'إذن استلام وتوريد بضاعة للمخزن' 
@@ -1168,7 +1255,7 @@ export default function InventoryPage() {
                     onChange={(e) => setTransPrice(e.target.value)}
                     className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none"
                   />
-                  <span className="text-xs text-amber-400 mt-1 block font-mono">
+                  <span className="text-xs mt-1 block font-mono font-bold" style={{ color: primaryCol }}>
                     الإجمالي المحسوب: {formatNum((Number(transQty) || 0) * (Number(transPrice) || 0))} د.ع
                   </span>
                 </div>
@@ -1280,7 +1367,7 @@ export default function InventoryPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className={`px-5 py-2 font-bold rounded-xl text-slate-950 transition cursor-pointer ${
+                    className={`px-5 py-2 font-bold rounded-xl text-slate-950 transition cursor-pointer shadow-md ${
                       transType === 'IN' 
                         ? 'bg-emerald-500 hover:bg-emerald-400' 
                         : isExternalSale 

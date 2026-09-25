@@ -67,6 +67,19 @@ function generateYearMonths(year: string = '2026') {
 
 export default function FinancialReportsPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
   
   const [projectsRaw, setProjectsRaw] = useState<any[]>([]);
   const [vouchersRaw, setVouchersRaw] = useState<any[]>([]);
@@ -88,6 +101,20 @@ export default function FinancialReportsPage() {
     return new Date(now.getFullYear(), 11, 31).toISOString().split('T')[0];
   });
   const [isAllTime, setIsAllTime] = useState(true);
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadAllData = async () => {
     setLoading(true);
@@ -118,6 +145,8 @@ export default function FinancialReportsPage() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -454,6 +483,11 @@ export default function FinancialReportsPage() {
     ].filter(item => item.value > 0);
   }, [summary, fleetFinance, tradeFinance, hrFinance]);
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
+
   if (!currentUser) return null;
 
   return (
@@ -466,33 +500,48 @@ export default function FinancialReportsPage() {
             
             {/* الطرف الأيمن: الشعار والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
-                <Image 
-                  src="/logo.png" 
-                  alt="شركة البرج المتألق" 
-                  width={48} 
-                  height={48} 
-                  className="object-contain" 
-                  priority 
-                />
+              <div 
+                className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 p-2 shadow-xl"
+                style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
+              >
+                {hasLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={companySettings.logo_url} 
+                    alt={companySettings.company_name} 
+                    className="w-full h-full object-contain" 
+                  />
+                ) : (
+                  <Image 
+                    src="/logo.png" 
+                    alt="شركة البرج المتألق" 
+                    width={48} 
+                    height={48} 
+                    className="object-contain" 
+                    priority 
+                  />
+                )}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     التقرير المالي التنفيذي وتحليل الاستثمار الموحد
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     RTCO Executive Analytics 2026
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • المركز المالي، التحليل الزمني، الرسوم البيانية، واستقلالية القطاعات
+                  {companySettings.company_name} • المركز المالي، التحليل الزمني، الرسوم البيانية، واستقلالية القطاعات
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع في سطر واحد ثابت */}
+            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <button 
                 onClick={loadAllData} 
@@ -503,8 +552,12 @@ export default function FinancialReportsPage() {
               </button>
 
               <button 
-                onClick={() => window.print()} 
-                className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-amber-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
+                onClick={async () => {
+                  await loadSettings();
+                  window.print();
+                }} 
+                className="px-4 py-2.5 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer whitespace-nowrap active:scale-95"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
               >
                 <Printer className="w-4 h-4" /> طباعة الميزانية والقوائم (A4)
               </button>
@@ -523,7 +576,7 @@ export default function FinancialReportsPage() {
         {/* شريط فلترة النطاق الزمني والتنقل الشهري */}
         <div className="max-w-7xl mx-auto mt-6 bg-slate-900/90 border border-slate-800 p-4 rounded-3xl print:hidden flex flex-col md:flex-row items-center justify-between gap-4 shadow-xl">
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-            <div className="flex items-center gap-2 text-amber-400 font-bold text-xs">
+            <div className="flex items-center gap-2 font-bold text-xs" style={{ color: primaryCol }}>
               <Calendar className="w-4 h-4" />
               <span>نطاق التحليل الزمني:</span>
             </div>
@@ -536,7 +589,7 @@ export default function FinancialReportsPage() {
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
-              <span className="px-2 text-xs font-mono text-amber-400 font-bold">تنقل شهري</span>
+              <span className="px-2 text-xs font-mono font-bold" style={{ color: primaryCol }}>تنقل شهري</span>
               <button 
                 onClick={() => handleShiftMonth('NEXT')} 
                 className="p-1.5 hover:bg-slate-800 text-slate-300 rounded-lg transition cursor-pointer"
@@ -552,7 +605,7 @@ export default function FinancialReportsPage() {
                 type="date" 
                 value={startDate} 
                 onChange={(e) => { setIsAllTime(false); setStartDate(e.target.value); }}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none focus:border-amber-500 text-xs"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none text-xs"
               />
             </div>
 
@@ -562,7 +615,7 @@ export default function FinancialReportsPage() {
                 type="date" 
                 value={endDate} 
                 onChange={(e) => { setIsAllTime(false); setEndDate(e.target.value); }}
-                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none focus:border-amber-500 text-xs"
+                className="bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-white font-mono outline-none text-xs"
               />
             </div>
           </div>
@@ -582,7 +635,8 @@ export default function FinancialReportsPage() {
             </button>
             <button
               onClick={() => setQuickRange('ALL')}
-              className={`px-3.5 py-1.5 text-xs font-semibold rounded-xl transition flex items-center gap-1 cursor-pointer ${isAllTime ? 'bg-amber-500 text-slate-950 font-bold' : 'bg-slate-800 hover:bg-slate-700 text-amber-400'}`}
+              className="px-3.5 py-1.5 text-xs font-semibold rounded-xl transition flex items-center gap-1 cursor-pointer"
+              style={isAllTime ? { backgroundColor: primaryCol, color: '#020617', fontWeight: 'bold' } : { backgroundColor: '#1e293b', color: primaryCol }}
             >
               <RotateCcw className="w-3.5 h-3.5" /> الكل
             </button>
@@ -723,14 +777,17 @@ export default function FinancialReportsPage() {
 
         {/* 1. قطاع المقاولات والمشاريع */}
         <div className="max-w-7xl mx-auto mt-10 space-y-5 print:hidden">
-          <div className="border-b-2 border-amber-500/40 pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+          <div className="border-b-2 pb-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2" style={{ borderColor: `${primaryCol}40` }}>
             <div>
               <h2 className="text-lg font-black text-white flex items-center gap-2.5">
-                <HardHat className="w-6 h-6 text-amber-400" /> 1. قطاع المقاولات والمشاريع الهندسية
+                <HardHat className="w-6 h-6" style={{ color: primaryCol }} /> 1. قطاع المقاولات والمشاريع الهندسية
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">المستخلصات، الإنفاق الميداني، والتحليل الزمني للمشاريع عبر شهور العام</p>
             </div>
-            <span className="text-xs font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded-xl">
+            <span 
+              className="text-xs font-mono font-bold px-3 py-1 rounded-xl border"
+              style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}30` }}
+            >
               عقود المشاريع: {formatNum(summary.totalProjectsContract)} د.ع
             </span>
           </div>
@@ -748,9 +805,9 @@ export default function FinancialReportsPage() {
                     <span className="text-slate-400 text-xs font-sans">التكاليف المنصرفة:</span>
                     <strong className="text-rose-400 text-sm">{formatNum(summary.totalProjectsCosts)} د.ع</strong>
                   </div>
-                  <div className="flex justify-between items-center p-3 bg-slate-950 rounded-2xl border border-amber-500/30">
+                  <div className="flex justify-between items-center p-3 bg-slate-950 rounded-2xl border" style={{ borderColor: `${primaryCol}30` }}>
                     <span className="text-slate-300 text-xs font-sans font-bold">صافي السيولة النقدية:</span>
-                    <strong className="text-amber-400 text-base">{formatNum(summary.totalProjectsReceived - summary.totalProjectsCosts)} د.ع</strong>
+                    <strong className="text-base" style={{ color: primaryCol }}>{formatNum(summary.totalProjectsReceived - summary.totalProjectsCosts)} د.ع</strong>
                   </div>
                 </div>
               </div>
@@ -760,9 +817,9 @@ export default function FinancialReportsPage() {
             <div className="lg:col-span-2 bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-3 shadow-xl">
               <div className="flex justify-between items-center border-b border-slate-800 pb-2">
                 <span className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
-                  <TrendingUp className="w-4 h-4 text-amber-400" /> المسار الزمني لتدفقات المقاولات (المبالغ عبر الوقت)
+                  <TrendingUp className="w-4 h-4" style={{ color: primaryCol }} /> المسار الزمني لتدفقات المقاولات (المبالغ عبر الوقت)
                 </span>
-                <span className="text-[10px] text-amber-400 font-mono">تتبع شهري 2026</span>
+                <span className="text-[10px] font-mono" style={{ color: primaryCol }}>تتبع شهري 2026</span>
               </div>
               <div className="w-full h-64 min-h-[260px] pt-2" dir="ltr">
                 <ResponsiveContainer width="100%" height={260}>
@@ -1058,25 +1115,41 @@ export default function FinancialReportsPage() {
         {/* التقرير المالي الرسمي للطباعة A4 المخصص للإدارة العليا */}
         {/* ------------------------------------------------------------- */}
         <div className="w-full max-w-5xl mx-auto bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl mt-14 print:border-none print:shadow-none print:p-0 print:m-0 space-y-6">
-          <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-            <div className="flex items-center gap-4">
-              <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200 shrink-0">
-                <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" priority />
+          
+          {hasLetterhead ? (
+            <div className="w-full border-b pb-4 mb-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+            </div>
+          ) : (
+            <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200 shrink-0">
+                  {hasLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                  ) : (
+                    <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" priority />
+                  )}
+                </div>
+                <div>
+                  <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                  <p className="text-xs text-slate-600 font-bold mt-0.5">{companySettings.tagline}</p>
+                  <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address} | {companySettings.phone_primary}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                <p className="text-xs text-slate-600 font-bold mt-0.5">قائمة الدخل المركزية والتقارير المالية التنفيذية لكافة القطاعات</p>
-                <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | 07868006699</p>
+              <div className="text-left flex flex-col items-end">
+                <div 
+                  className="border-2 px-4 py-1.5 font-black text-xs uppercase tracking-wider text-slate-950 rounded-xl"
+                  style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                >
+                  التقرير المالي التنفيذي الموحد
+                </div>
+                <p className="text-[11px] font-mono mt-2 text-slate-600">تاريخ الطباعة: <span className="font-bold text-slate-950">{new Date().toISOString().split('T')[0]}</span></p>
+                <p className="text-[10px] font-mono text-slate-500 mt-0.5">الفترة: {startDate || 'منذ التأسيس'} إلى {endDate || 'اليوم'}</p>
               </div>
             </div>
-            <div className="text-left flex flex-col items-end">
-              <div className="border-2 border-slate-900 px-4 py-1.5 font-black text-xs uppercase tracking-wider bg-amber-400 text-slate-950 rounded-xl">
-                التقرير المالي التنفيذي الموحد
-              </div>
-              <p className="text-[11px] font-mono mt-2 text-slate-600">تاريخ الطباعة: <span className="font-bold text-slate-950">{new Date().toISOString().split('T')[0]}</span></p>
-              <p className="text-[10px] font-mono text-slate-500 mt-0.5">الفترة: {startDate || 'منذ التأسيس'} إلى {endDate || 'اليوم'}</p>
-            </div>
-          </div>
+          )}
 
           <div className="grid grid-cols-3 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs font-mono text-center">
             <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">

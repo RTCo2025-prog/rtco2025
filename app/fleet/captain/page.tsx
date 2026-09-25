@@ -50,6 +50,10 @@ function openGoogleMapsDirections(origin: string, destination: string) {
 export default function CaptainDashboard() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
   const [activeTrip, setActiveTrip] = useState<any | null>(null);
   const [assignedVehicle, setAssignedVehicle] = useState<any | null>(null);
   const [loading, setLoading] = useState(false);
@@ -61,6 +65,20 @@ export default function CaptainDashboard() {
   const [fuelCost, setFuelCost] = useState('60000');
   const [fuelDesc, setFuelDesc] = useState('تزويد وقود ديزل للشاحنة');
   const [fuelStation, setFuelStation] = useState('محطة وقود النور');
+
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const loadData = async (userFullName: string) => {
     try {
@@ -94,6 +112,8 @@ export default function CaptainDashboard() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -226,6 +246,9 @@ export default function CaptainDashboard() {
     ? calculateTripProgress(activeTrip.departure_time, Number(activeTrip.estimated_hours || 6))
     : null;
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+
   return (
     <AuthGuard moduleName="fleet" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 font-sans max-w-md mx-auto flex flex-col justify-between pb-8 text-xs">
@@ -234,31 +257,34 @@ export default function CaptainDashboard() {
           {/* الترويسة الميدانية */}
           <div className="flex items-center justify-between bg-slate-900 border border-slate-800 p-3.5 rounded-2xl">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-emerald-500 bg-slate-800 flex items-center justify-center">
+              <div className="w-10 h-10 rounded-full overflow-hidden border-2 bg-slate-800 flex items-center justify-center" style={{ borderColor: primaryCol }}>
                 {currentUser.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
                 ) : (
-                  <User className="w-5 h-5 text-emerald-400" />
+                  <User className="w-5 h-5" style={{ color: primaryCol }} />
                 )}
               </div>
               <div>
                 <p className="text-xs font-bold text-white leading-tight">{currentUser.full_name}</p>
-                <span className="text-[10px] text-emerald-400 font-semibold block">كابتن أسطول النقل الميداني</span>
+                <span className="text-[10px] font-semibold block" style={{ color: primaryCol }}>كابتن أسطول النقل الميداني</span>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <button 
-                onClick={() => loadData(currentUser.full_name)}
-                className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-xl"
+                onClick={() => {
+                  loadSettings();
+                  loadData(currentUser.full_name);
+                }}
+                className="p-2 bg-slate-800 text-slate-400 hover:text-white rounded-xl cursor-pointer"
                 title="تحديث"
               >
                 <RefreshCw className="w-4 h-4" />
               </button>
               <button 
                 onClick={handleLogout}
-                className="p-2 bg-slate-800 text-rose-400 hover:text-white rounded-xl"
+                className="p-2 bg-slate-800 text-rose-400 hover:text-white rounded-xl cursor-pointer"
                 title="تسجيل الخروج"
               >
                 <LogOut className="w-4 h-4" />
@@ -268,11 +294,11 @@ export default function CaptainDashboard() {
 
           {/* بطاقة الشاحنة المخصصة */}
           {assignedVehicle ? (
-            <div className="bg-slate-900 border border-emerald-500/30 p-4 rounded-2xl flex items-center justify-between">
+            <div className="bg-slate-900 border p-4 rounded-2xl flex items-center justify-between" style={{ borderColor: `${primaryCol}40` }}>
               <div>
                 <span className="text-[10px] text-slate-400 block font-semibold">شاحنتك المخصصة:</span>
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5 mt-0.5">
-                  <Truck className="w-4 h-4 text-emerald-400" /> {assignedVehicle.vehicle_name}
+                  <Truck className="w-4 h-4" style={{ color: primaryCol }} /> {assignedVehicle.vehicle_name}
                 </h3>
                 <p className="text-[11px] text-slate-400 font-mono mt-0.5">
                   لوحة: <strong className="text-slate-200">{assignedVehicle.plate_number}</strong>
@@ -292,14 +318,17 @@ export default function CaptainDashboard() {
 
           {/* تفاصيل المهمة الجارية */}
           {activeTrip ? (
-            <div className="bg-slate-900 border-2 border-amber-500/50 p-5 rounded-3xl space-y-4 shadow-xl">
+            <div className="bg-slate-900 border-2 p-5 rounded-3xl space-y-4 shadow-xl" style={{ borderColor: `${primaryCol}80` }}>
               <div className="flex items-center justify-between">
-                <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5">
+                <span 
+                  className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border"
+                  style={{ backgroundColor: `${primaryCol}20`, color: primaryCol, borderColor: `${primaryCol}40` }}
+                >
                   <Navigation className="w-3.5 h-3.5 animate-pulse" /> مهمتك الجارية الآن
                 </span>
                 <button
                   onClick={() => openGoogleMapsDirections(activeTrip.origin, activeTrip.destination)}
-                  className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1"
+                  className="bg-sky-500/20 text-sky-300 border border-sky-500/40 px-2.5 py-1 rounded-xl text-[11px] font-bold flex items-center gap-1 cursor-pointer"
                 >
                   <Compass className="w-3.5 h-3.5" /> الخريطة والملاحة
                 </button>
@@ -308,19 +337,19 @@ export default function CaptainDashboard() {
               {/* تفاصيل الحمولة */}
               <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-400 flex items-center gap-1"><Package className="w-3.5 h-3.5 text-amber-400" /> المادة:</span>
+                  <span className="text-slate-400 flex items-center gap-1"><Package className="w-3.5 h-3.5" style={{ color: primaryCol }} /> المادة:</span>
                   <span className="font-bold text-white text-sm">{activeTrip.cargo_description}</span>
                 </div>
                 <div className="flex items-center justify-between pt-1 border-t border-slate-800">
                   <span className="text-slate-400 flex items-center gap-1"><Weight className="w-3.5 h-3.5 text-sky-400" /> الوزن:</span>
-                  <span className="font-mono font-bold text-amber-400">{activeTrip.cargo_weight_tons} طن</span>
+                  <span className="font-mono font-bold" style={{ color: primaryCol }}>{activeTrip.cargo_weight_tons} طن</span>
                 </div>
               </div>
 
               {/* مسار الرحلة */}
               <div className="space-y-2">
                 <div className="flex items-start gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0"></div>
+                  <div className="w-2.5 h-2.5 rounded-full mt-1 shrink-0" style={{ backgroundColor: primaryCol }}></div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">الانطلاق (التحميل):</span>
                     <strong className="text-slate-200">{activeTrip.origin}</strong>
@@ -350,8 +379,11 @@ export default function CaptainDashboard() {
 
                   <div className="w-full bg-slate-900 h-2.5 rounded-full overflow-hidden border border-slate-800">
                     <div 
-                      className="h-full bg-gradient-to-r from-amber-500 to-emerald-400 transition-all duration-500" 
-                      style={{ width: `${progress.progressPct}%` }}
+                      className="h-full transition-all duration-500" 
+                      style={{ 
+                        width: `${progress.progressPct}%`,
+                        background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})`
+                      }}
                     ></div>
                   </div>
                 </div>
@@ -362,7 +394,7 @@ export default function CaptainDashboard() {
                 <button
                   onClick={handleCompleteDelivery}
                   disabled={loading}
-                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-2xl transition shadow-lg flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm rounded-2xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle2 className="w-5 h-5" /> تأكيد الوصول وتسليم الشحنة
                 </button>
@@ -381,9 +413,9 @@ export default function CaptainDashboard() {
             {canEdit && (
               <button
                 onClick={() => setShowLocationBox(!showLocationBox)}
-                className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1 font-bold text-xs"
+                className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1 font-bold text-xs cursor-pointer"
               >
-                <MapPin className="w-4 h-4 text-emerald-400" />
+                <MapPin className="w-4 h-4" style={{ color: primaryCol }} />
                 <span>تحديث موقعي الميداني</span>
               </button>
             )}
@@ -391,7 +423,7 @@ export default function CaptainDashboard() {
             {(canAdd || canEdit) && (
               <button
                 onClick={() => setShowFuelModal(true)}
-                className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1 font-bold text-xs"
+                className="bg-slate-900 hover:bg-slate-800 border border-slate-800 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1 font-bold text-xs cursor-pointer"
               >
                 <Fuel className="w-4 h-4 text-purple-400" />
                 <span>تسجيل وصل وقود</span>
@@ -414,7 +446,8 @@ export default function CaptainDashboard() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="bg-emerald-500 text-slate-950 px-3 rounded-xl font-bold"
+                  className="text-slate-950 px-3 rounded-xl font-bold cursor-pointer"
+                  style={{ backgroundColor: primaryCol }}
                 >
                   <Send className="w-3.5 h-3.5" />
                 </button>
@@ -432,7 +465,7 @@ export default function CaptainDashboard() {
                 <h3 className="font-bold text-white flex items-center gap-1.5 text-xs">
                   <Fuel className="w-4 h-4 text-purple-400" /> تسجيل وقود للشاحنة
                 </h3>
-                <button onClick={() => setShowFuelModal(false)} className="text-slate-400">
+                <button onClick={() => setShowFuelModal(false)} className="text-slate-400 cursor-pointer">
                   <X className="w-4 h-4" />
                 </button>
               </div>
@@ -463,14 +496,14 @@ export default function CaptainDashboard() {
                   <button
                     type="button"
                     onClick={() => setShowFuelModal(false)}
-                    className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl"
+                    className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl"
+                    className="px-4 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl cursor-pointer"
                   >
                     حفظ الوصل
                   </button>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { 
   Users, 
   ArrowLeft, 
@@ -11,7 +12,10 @@ import {
   Edit3, 
   Lock, 
   X, 
-  UserCheck 
+  UserCheck,
+  RefreshCw,
+  Home,
+  Sparkles
 } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 
@@ -28,6 +32,11 @@ const MODULES = [
 ];
 
 export default function UsersManagementPage() {
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +50,20 @@ export default function UsersManagementPage() {
   const [status, setStatus] = useState('ACTIVE');
   const [permissions, setPermissions] = useState<Record<string, { view: boolean; add: boolean; edit: boolean; delete: boolean }>>({});
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadUsers = async () => {
     setLoading(true);
     try {
@@ -53,6 +76,7 @@ export default function UsersManagementPage() {
   };
 
   useEffect(() => {
+    loadSettings();
     loadUsers();
   }, []);
 
@@ -93,7 +117,6 @@ export default function UsersManagementPage() {
       const currentModule = prev[moduleKey] || { view: false, add: false, edit: false, delete: false };
       const updatedModule = { ...currentModule, [action]: !currentModule[action] };
       
-      // إذا فعل الإضافة أو التعديل أو الحذف، نقوم تلقائياً بتفعيل العرض لضمان عدم حدوث خطأ منطقي
       if (action !== 'view' && updatedModule[action]) {
         updatedModule.view = true;
       }
@@ -153,6 +176,9 @@ export default function UsersManagementPage() {
     }
   };
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+
   return (
     <AuthGuard>
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-xs">
@@ -160,24 +186,38 @@ export default function UsersManagementPage() {
         {/* الترويسة */}
         <div className="max-w-6xl mx-auto flex items-center justify-between pb-6 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-slate-900 border border-emerald-500/30 rounded-2xl flex items-center justify-center text-emerald-400">
-              <ShieldCheck className="w-6 h-6" />
+            <div 
+              className="w-12 h-12 rounded-2xl flex items-center justify-center text-slate-950 font-black shadow-lg"
+              style={{ background: `linear-gradient(135deg, ${primaryCol}, ${secondaryCol})` }}
+            >
+              <ShieldCheck className="w-6 h-6 text-slate-950" />
             </div>
             <div>
               <h1 className="text-lg font-black text-white">إدارة الحسابات وصلاحيات الأقسام</h1>
-              <p className="text-slate-400">لوحة تحكم المدير المفوض لإنشاء حسابات الموظفين وتخصيص صلاحيات الأقسام بدقة</p>
+              <p className="text-slate-400">لوحة تحكم المدير المفوض لإنشاء حسابات موظفي {companySettings.company_name} وتخصيص صلاحيات الأقسام بدقة</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => {
+                loadSettings();
+                loadUsers();
+              }}
+              className="p-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer"
+              title="تحديث القائمة"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <button
               onClick={openNewUserModal}
-              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg"
+              className="text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg cursor-pointer"
+              style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
             >
               <PlusCircle className="w-4 h-4" /> إنشاء حساب موظف جديد
             </button>
             <Link href="/" className="bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5">
-              <ArrowLeft className="w-4 h-4" /> الرئيسية
+              <Home className="w-4 h-4" /> الرئيسية
             </Link>
           </div>
         </div>
@@ -186,7 +226,7 @@ export default function UsersManagementPage() {
         <div className="max-w-6xl mx-auto mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-5 shadow-2xl space-y-4">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h3 className="font-bold text-white text-sm flex items-center gap-2">
-              <Users className="w-4 h-4 text-emerald-400" /> الحسابات المعتمدة بالنظام ({users.length})
+              <Users className="w-4 h-4" style={{ color: primaryCol }} /> الحسابات المعتمدة بالنظام ({users.length})
             </h3>
           </div>
 
@@ -215,7 +255,10 @@ export default function UsersManagementPage() {
                       <td className="p-3 text-slate-400">{u.job_title}</td>
                       <td className="p-3">
                         {u.is_super_admin ? (
-                          <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                          <span 
+                            className="px-2 py-0.5 rounded border text-[10px] font-bold"
+                            style={{ backgroundColor: `${primaryCol}20`, color: primaryCol, borderColor: `${primaryCol}40` }}
+                          >
                             المدير المفوض (شامل)
                           </span>
                         ) : (
@@ -226,7 +269,7 @@ export default function UsersManagementPage() {
                       </td>
                       <td className="p-3">
                         {u.is_super_admin ? (
-                          <span className="text-emerald-400 font-bold">كافة الأقسام والصلاحيات ✓</span>
+                          <span className="font-bold" style={{ color: primaryCol }}>كافة الأقسام والصلاحيات ✓</span>
                         ) : allowedModules.length === 0 ? (
                           <span className="text-rose-400">لا توجد أقسام مفعلة</span>
                         ) : (
@@ -254,7 +297,8 @@ export default function UsersManagementPage() {
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => openEditUserModal(u)}
-                            className="p-1.5 bg-slate-800 hover:bg-slate-700 text-amber-400 rounded-lg transition"
+                            className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition cursor-pointer"
+                            style={{ color: primaryCol }}
                             title="تعديل الصلاحيات"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -262,7 +306,7 @@ export default function UsersManagementPage() {
                           {!u.is_super_admin && (
                             <button
                               onClick={() => handleDeleteUser(u)}
-                              className="p-1.5 bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition"
+                              className="p-1.5 bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg transition cursor-pointer"
                               title="حذف الحساب"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -284,10 +328,10 @@ export default function UsersManagementPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-2xl rounded-3xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <UserCheck className="w-4 h-4 text-emerald-400" />
+                  <UserCheck className="w-4 h-4" style={{ color: primaryCol }} />
                   {editingUserId ? 'تعديل الصلاحيات والحساب' : 'إنشاء حساب موظف جديد وتحديد صلاحياته'}
                 </h3>
-                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white">
+                <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -348,7 +392,7 @@ export default function UsersManagementPage() {
                 {/* تحديد الأقسام والصلاحيات */}
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                   <div className="border-b border-slate-800 pb-2">
-                    <span className="font-bold text-emerald-400 text-xs flex items-center gap-1.5">
+                    <span className="font-bold text-xs flex items-center gap-1.5" style={{ color: primaryCol }}>
                       <Lock className="w-3.5 h-3.5" /> تحديد الأقسام المصرح بدخولها والإجراءات المسموحة:
                     </span>
                   </div>
@@ -364,9 +408,10 @@ export default function UsersManagementPage() {
                             <button
                               type="button"
                               onClick={() => handleTogglePermission(m.key, 'view')}
-                              className={`px-3 py-1 rounded-lg border text-xs transition ${
-                                perm.view ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50 font-bold' : 'bg-slate-800 text-slate-400 border-slate-700'
+                              className={`px-3 py-1 rounded-lg border text-xs transition cursor-pointer ${
+                                perm.view ? 'font-bold' : 'bg-slate-800 text-slate-400 border-slate-700'
                               }`}
+                              style={perm.view ? { backgroundColor: `${primaryCol}25`, color: primaryCol, borderColor: `${primaryCol}50` } : {}}
                             >
                               {perm.view ? '✓ عرض القسم' : 'عرض القسم'}
                             </button>
@@ -374,7 +419,7 @@ export default function UsersManagementPage() {
                             <button
                               type="button"
                               onClick={() => handleTogglePermission(m.key, 'add')}
-                              className={`px-3 py-1 rounded-lg border text-xs transition ${
+                              className={`px-3 py-1 rounded-lg border text-xs transition cursor-pointer ${
                                 perm.add ? 'bg-sky-500/20 text-sky-300 border-sky-500/50 font-bold' : 'bg-slate-800 text-slate-400 border-slate-700'
                               }`}
                             >
@@ -384,7 +429,7 @@ export default function UsersManagementPage() {
                             <button
                               type="button"
                               onClick={() => handleTogglePermission(m.key, 'edit')}
-                              className={`px-3 py-1 rounded-lg border text-xs transition ${
+                              className={`px-3 py-1 rounded-lg border text-xs transition cursor-pointer ${
                                 perm.edit ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 font-bold' : 'bg-slate-800 text-slate-400 border-slate-700'
                               }`}
                             >
@@ -394,7 +439,7 @@ export default function UsersManagementPage() {
                             <button
                               type="button"
                               onClick={() => handleTogglePermission(m.key, 'delete')}
-                              className={`px-3 py-1 rounded-lg border text-xs transition ${
+                              className={`px-3 py-1 rounded-lg border text-xs transition cursor-pointer ${
                                 perm.delete ? 'bg-rose-500/20 text-rose-300 border-rose-500/50 font-bold' : 'bg-slate-800 text-slate-400 border-slate-700'
                               }`}
                             >
@@ -411,14 +456,15 @@ export default function UsersManagementPage() {
                   <button
                     type="button"
                     onClick={() => setShowModal(false)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl"
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-5 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl shadow-lg"
+                    className="px-5 py-2 text-slate-950 font-bold rounded-xl shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ وتطبيق الصلاحيات'}
                   </button>

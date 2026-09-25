@@ -72,6 +72,20 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [projects, setProjects] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -83,7 +97,6 @@ export default function ProjectsPage() {
     vouchers: any[];
   } | null>(null);
 
-  // تحديث الصلاحيات البرمجية لتقرأ مصفوفة الصلاحيات المخصصة التي يمنحها المدير المفوض
   const permissions = useMemo(() => {
     if (!currentUser) {
       return {
@@ -197,6 +210,20 @@ export default function ProjectsPage() {
     router.push(`/vouchers?type=${vType}`);
   };
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadData = async () => {
     try {
       const [resP, resV] = await Promise.all([
@@ -222,6 +249,8 @@ export default function ProjectsPage() {
     setMounted(true);
     setStartDate(new Date().toISOString().split('T')[0]);
     setLogDate(new Date().toISOString().split('T')[0]);
+
+    loadSettings();
 
     const savedUser = localStorage.getItem('erp_user');
     if (!savedUser) {
@@ -657,6 +686,16 @@ export default function ProjectsPage() {
   const totalNetLiquidity = useMemo(() => {
     return totalReceived - totalExpenses;
   }, [totalReceived, totalExpenses]);
+
+  const handleOpenStatement = async (proj: any) => {
+    await loadSettings();
+    setStatementProject(proj);
+  };
+
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
 
   const handleCreateProject = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1143,41 +1182,56 @@ export default function ProjectsPage() {
             
             {/* الطرف الأيمن: الشعار والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
-                <Image 
-                  src="/logo.png" 
-                  alt="شركة البرج المتألق" 
-                  width={48} 
-                  height={48} 
-                  className="object-contain" 
-                  priority
-                />
+              <div 
+                className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 p-2 shadow-xl"
+                style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
+              >
+                {hasLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={companySettings.logo_url} 
+                    alt={companySettings.company_name} 
+                    className="w-full h-full object-contain" 
+                  />
+                ) : (
+                  <Image 
+                    src="/logo.png" 
+                    alt="شركة البرج المتألق" 
+                    width={48} 
+                    height={48} 
+                    className="object-contain" 
+                    priority
+                  />
+                )}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     إدارة مشاريع المقاولات والإعمار (ERP المتكامل)
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-amber-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     General Contracting
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق للمقاولات العامة والاستثمارات العقارية
+                  {companySettings.company_name} • للمقاولات العامة والاستثمارات العقارية
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع في سطر واحد ثابت */}
+            {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl shrink-0">
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-amber-500/50 bg-slate-800 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border bg-slate-800 flex items-center justify-center shrink-0" style={{ borderColor: primaryCol }}>
                   {currentUser.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-4 h-4 text-amber-400" />
+                    <User className="w-4 h-4" style={{ color: primaryCol }} />
                   )}
                 </div>
                 <div className="text-right">
@@ -1360,23 +1414,23 @@ export default function ProjectsPage() {
 
                       <div className="flex items-center gap-1.5 flex-nowrap self-start lg:self-auto">
                         {permissions.canManageVouchers && (
-                          <button onClick={() => setStatementProject(project)} className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap">
+                          <button onClick={() => handleOpenStatement(project)} className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer">
                             <FileText className="w-3.5 h-3.5" /> كشف حساب
                           </button>
                         )}
                         
-                        <button onClick={() => setActiveProjectId(project.project_id)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap">
+                        <button onClick={() => setActiveProjectId(project.project_id)} className="bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 border border-purple-500/30 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap cursor-pointer">
                           <BarChart3 className="w-3.5 h-3.5" /> التحليلات
                         </button>
 
                         {permissions.canUpdateSiteProgress && (
-                          <button onClick={() => { setEditingProject(project); setEditRate(project.completion_rate?.toString() || '0'); setEditStatus(project.status || 'IN_PROGRESS'); }} className="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700 whitespace-nowrap">
+                          <button onClick={() => { setEditingProject(project); setEditRate(project.completion_rate?.toString() || '0'); setEditStatus(project.status || 'IN_PROGRESS'); }} className="bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition border border-slate-700 whitespace-nowrap cursor-pointer">
                             <Edit3 className="w-3.5 h-3.5" /> تعديل الإنجاز
                           </button>
                         )}
 
                         {permissions.canDeleteProject && (
-                          <button onClick={() => setDeleteModalProject(project)} className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl transition border border-rose-500/30 shrink-0" title="حذف المشروع">
+                          <button onClick={() => setDeleteModalProject(project)} className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl transition border border-rose-500/30 shrink-0 cursor-pointer" title="حذف المشروع">
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
@@ -1434,37 +1488,52 @@ export default function ProjectsPage() {
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
             <div className="w-full max-w-5xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
               <div className="flex items-center gap-3">
-                <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition">
+                <button onClick={() => window.print()} className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer">
                   <Printer className="w-4 h-4" /> طباعة المستخلص (A4)
                 </button>
-                <button onClick={() => exportToCSV(statementProject)} className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition">
+                <button onClick={() => exportToCSV(statementProject)} className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer">
                   <Download className="w-4 h-4" /> تصدير السندات (Excel / CSV)
                 </button>
               </div>
-              <button onClick={() => setStatementProject(null)} className="text-slate-400 hover:text-white p-2">
+              <button onClick={() => setStatementProject(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <div className="w-full max-w-5xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6">
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                    <Image src="/logo.png" alt="شركة البرج المتألق" width={70} height={70} className="object-contain" priority />
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image src="/logo.png" alt="شركة البرج المتألق" width={70} height={70} className="object-contain" priority />
+                      )}
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                      <p className="text-xs text-slate-600 font-bold mt-0.5">{companySettings.tagline}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address} | {companySettings.phone_primary}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold mt-0.5">للمقاولات العامة والاستثمارات العقارية والنقل العام</p>
-                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | 07868006699</p>
+                  <div className="text-left flex flex-col items-end">
+                    <div 
+                      className="border-2 px-4 py-1.5 font-black text-xs uppercase tracking-wider text-slate-950 rounded-xl"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      كشف حساب ومستخلص مالي تفصيلي
+                    </div>
+                    <p className="text-[11px] font-mono mt-2 text-slate-500">تاريخ التقرير: <span className="font-bold text-slate-900">{new Date().toISOString().split('T')[0]}</span></p>
                   </div>
                 </div>
-                <div className="text-left flex flex-col items-end">
-                  <div className="border-2 border-slate-900 px-4 py-1.5 font-black text-xs uppercase tracking-wider bg-amber-500 text-slate-950 rounded-xl">
-                    كشف حساب ومستخلص مالي تفصيلي
-                  </div>
-                  <p className="text-[11px] font-mono mt-2 text-slate-500">تاريخ التقرير: <span className="font-bold text-slate-900">{new Date().toISOString().split('T')[0]}</span></p>
-                </div>
-              </div>
+              )}
 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-[13px] font-semibold">
                 <div className="p-2.5 bg-white rounded-xl border border-slate-100">
@@ -1477,7 +1546,7 @@ export default function ProjectsPage() {
                 </div>
                 <div className="p-2.5 bg-white rounded-xl border border-slate-100">
                   <span className="text-slate-400 block text-[11px]">قيمة العقد</span>
-                  <span className="text-amber-600 font-mono font-black text-sm block">{formatNum(statementProject.contract_value)} {statementProject.currency}</span>
+                  <span className="font-mono font-black text-sm block" style={{ color: primaryCol }}>{formatNum(statementProject.contract_value)} {statementProject.currency}</span>
                 </div>
                 <div className="p-2.5 bg-white rounded-xl border border-slate-100">
                   <span className="text-slate-400 block text-[11px]">نسبة الإنجاز</span>
@@ -1487,7 +1556,7 @@ export default function ProjectsPage() {
 
               <div className="space-y-2">
                 <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 bg-amber-500 rounded-full"></span> 1. حركة السندات والتحويلات المالية المقيدة
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: primaryCol }}></span> 1. حركة السندات والتحويلات المالية المقيدة
                 </h3>
                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                   <table className="w-full text-right text-[12px]">
@@ -1610,7 +1679,7 @@ export default function ProjectsPage() {
                 <div className="flex flex-wrap items-center justify-center gap-2 w-full">
                   <button 
                     onClick={() => setActiveTab('ANALYTICS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'ANALYTICS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1622,7 +1691,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('MATERIALS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'MATERIALS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1634,7 +1703,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('SUBS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'SUBS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1646,7 +1715,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('EXPENSES')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'EXPENSES' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1661,7 +1730,7 @@ export default function ProjectsPage() {
                 <div className="flex flex-wrap items-center justify-center gap-2 w-full">
                   <button 
                     onClick={() => setActiveTab('TERMS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'TERMS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1673,7 +1742,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('MILESTONES')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'MILESTONES' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1685,7 +1754,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('LOGS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'LOGS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -1697,7 +1766,7 @@ export default function ProjectsPage() {
 
                   <button 
                     onClick={() => setActiveTab('DOCS')} 
-                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm ${
+                    className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                       activeTab === 'DOCS' 
                         ? 'bg-amber-500 text-slate-950 font-bold shadow-amber-500/20' 
                         : 'bg-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
@@ -2029,7 +2098,7 @@ export default function ProjectsPage() {
                           />
                         </div>
                       </div>
-                      <button onClick={handleAddSubcontractor} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20">
+                      <button onClick={handleAddSubcontractor} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer">
                         <Plus className="w-4 h-4" /> إضافة عقد مقاول باطن جديد
                       </button>
                     </>
@@ -2108,7 +2177,7 @@ export default function ProjectsPage() {
                                               targetName: `أعمال ${batch.trade} - ${subGroup.name}`,
                                               vouchers: batch.attachedVouchers || []
                                             })}
-                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm ${
+                                            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm cursor-pointer ${
                                               isComp 
                                                 ? 'bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30'
                                                 : 'bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700'
@@ -2130,7 +2199,7 @@ export default function ProjectsPage() {
                                                 undefined,
                                                 batch.subcontractor_id
                                               )}
-                                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+                                              className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
                                             >
                                               <Receipt className="w-3.5 h-3.5" /> إصدار دفعة / وصل
                                             </button>
@@ -2139,7 +2208,7 @@ export default function ProjectsPage() {
                                           {permissions.canDeleteProject && (
                                             <button
                                               onClick={() => handleDeleteSubcontractor(batch.subcontractor_id)}
-                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow"
+                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow cursor-pointer"
                                               title="حذف هذا العقد وإلغاء سنده المرتبط"
                                             >
                                               <Trash2 className="w-3.5 h-3.5" />
@@ -2258,7 +2327,7 @@ export default function ProjectsPage() {
                           />
                         </div>
                       </div>
-                      <button onClick={handleAddOperatingExpense} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20">
+                      <button onClick={handleAddOperatingExpense} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer">
                         <Plus className="w-4 h-4" /> إضافة بند مصروف تشغيلي جديد
                       </button>
                     </>
@@ -2335,7 +2404,7 @@ export default function ProjectsPage() {
                                                 targetName: `${expGroup.title} - ${batch.category}`,
                                                 vouchers: batch.attachedVouchers || []
                                               })}
-                                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition"
+                                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition cursor-pointer"
                                             >
                                               <Eye className="w-3.5 h-3.5" /> مدفوعة بالكامل (عرض السندات ✓)
                                             </button>
@@ -2352,7 +2421,7 @@ export default function ProjectsPage() {
                                                   undefined,
                                                   batch.expense_id
                                                 )}
-                                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+                                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
                                               >
                                                 <Receipt className="w-3.5 h-3.5" /> إصدار دفعة / وصل
                                               </button>
@@ -2362,7 +2431,7 @@ export default function ProjectsPage() {
                                           {permissions.canDeleteProject && (
                                             <button
                                               onClick={() => handleDeleteOperatingExpense(batch.expense_id)}
-                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow"
+                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow cursor-pointer"
                                               title="حذف هذا المصروف"
                                             >
                                               <Trash2 className="w-3.5 h-3.5" />
@@ -2491,7 +2560,7 @@ export default function ProjectsPage() {
                           />
                         </div>
                       </div>
-                      <button onClick={handleAddMaterial} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20">
+                      <button onClick={handleAddMaterial} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer">
                         <Plus className="w-4 h-4" /> إضافة مادة جديدة للتوريدات
                       </button>
                     </>
@@ -2571,7 +2640,7 @@ export default function ProjectsPage() {
                                                 targetName: `${mat.material_name} - المورد: ${batch.supplier_name}`,
                                                 vouchers: batch.attachedVouchers || []
                                               })}
-                                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition"
+                                              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5 transition cursor-pointer"
                                             >
                                               <Eye className="w-3.5 h-3.5" /> مستوفى بالكامل (عرض السندات ✓)
                                             </button>
@@ -2586,7 +2655,7 @@ export default function ProjectsPage() {
                                                   `دفعة للمورد (${batch.supplier_name}) عن توريد ${mat.material_name} لمشروع ${activeTabProject.project_name}`,
                                                   batch.material_id
                                                 )}
-                                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md"
+                                                className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md cursor-pointer"
                                               >
                                                 <Receipt className="w-3.5 h-3.5" /> إصدار دفعة / وصل
                                               </button>
@@ -2596,7 +2665,7 @@ export default function ProjectsPage() {
                                           {permissions.canDeleteProject && (
                                             <button
                                               onClick={() => handleDeleteMaterial(batch.material_id)}
-                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow"
+                                              className="text-rose-400 hover:text-white hover:bg-rose-600 p-2 rounded-xl border border-rose-500/30 transition shadow cursor-pointer"
                                               title="حذف هذا التوريد"
                                             >
                                               <Trash2 className="w-3.5 h-3.5" />
@@ -2670,7 +2739,7 @@ export default function ProjectsPage() {
                         <input type="text" placeholder="عنوان الدفعة..." value={termTitle} onChange={(e) => setTermTitle(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
                         <input type="number" placeholder="النسبة %" value={termPct} onChange={(e) => setTermPct(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono" />
                       </div>
-                      <button onClick={handleAddPaymentTerm} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition">
+                      <button onClick={handleAddPaymentTerm} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2.5 rounded-xl text-xs flex items-center justify-center gap-1.5 transition cursor-pointer">
                         <Plus className="w-4 h-4" /> إضافة دفعة تعاقدية
                       </button>
                     </>
@@ -2707,7 +2776,7 @@ export default function ProjectsPage() {
                                     targetName: term.term_title,
                                     vouchers: term.attachedVouchers || []
                                   })}
-                                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 ${
+                                  className={`px-3 py-1.5 rounded-xl font-bold text-xs transition flex items-center gap-1 cursor-pointer ${
                                     term.is_paid 
                                       ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
                                       : 'bg-slate-800 hover:bg-slate-700 text-sky-400 border border-slate-700'
@@ -2721,7 +2790,7 @@ export default function ProjectsPage() {
                                 {!term.is_paid && permissions.canManageVouchers && (
                                   <button
                                     onClick={() => handleCreateVoucherForTerm(term)}
-                                    className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md flex items-center gap-1 transition"
+                                    className="px-3 py-1.5 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-md flex items-center gap-1 transition cursor-pointer"
                                   >
                                     <Receipt className="w-3.5 h-3.5" /> إصدار وصل قبض رسمي
                                   </button>
@@ -2730,7 +2799,7 @@ export default function ProjectsPage() {
                                 {permissions.canDeleteProject && (
                                   <button
                                     onClick={() => handleDeletePaymentTerm(term.term_id, term.term_title)}
-                                    className="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white p-2 rounded-xl transition"
+                                    className="bg-rose-500/10 hover:bg-rose-500 text-rose-400 hover:text-white p-2 rounded-xl transition cursor-pointer"
                                     title="حذف الدفعة"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -2797,7 +2866,7 @@ export default function ProjectsPage() {
                     <div className="flex gap-2">
                       <input type="text" placeholder="اسم المرحلة..." value={milestoneName} onChange={(e) => setMilestoneName(e.target.value)} className="flex-1 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-[14px] text-white" />
                       <input type="number" placeholder="الوزن %" value={milestoneWeight} onChange={(e) => setMilestoneWeight(e.target.value)} className="w-24 bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-[14px] text-white text-center font-mono" />
-                      <button onClick={handleAddMilestone} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1">
+                      <button onClick={handleAddMilestone} className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer">
                         <Plus className="w-4 h-4" /> إضافة
                       </button>
                     </div>
@@ -2836,7 +2905,7 @@ export default function ProjectsPage() {
                         </select>
                         <textarea placeholder="الملاحظات الميدانية..." value={logNotes} onChange={(e) => setLogNotes(e.target.value)} className="sm:col-span-3 bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white h-20" />
                       </div>
-                      <button onClick={handleAddSiteLog} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                      <button onClick={handleAddSiteLog} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer">
                         <Plus className="w-4 h-4" /> حفظ تقرير اليومية
                       </button>
                     </>
@@ -2863,7 +2932,7 @@ export default function ProjectsPage() {
                         <input type="text" placeholder="عنوان الوثيقة" value={docTitle} onChange={(e) => setDocTitle(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-[14px] text-white" />
                         <input type="text" placeholder="رابط الملف" value={docUrl} onChange={(e) => setDocUrl(e.target.value)} className="bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-[14px] text-white font-mono" />
                       </div>
-                      <button onClick={handleAddDocument} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1">
+                      <button onClick={handleAddDocument} className="w-full bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold py-2 rounded-xl text-xs flex items-center justify-center gap-1 cursor-pointer">
                         <Plus className="w-3.5 h-3.5" /> إرفاق وثيقة
                       </button>
                     </>
@@ -2952,7 +3021,7 @@ export default function ProjectsPage() {
               <div className="pt-2 flex justify-end">
                 <button
                   onClick={() => setActiveItemVouchersModal(null)}
-                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold"
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold cursor-pointer"
                 >
                   إغلاق
                 </button>
@@ -2988,7 +3057,7 @@ export default function ProjectsPage() {
               </div>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button onClick={() => setEditingProject(null)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">إلغاء</button>
-                <button onClick={handleSaveEdit} disabled={savingEdit} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs">
+                <button onClick={handleSaveEdit} disabled={savingEdit} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs cursor-pointer">
                   {savingEdit ? 'جاري الحفظ...' : 'حفظ التعديلات'}
                 </button>
               </div>
@@ -3009,7 +3078,7 @@ export default function ProjectsPage() {
               </p>
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button onClick={() => setDeleteModalProject(null)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">تراجع</button>
-                <button onClick={handleDeleteProject} disabled={deleting} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs">
+                <button onClick={handleDeleteProject} disabled={deleting} className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs cursor-pointer">
                   {deleting ? 'جاري الحذف...' : 'تأكيد الحذف'}
                 </button>
               </div>

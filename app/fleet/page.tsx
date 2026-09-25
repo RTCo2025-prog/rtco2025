@@ -77,6 +77,20 @@ function openGoogleMapsDirections(origin: string, destination: string) {
 export default function FleetPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [trips, setTrips] = useState<any[]>([]);
   const [maintenanceLogs, setMaintenanceLogs] = useState<any[]>([]);
@@ -135,6 +149,20 @@ export default function FleetPage() {
   // تقرير الطباعة
   const [showReportModal, setShowReportModal] = useState(false);
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadData = async () => {
     try {
       const res = await fetch('/api/fleet', { cache: 'no-store' });
@@ -148,6 +176,8 @@ export default function FleetPage() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -173,7 +203,6 @@ export default function FleetPage() {
     router.push('/login');
   };
 
-  // فحص صلاحيات هذا المستخدم بدقة لقسم النقل والأسطول
   const canAdd = useMemo(() => {
     return hasPermission(currentUser, 'fleet', 'add');
   }, [currentUser]);
@@ -298,7 +327,6 @@ export default function FleetPage() {
 
     setLoading(true);
     try {
-      // حسم كلفة الإيجار: 0 حتماً إذا كانت الشاحنة من أسطول الشركة الداخلي
       const rentalCostToSend = truckSourceType === 'EXTERNAL' ? (Number(externalRentalCost) || 0) : 0;
 
       const res = await fetch('/api/fleet', {
@@ -377,7 +405,6 @@ export default function FleetPage() {
     }
   };
 
-  // تأكيد الوصول وتسليم الشحنة
   const handleCompleteTrip = async (trip: any) => {
     if (!canEdit) {
       alert('ليس لديك صلاحية تعديل حالة الرحلات وتأكيد وصولها');
@@ -460,7 +487,7 @@ export default function FleetPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `حسابات_وارباح_النقل_العام_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `حسابات_وارباح_النقل_العام_${companySettings.company_name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -500,7 +527,6 @@ export default function FleetPage() {
     };
   }, [vehicles, trips, maintenanceLogs]);
 
-  // حساب أرباح الآليات الداخلية
   const vehicleFinancialMap = useMemo(() => {
     const map = new Map<string, { revenue: number; expenses: number; net: number }>();
     
@@ -532,7 +558,6 @@ export default function FleetPage() {
     return map;
   }, [vehicles, trips, maintenanceLogs]);
 
-  // تجميع وحساب أرباح الشاحنات والتريلات المستأجرة كل على حدة
   const externalTrucksFinancialList = useMemo(() => {
     const map = new Map<string, { truckName: string; driverName: string; driverPhone: string; totalRevenue: number; totalRentalCost: number; netProfit: number; tripsCount: number }>();
 
@@ -577,10 +602,14 @@ export default function FleetPage() {
     });
   }, [vehicles, searchQuery, statusFilter]);
 
-  // الشاحنات المستأجرة التي في الطريق حصراً
   const activeExternalTrips = useMemo(() => {
     return trips.filter(t => t.truck_source_type === 'EXTERNAL' && t.trip_status === 'IN_PROGRESS');
   }, [trips]);
+
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
 
   if (!currentUser) return null;
 
@@ -597,33 +626,48 @@ export default function FleetPage() {
             
             {/* الطرف الأيمن: الشعار والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-emerald-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-emerald-500/10">
-                <Image 
-                  src="/logo.png" 
-                  alt="شركة البرج المتألق" 
-                  width={48} 
-                  height={48} 
-                  className="object-contain" 
-                  priority
-                />
+              <div 
+                className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 p-2 shadow-xl"
+                style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
+              >
+                {hasLogo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img 
+                    src={companySettings.logo_url} 
+                    alt={companySettings.company_name} 
+                    className="w-full h-full object-contain" 
+                  />
+                ) : (
+                  <Image 
+                    src="/logo.png" 
+                    alt="شركة البرج المتألق" 
+                    width={48} 
+                    height={48} 
+                    className="object-contain" 
+                    priority
+                  />
+                )}
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     المركز المالي لقطاع النقل العام واللوجستيات
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     RTCO Logistics Live
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • منظومة احتساب الإيرادات والمصروفات وصافي أرباح الأسطول المستقلة
+                  {companySettings.company_name} • منظومة احتساب الإيرادات والمصروفات وصافي أرباح الأسطول المستقلة
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع في سطر واحد ثابت */}
+            {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <button
                 onClick={loadData}
@@ -634,17 +678,20 @@ export default function FleetPage() {
               </button>
 
               <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-xl shrink-0">
-                <div className="w-8 h-8 rounded-full overflow-hidden border border-emerald-500/50 bg-slate-800 flex items-center justify-center shrink-0">
+                <div className="w-8 h-8 rounded-full overflow-hidden border bg-slate-800 flex items-center justify-center shrink-0" style={{ borderColor: primaryCol }}>
                   {currentUser.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
                   ) : (
-                    <User className="w-4 h-4 text-emerald-400" />
+                    <User className="w-4 h-4" style={{ color: primaryCol }} />
                   )}
                 </div>
                 <div className="text-right">
                   <p className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">{currentUser.full_name}</p>
-                  <span className="px-1.5 py-0.2 rounded text-[9px] font-bold border inline-block mt-0.5 bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
+                  <span 
+                    className="px-1.5 py-0.2 rounded text-[9px] font-bold border inline-block mt-0.5"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
                     {isSuperAdmin ? 'الإدارة العليا' : currentUser.job_title || 'كابتن الأسطول'}
                   </span>
                 </div>
@@ -734,7 +781,7 @@ export default function FleetPage() {
                   {formatNum(transportFinance.totalTonsMoved)} <span className="text-xs font-sans text-slate-500">طن</span>
                 </div>
               </div>
-              <div className="p-2.5 bg-amber-500/10 text-amber-400 rounded-2xl border border-amber-500/20">
+              <div className="p-2.5 rounded-2xl border" style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}20` }}>
                 <TrendingUp className="w-5 h-5" />
               </div>
             </div>
@@ -749,25 +796,28 @@ export default function FleetPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('VEHICLES')}
-              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 ${
-                activeTab === 'VEHICLES' ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'bg-slate-900 text-slate-400 hover:text-white'
+              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
+                activeTab === 'VEHICLES' ? 'text-slate-950 font-black shadow-lg' : 'bg-slate-900 text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'VEHICLES' ? { backgroundColor: primaryCol } : {}}
             >
               <Truck className="w-4 h-4" /> بطاقات الشاحنات وموقف الأرباح
             </button>
             <button
               onClick={() => setActiveTab('FINANCES')}
-              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 ${
-                activeTab === 'FINANCES' ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'bg-slate-900 text-slate-400 hover:text-white'
+              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
+                activeTab === 'FINANCES' ? 'text-slate-950 font-black shadow-lg' : 'bg-slate-900 text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'FINANCES' ? { backgroundColor: primaryCol } : {}}
             >
               <PieChart className="w-4 h-4" /> تقرير الأرباح والحسابات المعزولة
             </button>
             <button
               onClick={() => setActiveTab('MAINTENANCE')}
-              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 ${
-                activeTab === 'MAINTENANCE' ? 'bg-emerald-500 text-slate-950 shadow-lg shadow-emerald-500/20' : 'bg-slate-900 text-slate-400 hover:text-white'
+              className={`px-4 py-2.5 rounded-2xl text-[13px] font-bold transition flex items-center gap-2 cursor-pointer ${
+                activeTab === 'MAINTENANCE' ? 'text-slate-950 font-black shadow-lg' : 'bg-slate-900 text-slate-400 hover:text-white'
               }`}
+              style={activeTab === 'MAINTENANCE' ? { backgroundColor: primaryCol } : {}}
             >
               <Wrench className="w-4 h-4" /> قيود الوقود والصيانة
             </button>
@@ -775,8 +825,12 @@ export default function FleetPage() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
-              onClick={() => setShowReportModal(true)}
-              className="bg-slate-900 hover:bg-slate-800 text-emerald-400 border border-emerald-500/40 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition"
+              onClick={async () => {
+                await loadSettings();
+                setShowReportModal(true);
+              }}
+              className="bg-slate-900 hover:bg-slate-800 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition border cursor-pointer"
+              style={{ color: primaryCol, borderColor: `${primaryCol}40` }}
             >
               <FileText className="w-4 h-4" /> طباعة السجل الرسمي
             </button>
@@ -784,7 +838,7 @@ export default function FleetPage() {
             {canManageVouchers && (
               <button
                 onClick={() => setShowMaintenanceModal(true)}
-                className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-purple-600/20"
+                className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-purple-600/20 cursor-pointer"
               >
                 <Fuel className="w-4 h-4" /> قيد وقود / صيانة
               </button>
@@ -794,14 +848,15 @@ export default function FleetPage() {
               <>
                 <button
                   onClick={handleOpenTripModal}
-                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20"
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 cursor-pointer"
                 >
                   <Navigation className="w-4 h-4" /> مهمة نقل جديدة
                 </button>
 
                 <button
                   onClick={() => setShowAddVehicleModal(true)}
-                  className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-emerald-500/20"
+                  className="text-slate-950 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition shadow-lg cursor-pointer"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   <PlusCircle className="w-4 h-4" /> إضافة آلية
                 </button>
@@ -822,13 +877,13 @@ export default function FleetPage() {
                     placeholder="ابحث بالشاحنة، رقم اللوحة، أو السائق..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-3 py-2 text-[14px] text-white outline-none focus:border-emerald-500"
+                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-3 py-2 text-[14px] text-white outline-none focus:border-amber-500"
                   />
                 </div>
                 <select 
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 text-[14px] text-white outline-none"
+                  className="bg-slate-900 border border-slate-800 rounded-2xl p-2.5 text-[14px] text-white outline-none cursor-pointer"
                 >
                   <option value="ALL">جميع الحالات</option>
                   <option value="AVAILABLE">جاهزة للخدمة</option>
@@ -839,16 +894,16 @@ export default function FleetPage() {
 
               <button
                 onClick={exportTripsToCSV}
-                className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition"
+                className="bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-700 font-bold px-4 py-2 rounded-2xl text-xs flex items-center gap-1.5 transition cursor-pointer"
               >
-                <FileSpreadsheet className="w-4 h-4 text-emerald-400" /> تصدير السجل المالي (CSV)
+                <FileSpreadsheet className="w-4 h-4" style={{ color: primaryCol }} /> تصدير السجل المالي (CSV)
               </button>
             </div>
 
-            {/* شبكة البطاقات الموحدة والمتطابقة بالشكل تماماً بين الأسطول والشاحنات المستأجرة */}
+            {/* شبكة البطاقات الموحدة */}
             <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 mt-5 print:hidden">
               
-              {/* بطاقات الشاحنات المستأجرة النشطة في الطريق (تختفي فور تأكيد الوصول) */}
+              {/* بطاقات الشاحنات المستأجرة النشطة في الطريق */}
               {activeExternalTrips.map((extTrip) => {
                 const extProgress = calculateTripProgress(extTrip.departure_time, Number(extTrip.estimated_hours || 6));
                 const rev = Number(extTrip.trip_cost || 0);
@@ -873,13 +928,12 @@ export default function FleetPage() {
 
                         <button
                           onClick={() => openGoogleMapsDirections(extTrip.origin, extTrip.destination)}
-                          className="text-xs bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 px-3 py-1.5 rounded-xl border border-sky-500/30 transition flex items-center gap-1 shrink-0"
+                          className="text-xs bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 px-3 py-1.5 rounded-xl border border-sky-500/30 transition flex items-center gap-1 shrink-0 cursor-pointer"
                         >
                           <Compass className="w-3.5 h-3.5" /> الخريطة
                         </button>
                       </div>
 
-                      {/* جدول أرباح الشاحنة المستأجرة المطابق لبطاقات الأسطول */}
                       <div className="grid grid-cols-3 gap-2 bg-slate-950 p-3 rounded-2xl border border-slate-800/80 text-xs font-mono text-center">
                         <div>
                           <span className="text-[10px] text-slate-400 block font-sans">أجور العميل</span>
@@ -895,13 +949,12 @@ export default function FleetPage() {
                         </div>
                       </div>
 
-                      {/* الموقع الميداني ومسار النقل */}
                       <div className="bg-slate-950/80 p-3.5 rounded-2xl border border-slate-800 space-y-1.5">
                         <div className="flex items-center justify-between text-[11px] text-slate-400">
                           <span className="flex items-center gap-1 font-semibold text-slate-300">
                             <MapPin className="w-3 h-3 text-emerald-400" /> مسار النقل المباشر:
                           </span>
-                          <span className="font-mono text-amber-400 font-bold">{extTrip.cargo_weight_tons} طن</span>
+                          <span className="font-mono font-bold" style={{ color: primaryCol }}>{extTrip.cargo_weight_tons} طن</span>
                         </div>
                         <p className="text-[13px] font-bold text-slate-200 truncate">
                           {extTrip.origin} <span className="text-slate-500">➔</span> <span className="text-emerald-400">{extTrip.destination}</span>
@@ -912,7 +965,6 @@ export default function FleetPage() {
                         </div>
                       </div>
 
-                      {/* شريط المسار التنازلي للشاحنة المستأجرة */}
                       <div className="bg-slate-950/90 p-3 rounded-2xl border border-amber-500/30 space-y-2">
                         <div className="flex justify-between items-center text-[11px]">
                           <span className="text-amber-400 font-bold flex items-center gap-1">
@@ -925,8 +977,11 @@ export default function FleetPage() {
 
                         <div className="relative w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
                           <div 
-                            className="h-full bg-gradient-to-r from-amber-500 via-emerald-500 to-sky-400 transition-all duration-700" 
-                            style={{ width: `${extProgress.progressPct}%` }}
+                            className="h-full transition-all duration-700" 
+                            style={{ 
+                              width: `${extProgress.progressPct}%`,
+                              background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})`
+                            }}
                           ></div>
                         </div>
 
@@ -948,7 +1003,7 @@ export default function FleetPage() {
                     {canEdit && (
                       <button
                         onClick={() => handleCompleteTrip(extTrip)}
-                        className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 mt-2"
+                        className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-2xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-1.5 mt-2 cursor-pointer"
                       >
                         <CheckCircle2 className="w-4 h-4" /> تأكيد وصول وتسليم الشحنة
                       </button>
@@ -1018,7 +1073,8 @@ export default function FleetPage() {
                                 setUpdateMileage(v.current_mileage?.toString() || '');
                                 setUpdateFuel(v.current_fuel_pct?.toString() || '100');
                               }}
-                              className="text-xs bg-slate-800 hover:bg-slate-700 text-amber-400 px-3 py-1.5 rounded-xl border border-slate-700 transition"
+                              className="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700 transition cursor-pointer"
+                              style={{ color: primaryCol }}
                               title="تحديث الحالة الميدانية"
                             >
                               تحديث
@@ -1028,7 +1084,7 @@ export default function FleetPage() {
                           {canDelete && (
                             <button
                               onClick={() => handleDeleteVehicle(v)}
-                              className="text-xs bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl border border-rose-500/20 transition"
+                              className="text-xs bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl border border-rose-500/20 transition cursor-pointer"
                               title="حذف الآلية"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -1085,11 +1141,11 @@ export default function FleetPage() {
                         </div>
                         <div className="bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/80">
                           <span className="text-[10px] text-slate-500 font-sans block">الكابتن المسؤول</span>
-                          <span className="font-bold text-amber-400 text-[12px] truncate block">{v.assigned_driver || 'كابتن'}</span>
+                          <span className="font-bold text-[12px] truncate block" style={{ color: primaryCol }}>{v.assigned_driver || 'كابتن'}</span>
                         </div>
                       </div>
 
-                      {/* شريط مستوى الوقود الرسومي */}
+                      {/* شريط مستوى الوقود */}
                       <div className="space-y-1 pt-1">
                         <div className="flex justify-between text-[11px] text-slate-400">
                           <span className="flex items-center gap-1"><Fuel className="w-3.5 h-3.5 text-slate-500" /> مستوى الوقود</span>
@@ -1114,8 +1170,11 @@ export default function FleetPage() {
 
                           <div className="relative w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-800">
                             <div 
-                              className="h-full bg-gradient-to-r from-amber-500 via-emerald-500 to-sky-400 transition-all duration-700" 
-                              style={{ width: `${tripProgress.progressPct}%` }}
+                              className="h-full transition-all duration-700" 
+                              style={{ 
+                                width: `${tripProgress.progressPct}%`,
+                                background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})`
+                              }}
                             ></div>
                           </div>
 
@@ -1134,7 +1193,7 @@ export default function FleetPage() {
 
                           <button
                             onClick={() => openGoogleMapsDirections(activeTrip.origin, activeTrip.destination)}
-                            className="w-full bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 font-bold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1 transition mt-2"
+                            className="w-full bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 border border-sky-500/30 font-bold py-1.5 rounded-xl text-xs flex items-center justify-center gap-1 transition mt-2 cursor-pointer"
                           >
                             <Compass className="w-3.5 h-3.5" /> فتح مسار الخريطة في Google Maps
                           </button>
@@ -1158,12 +1217,12 @@ export default function FleetPage() {
               })}
             </div>
 
-            {/* جدول سجل العمليات المنفذة المنسق والموزع */}
+            {/* جدول سجل العمليات المنفذة */}
             <div className="max-w-7xl mx-auto mt-8 bg-slate-900 border border-slate-800 p-6 rounded-3xl space-y-4 print:hidden shadow-2xl">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div>
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
-                    <Navigation className="w-4 h-4 text-amber-400" /> سجل أجور وعمليات النقل العام المنفذة
+                    <Navigation className="w-4 h-4" style={{ color: primaryCol }} /> سجل أجور وعمليات النقل العام المنفذة
                   </h3>
                   <p className="text-[12px] text-slate-400 mt-0.5">أجور الشحنات المحصلة لحساب قطاع النقل العام</p>
                 </div>
@@ -1205,7 +1264,7 @@ export default function FleetPage() {
                             <td className="p-3 font-bold text-white whitespace-nowrap">
                               {t.vehicle_name || t.external_truck_info} 
                               {isExt ? (
-                                <span className="text-[10px] text-amber-400 font-normal block font-sans">(مستأجرة خارجية)</span>
+                                <span className="text-[10px] font-normal block font-sans" style={{ color: primaryCol }}>(مستأجرة خارجية)</span>
                               ) : (
                                 <span className="text-[11px] text-slate-400 font-normal block font-sans">({t.plate_number})</span>
                               )}
@@ -1218,7 +1277,7 @@ export default function FleetPage() {
                                 <span className="text-emerald-400 font-bold">{t.destination}</span>
                                 <button
                                   onClick={() => openGoogleMapsDirections(t.origin, t.destination)}
-                                  className="text-[11px] bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition shrink-0 mr-1"
+                                  className="text-[11px] bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 px-1.5 py-0.5 rounded flex items-center gap-0.5 transition shrink-0 mr-1 cursor-pointer"
                                   title="فتح المسار في Google Maps"
                                 >
                                   <Compass className="w-3.5 h-3.5" /> الخريطة
@@ -1255,7 +1314,7 @@ export default function FleetPage() {
                                 {!isCompleted && canEdit && (
                                   <button
                                     onClick={() => handleCompleteTrip(t)}
-                                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-xl text-xs transition shadow"
+                                    className="bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold px-2.5 py-1 rounded-xl text-xs transition shadow cursor-pointer"
                                   >
                                     تأكيد الوصول
                                   </button>
@@ -1263,7 +1322,7 @@ export default function FleetPage() {
                                 {canDelete && (
                                   <button
                                     onClick={() => handleDeleteTrip(t)}
-                                    className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-1.5 rounded-xl border border-rose-500/30 transition"
+                                    className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-1.5 rounded-xl border border-rose-500/30 transition cursor-pointer"
                                     title="حذف سجل الرحلة"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
@@ -1295,7 +1354,7 @@ export default function FleetPage() {
                 </div>
                 <button
                   onClick={exportTripsToCSV}
-                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1"
+                  className="bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700 font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1 cursor-pointer"
                 >
                   <Download className="w-3.5 h-3.5" /> تصدير تقرير الأرباح
                 </button>
@@ -1366,7 +1425,7 @@ export default function FleetPage() {
                               {canDelete && (
                                 <button
                                   onClick={() => handleDeleteVehicle(v)}
-                                  className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl border border-rose-500/30 transition"
+                                  className="bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white p-2 rounded-xl border border-rose-500/30 transition cursor-pointer"
                                   title="حذف سجل وتفاصيل هذه الآلية"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1381,14 +1440,14 @@ export default function FleetPage() {
                 </div>
               </div>
 
-              {/* جدول مستقل تماماً خاص بالشاحنات والتريلات الخارجية المستأجرة كلٌ على حدة */}
+              {/* جدول الشاحنات المستأجرة */}
               <div>
-                <h4 className="text-xs font-bold text-amber-400 mb-3 flex items-center gap-1.5">
-                  <Coins className="w-4 h-4 text-amber-400" /> تفصيل الأرباح التشغيلية للتريلات والشاحنات المستأجرة (كل آلية على حدة)
+                <h4 className="text-xs font-bold mb-3 flex items-center gap-1.5" style={{ color: primaryCol }}>
+                  <Coins className="w-4 h-4" style={{ color: primaryCol }} /> تفصيل الأرباح التشغيلية للتريلات والشاحنات المستأجرة (كل آلية على حدة)
                 </h4>
-                <div className="border border-amber-500/30 rounded-2xl overflow-hidden bg-slate-950/40">
+                <div className="border rounded-2xl overflow-hidden bg-slate-950/40" style={{ borderColor: `${primaryCol}30` }}>
                   <table className="w-full text-right text-[14px]">
-                    <thead className="bg-amber-500/10 text-amber-300 text-[12px] border-b border-amber-500/20">
+                    <thead className="text-[12px] border-b" style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderBottomColor: `${primaryCol}20` }}>
                       <tr>
                         <th className="p-3.5">وصف الشاحنة ورقم اللوحة</th>
                         <th className="p-3.5">السائق / جهة التأجير</th>
@@ -1446,7 +1505,7 @@ export default function FleetPage() {
                 {canManageVouchers && (
                   <button
                     onClick={() => setShowMaintenanceModal(true)}
-                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-lg shadow-purple-600/20"
+                    className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-1 shadow-lg shadow-purple-600/20 cursor-pointer"
                   >
                     <PlusCircle className="w-3.5 h-3.5" /> تسجيل قيد صيانة جديد
                   </button>
@@ -1511,13 +1570,12 @@ export default function FleetPage() {
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Navigation className="w-4 h-4 text-amber-400" /> إطلاق مهمة نقل وتسجيل إيراد مستقل
                 </h3>
-                <button onClick={() => setShowNewTripModal(false)} className="text-slate-400 hover:text-white">
+                <button onClick={() => setShowNewTripModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleCreateTrip} className="space-y-3.5 text-[14px]">
-                {/* اختيار نوع الشاحنة */}
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
                   <label className="block text-slate-300 font-bold text-xs">مصدر الشاحنة المنفذة للمهمة:</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1529,7 +1587,7 @@ export default function FleetPage() {
                         name="sourceType" 
                         checked={truckSourceType === 'INTERNAL'} 
                         onChange={() => setTruckSourceType('INTERNAL')}
-                        className="accent-emerald-500" 
+                        className="accent-emerald-500 cursor-pointer" 
                       />
                       <span className="font-bold">شاحنة من أسطول الشركة</span>
                     </label>
@@ -1542,7 +1600,7 @@ export default function FleetPage() {
                         name="sourceType" 
                         checked={truckSourceType === 'EXTERNAL'} 
                         onChange={() => setTruckSourceType('EXTERNAL')}
-                        className="accent-amber-500" 
+                        className="accent-amber-500 cursor-pointer" 
                       />
                       <span className="font-bold">شاحنة خارجية مستأجرة</span>
                     </label>
@@ -1556,7 +1614,7 @@ export default function FleetPage() {
                       required
                       value={selectedVehicleForTrip}
                       onChange={(e) => setSelectedVehicleForTrip(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500 text-xs"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500 text-xs cursor-pointer"
                     >
                       <option value="">-- اضغط لاختيار شاحنة جاهزة --</option>
                       {vehicles
@@ -1726,14 +1784,15 @@ export default function FleetPage() {
                   <button
                     type="button"
                     onClick={() => setShowNewTripModal(false)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs"
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-amber-500/20"
+                    className="px-5 py-2.5 text-slate-950 font-bold rounded-xl text-xs shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الإطلاق...' : 'بدء الرحلة وتحريك الآلية'}
                   </button>
@@ -1751,7 +1810,7 @@ export default function FleetPage() {
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Wrench className="w-4 h-4 text-purple-400" /> قيد صيانة / وقود في حسابات النقل
                 </h3>
-                <button onClick={() => setShowMaintenanceModal(false)} className="text-slate-400 hover:text-white">
+                <button onClick={() => setShowMaintenanceModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1763,7 +1822,7 @@ export default function FleetPage() {
                     required
                     value={maintVehicleId}
                     onChange={(e) => setMaintVehicleId(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 text-xs"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-purple-500 text-xs cursor-pointer"
                   >
                     <option value="">-- اضغط لاختيار الشاحنة --</option>
                     {vehicles.map(v => (
@@ -1780,7 +1839,7 @@ export default function FleetPage() {
                     <select
                       value={maintType}
                       onChange={(e: any) => setMaintType(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none cursor-pointer"
                     >
                       <option value="OIL_CHANGE">تبديل دهن وفلاتر</option>
                       <option value="FUEL">تزويد وقود (فل)</option>
@@ -1844,14 +1903,14 @@ export default function FleetPage() {
                   <button
                     type="button"
                     onClick={() => setShowMaintenanceModal(false)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs"
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-purple-600/20"
+                    className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs shadow-lg shadow-purple-600/20 cursor-pointer"
                   >
                     {loading ? 'جاري القيد...' : 'حفظ وإصدار السند'}
                   </button>
@@ -1867,9 +1926,9 @@ export default function FleetPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-emerald-400" /> إضافة شاحنة أو آلية جديدة للأسطول
+                  <Truck className="w-4 h-4" style={{ color: primaryCol }} /> إضافة شاحنة أو آلية جديدة للأسطول
                 </h3>
-                <button onClick={() => setShowAddVehicleModal(false)} className="text-slate-400 hover:text-white">
+                <button onClick={() => setShowAddVehicleModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1883,7 +1942,8 @@ export default function FleetPage() {
                     placeholder="مثال: شاحنة مرسيدس أكتروس 3340"
                     value={vehicleName}
                     onChange={(e) => setVehicleName(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 text-xs"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none text-xs"
+                    style={{ borderColor: `${primaryCol}40` }}
                   />
                 </div>
 
@@ -1896,7 +1956,7 @@ export default function FleetPage() {
                       placeholder="مثال: 54321 - نجف"
                       value={plateNumber}
                       onChange={(e) => setPlateNumber(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 font-mono"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-mono"
                     />
                   </div>
                   <div>
@@ -1904,7 +1964,7 @@ export default function FleetPage() {
                     <select
                       value={vehicleType}
                       onChange={(e) => setVehicleType(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none cursor-pointer"
                     >
                       <option value="شاحنة قلاب رمل وحصى">شاحنة قلاب رمل وحصى</option>
                       <option value="تريلة نقل حديد وإسمنت">تريلة نقل حديد وإسمنت</option>
@@ -1923,7 +1983,7 @@ export default function FleetPage() {
                       placeholder="اسم السائق المسؤول"
                       value={assignedDriver}
                       onChange={(e) => setAssignedDriver(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none"
                     />
                   </div>
                   <div>
@@ -1932,7 +1992,7 @@ export default function FleetPage() {
                       type="number"
                       value={oilInterval}
                       onChange={(e) => setOilInterval(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none focus:border-emerald-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none"
                     />
                   </div>
                 </div>
@@ -1945,7 +2005,7 @@ export default function FleetPage() {
                       placeholder="0"
                       value={currentMileage}
                       onChange={(e) => setCurrentMileage(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none focus:border-emerald-500 font-mono"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none"
                     />
                   </div>
                   <div>
@@ -1954,7 +2014,7 @@ export default function FleetPage() {
                       type="text"
                       value={currentLocation}
                       onChange={(e) => setCurrentLocation(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none"
                     />
                   </div>
                 </div>
@@ -1963,14 +2023,15 @@ export default function FleetPage() {
                   <button
                     type="button"
                     onClick={() => setShowAddVehicleModal(false)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs"
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
                     disabled={loading}
-                    className="px-5 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs shadow-lg shadow-emerald-500/20"
+                    className="px-5 py-2.5 text-slate-950 font-bold rounded-xl text-xs shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'تسجيل الآلية'}
                   </button>
@@ -1986,9 +2047,9 @@ export default function FleetPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-sm rounded-3xl p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Gauge className="w-4 h-4 text-amber-400" /> تحديث حالة: {editingVehicle.vehicle_name}
+                  <Gauge className="w-4 h-4" style={{ color: primaryCol }} /> تحديث حالة: {editingVehicle.vehicle_name}
                 </h3>
-                <button onClick={() => setEditingVehicle(null)} className="text-slate-400 hover:text-white">
+                <button onClick={() => setEditingVehicle(null)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
@@ -1999,7 +2060,7 @@ export default function FleetPage() {
                   <select
                     value={updateStatus}
                     onChange={(e) => setUpdateStatus(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none text-xs"
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none text-xs cursor-pointer"
                   >
                     <option value="AVAILABLE">جاهزة ومتاحة للخدمة</option>
                     <option value="IN_TRANSIT">في الطريق بمهمة</option>
@@ -2044,13 +2105,14 @@ export default function FleetPage() {
                   <button
                     type="button"
                     onClick={() => setEditingVehicle(null)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs"
+                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer"
                   >
                     إلغاء
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs"
+                    className="px-5 py-2.5 text-slate-950 font-bold rounded-xl text-xs cursor-pointer shadow-md"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     حفظ التحديث
                   </button>
@@ -2068,13 +2130,14 @@ export default function FleetPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => window.print()}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-600/20"
+                  className="text-slate-950 font-bold px-5 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   <Printer className="w-4 h-4" /> طباعة السجل (A4)
                 </button>
                 <button
                   onClick={exportTripsToCSV}
-                  className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition"
+                  className="bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer"
                 >
                   <Download className="w-4 h-4" /> تصدير ملف (Excel / CSV)
                 </button>
@@ -2083,7 +2146,7 @@ export default function FleetPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowReportModal(false)}
-                  className="bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  className="bg-rose-600/10 hover:bg-rose-600 text-rose-400 hover:text-white border border-rose-500/20 px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
                 >
                   <X className="w-4 h-4" /> إغلاق النافذة
                 </button>
@@ -2092,32 +2155,47 @@ export default function FleetPage() {
 
             <div className="w-full max-w-5xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-6">
               
-              <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-                <div className="flex items-center gap-4">
-                  <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                    <Image 
-                      src="/logo.png" 
-                      alt="شركة البرج المتألق" 
-                      width={70} 
-                      height={70} 
-                      className="object-contain" 
-                      priority
-                    />
+              {hasLetterhead ? (
+                <div className="w-full border-b pb-3 mb-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                </div>
+              ) : (
+                <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+                  <div className="flex items-center gap-4">
+                    <div className="w-20 h-20 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                      {hasLogo ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                      ) : (
+                        <Image 
+                          src="/logo.png" 
+                          alt="شركة البرج المتألق" 
+                          width={70} 
+                          height={70} 
+                          className="object-contain" 
+                          priority
+                        />
+                      )}
+                    </div>
+                    <div>
+                      <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                      <p className="text-xs text-slate-600 font-bold mt-0.5">قسم أسطول النقل العام والخدمات اللوجستية (RTCO Fleet)</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address} | هاتف العمليات: {companySettings.phone_primary}</p>
+                    </div>
                   </div>
-                  <div>
-                    <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                    <p className="text-xs text-slate-600 font-bold mt-0.5">قسم أسطول النقل العام والخدمات اللوجستية (RTCO Fleet)</p>
-                    <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | هاتف العمليات: 07868006699</p>
+                  <div className="text-left flex flex-col items-end">
+                    <div 
+                      className="border-2 px-4 py-1.5 font-black text-xs uppercase tracking-wider text-slate-950 rounded-xl"
+                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                    >
+                      سجل المهام والرحلات الميدانية الرسمي
+                    </div>
+                    <p className="text-[11px] font-mono mt-2 text-slate-600">تاريخ الطباعة: <span className="font-bold text-slate-950">{new Date().toISOString().split('T')[0]}</span></p>
+                    <p className="text-[11px] text-slate-500 font-sans">المسؤول: <span className="font-bold text-slate-900">{currentUser.full_name}</span></p>
                   </div>
                 </div>
-                <div className="text-left flex flex-col items-end">
-                  <div className="border-2 border-slate-900 px-4 py-1.5 font-black text-xs uppercase tracking-wider bg-emerald-500 text-slate-950 rounded-xl">
-                    سجل المهام والرحلات الميدانية الرسمي
-                  </div>
-                  <p className="text-[11px] font-mono mt-2 text-slate-600">تاريخ الطباعة: <span className="font-bold text-slate-950">{new Date().toISOString().split('T')[0]}</span></p>
-                  <p className="text-[11px] text-slate-500 font-sans">المسؤول: <span className="font-bold text-slate-900">{currentUser.full_name}</span></p>
-                </div>
-              </div>
+              )}
 
               {/* أرقام الحسابات المعزولة في التقرير المطبوع */}
               <div className="grid grid-cols-4 gap-3 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-[13px] text-center font-mono">
@@ -2143,7 +2221,7 @@ export default function FleetPage() {
 
               <div className="space-y-2">
                 <h3 className="font-black text-sm text-slate-900 flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span> تفاصيل حركة الآليات وأجور النقل المحصلة
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: primaryCol }}></span> تفاصيل حركة الآليات وأجور النقل المحصلة
                 </h3>
                 <div className="border border-slate-200 rounded-2xl overflow-hidden">
                   <table className="w-full text-[12px] text-right">
@@ -2215,10 +2293,14 @@ export default function FleetPage() {
                   <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
                 </div>
                 <div>
-                  <p className="font-bold text-xs text-slate-700">المدير التنفيذي للشركة</p>
+                  <p className="font-bold text-xs text-slate-700">المدير المفوض للشركة</p>
                   <p className="text-[10px] text-slate-400 mt-0.5">المصادقة والختم الرسمي</p>
                   <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
                 </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-2 text-center text-[10px] text-slate-500 font-mono">
+                {companySettings.company_name} - {companySettings.address} • هاتف: {companySettings.phone_primary}
               </div>
 
             </div>

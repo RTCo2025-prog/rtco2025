@@ -191,6 +191,20 @@ function autoTranslateTerms(text: string): string {
 
 export default function VouchersPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [branches, setBranches] = useState<any[]>([]);
   const [projectsList, setProjectsList] = useState<any[]>([]);
   const [vouchers, setVouchers] = useState<any[]>([]);
@@ -231,6 +245,20 @@ export default function VouchersPage() {
   const [targetProjectId, setTargetProjectId] = useState('');
   const [savingAssign, setSavingAssign] = useState(false);
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   const loadData = async () => {
     try {
       const resV = await fetch('/api/vouchers', { cache: 'no-store' });
@@ -255,6 +283,8 @@ export default function VouchersPage() {
   };
 
   useEffect(() => {
+    loadSettings();
+
     const raw = localStorage.getItem('erp_user');
     if (raw) {
       try {
@@ -554,7 +584,6 @@ export default function VouchersPage() {
     setFilterSector('ALL');
   };
 
-  // دالة تصدير ملف إكسل منسق بتصميم شركة البرج المتألق مع تلوين السندات الملغية بالأحمر والخط 14pt
   const exportCSV = () => {
     if (filteredVouchers.length === 0) {
       alert('لا توجد بيانات لتصديرها');
@@ -605,7 +634,6 @@ export default function VouchersPage() {
 
       const statusTitle = isCancelled ? 'ملغي (VOID)' : 'جاري (ACTIVE)';
 
-      // تلوين الصف بالكامل: أحمر فاتح للسند الملغي، وأبيض أو تدرج رمادي فاتح للسند الجاري
       const rowBg = isCancelled ? '#fee2e2' : '#ffffff';
       const textColor = isCancelled ? '#991b1b' : '#0f172a';
       const numStrike = isCancelled ? 'text-decoration: line-through;' : '';
@@ -614,7 +642,7 @@ export default function VouchersPage() {
 
       rowsXml += `
         <tr style="background-color: ${rowBg}; color: ${textColor}; height: 38px;">
-          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-weight: bold; color: ${isCancelled ? '#b91c1c' : '#b45309'}; ${numStrike}">
+          <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-weight: bold; color: ${isCancelled ? '#b91c1c' : (companySettings.primary_color || '#b45309')}; ${numStrike}">
             ${escapeXml(v.voucher_number)}
           </td>
           <td style="border: 1px solid #cbd5e1; padding: 8px 12px; text-align: center; font-family: monospace;">
@@ -677,24 +705,22 @@ export default function VouchersPage() {
       <body>
         <div style="direction: rtl; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif; padding: 20px;">
           
-          <!-- ترويسة وهوية شركة البرج المتألق الرسمية -->
-          <table style="width: 100%; border-bottom: 3px solid #d97706; margin-bottom: 15px; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif;">
+          <table style="width: 100%; border-bottom: 3px solid ${companySettings.primary_color || '#d97706'}; margin-bottom: 15px; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif;">
             <tr>
               <td style="text-align: right; vertical-align: middle; width: 65%;">
-                <h1 style="color: #d97706; margin: 0; font-size: 20pt; font-weight: 900;">شركة البرج المتألق</h1>
-                <p style="color: #0f172a; margin: 4px 0 0 0; font-size: 12pt; font-weight: bold;">للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام</p>
-                <p style="color: #64748b; margin: 2px 0 0 0; font-size: 10pt;">النجف الأشرف - حي الفرات | الإدارة المالية والمحاسبية: 07868006699 - 07737006699</p>
+                <h1 style="color: ${companySettings.primary_color || '#d97706'}; margin: 0; font-size: 20pt; font-weight: 900;">${escapeXml(companySettings.company_name)}</h1>
+                <p style="color: #0f172a; margin: 4px 0 0 0; font-size: 12pt; font-weight: bold;">${escapeXml(companySettings.tagline)}</p>
+                <p style="color: #64748b; margin: 2px 0 0 0; font-size: 10pt;">${escapeXml(companySettings.address)} | هاتف: ${escapeXml(companySettings.phone_primary)} ${companySettings.phone_secondary ? ' - ' + escapeXml(companySettings.phone_secondary) : ''}</p>
               </td>
               <td style="text-align: left; vertical-align: middle; width: 35%;">
                 <div style="border: 2px solid #0f172a; background-color: #f8fafc; padding: 10px 18px; border-radius: 10px; display: inline-block;">
                   <strong style="color: #0f172a; font-size: 14pt; display: block;">سجل السندات والقيود المالية</strong>
-                  <span style="color: #d97706; font-size: 11pt; font-weight: bold;">تاريخ التصدير: ${new Date().toISOString().substring(0, 10)}</span>
+                  <span style="color: ${companySettings.primary_color || '#d97706'}; font-size: 11pt; font-weight: bold;">تاريخ التصدير: ${new Date().toISOString().substring(0, 10)}</span>
                 </div>
               </td>
             </tr>
           </table>
 
-          <!-- جدول البيانات المنسق بالكامل مع خط 14pt وتلوين الحالات -->
           <table border="1" cellpadding="8" cellspacing="0" style="width: 100%; border-collapse: collapse; border: 1.5px solid #0f172a; font-family: 'Segoe UI', Tahoma, Cairo, Arial, sans-serif; font-size: 14pt;">
             <thead>
               <tr style="background-color: #0f172a; color: #ffffff; text-align: center; font-weight: bold; height: 42px;">
@@ -707,7 +733,7 @@ export default function VouchersPage() {
           </table>
 
           <p style="color: #94a3b8; font-size: 11pt; margin-top: 15px; text-align: left; direction: ltr;">
-            Generated automatically by Al Burj Al Mutalaa'iq Management System - Financial Accounting Unit
+            Generated automatically by ${escapeXml(companySettings.company_name)} ERP System - Financial Accounting Unit
           </p>
         </div>
       </body>
@@ -718,11 +744,20 @@ export default function VouchersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `سجل_السندات_المالية_البرج_المتألق_${new Date().toISOString().substring(0, 10)}.xls`);
+    link.setAttribute('download', `سجل_السندات_المالية_${companySettings.company_name.replace(/\s+/g, '_')}_${new Date().toISOString().substring(0, 10)}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
+
+  const handleOpenPrintModal = async (v: any) => {
+    await loadSettings();
+    setSelectedVoucher(v);
+  };
+
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
 
   return (
     <AuthGuard moduleName="vouchers" requiredAction="view">
@@ -781,39 +816,52 @@ export default function VouchersPage() {
         {/* 1. قسم إدارة السندات */}
         <div className="print-hide">
           
-          {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
+          {/* الترويسة الرئيسية */}
           <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80">
             <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
               
-              {/* الطرف الأيمن: الشعار والعنوان والشارة */}
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-amber-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-amber-500/10">
-                  <Image 
-                    src="/logo.png" 
-                    alt="شركة البرج المتألق" 
-                    width={48} 
-                    height={48} 
-                    className="object-contain" 
-                    priority
-                  />
+                <div 
+                  className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border flex items-center justify-center shrink-0 p-2 shadow-xl"
+                  style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
+                >
+                  {hasLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={companySettings.logo_url} 
+                      alt={companySettings.company_name} 
+                      className="w-full h-full object-contain" 
+                    />
+                  ) : (
+                    <Image 
+                      src="/logo.png" 
+                      alt="شركة البرج المتألق" 
+                      width={48} 
+                      height={48} 
+                      className="object-contain" 
+                      priority
+                    />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                       إدارة السندات والقيود المالية المركزية
                     </h1>
-                    <span className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-300 border border-amber-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                      <Sparkles className="w-3 h-3 text-amber-400" />
+                    <span 
+                      className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                      style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}40` }}
+                    >
+                      <Sparkles className="w-3 h-3" />
                       Financial Vouchers Ledger
                     </span>
                   </div>
                   <p className="text-xs text-slate-400 font-medium">
-                    شركة البرج المتألق • نظام السندات الدفتري والمالي لجميع قطاعات الشركة
+                    {companySettings.company_name} • نظام السندات الدفتري والمالي لجميع قطاعات الشركة
                   </p>
                 </div>
               </div>
 
-              {/* الطرف الأيسر: شريط الإجراءات والتنقل السريع في سطر واحد ثابت بعد حذف زر الأسطول */}
               <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
                 <Link 
                   href="/finance/reports" 
@@ -824,7 +872,8 @@ export default function VouchersPage() {
 
                 <Link 
                   href="/projects" 
-                  className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 text-amber-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer shadow-sm"
+                  className="px-4 py-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-xs font-bold transition flex items-center gap-1.5 whitespace-nowrap active:scale-95 cursor-pointer shadow-sm"
+                  style={{ color: primaryCol }}
                 >
                   <HardHat className="w-4 h-4" /> إدارة المشاريع
                 </Link>
@@ -854,10 +903,13 @@ export default function VouchersPage() {
 
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h2 className="text-base font-bold text-white flex items-center gap-2">
-                  <PlusCircle className="w-5 h-5 text-amber-400" /> تسجيل قيد مالي جديد
+                  <PlusCircle className="w-5 h-5" style={{ color: primaryCol }} /> تسجيل قيد مالي جديد
                 </h2>
                 {(linkedSubId || linkedMatId || linkedExpId) && (
-                  <span className="text-[10px] bg-amber-500/20 text-amber-400 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                  <span 
+                    className="text-[10px] border px-2 py-0.5 rounded-full font-bold"
+                    style={{ backgroundColor: `${primaryCol}20`, color: primaryCol, borderColor: `${primaryCol}40` }}
+                  >
                     مقترن ببند مشروع ✓
                   </span>
                 )}
@@ -946,7 +998,7 @@ export default function VouchersPage() {
                 {/* 3. اسم الطرف والمستفيد */}
                 <div className="space-y-2 bg-slate-950 p-3 rounded-2xl border border-slate-800">
                   <div>
-                    <label className="block text-amber-400 mb-1 font-bold text-xs">
+                    <label className="block mb-1 font-bold text-xs" style={{ color: primaryCol }}>
                       {voucherType === 'RECEIPT' ? 'استلمت من (بالعربية) *:' : 'سلمت الى (بالعربية) *:'}
                     </label>
                     <input
@@ -1082,7 +1134,8 @@ export default function VouchersPage() {
                 <button
                   type="submit"
                   disabled={loading || !canAdd}
-                  className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition text-xs mt-2 shadow-lg shadow-amber-500/20"
+                  className="w-full py-2.5 text-slate-950 font-bold rounded-xl transition text-xs mt-2 shadow-lg"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   {loading ? 'جاري الاعتماد...' : 'اعتماد وترحيل السند المالي'}
                 </button>
@@ -1118,7 +1171,7 @@ export default function VouchersPage() {
                 </div>
               </div>
 
-              {/* أزرار التصفية لجميع قطاعات الشركة الخمسة */}
+              {/* أزرار التصفية لجميع قطاعات الشركة */}
               <div className="flex gap-2 flex-wrap text-xs">
                 <button
                   onClick={() => setFilterSector('ALL')}
@@ -1131,8 +1184,9 @@ export default function VouchersPage() {
                 <button
                   onClick={() => setFilterSector('PROJECTS')}
                   className={`px-3 py-1.5 rounded-xl font-bold transition flex items-center gap-1.5 ${
-                    filterSector === 'PROJECTS' ? 'bg-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20' : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
+                    filterSector === 'PROJECTS' ? 'text-slate-950 font-black shadow-md' : 'bg-slate-950 border border-slate-800 text-slate-400 hover:text-white'
                   }`}
+                  style={filterSector === 'PROJECTS' ? { backgroundColor: primaryCol } : {}}
                 >
                   <HardHat className="w-3.5 h-3.5 text-amber-400" /> المقاولات والمشاريع
                 </button>
@@ -1232,7 +1286,7 @@ export default function VouchersPage() {
                 </div>
               </div>
 
-              {/* جدول السندات مع زر التفاصيل الدفتري */}
+              {/* جدول السندات */}
               <div className="overflow-x-auto">
                 <table className="w-full text-right text-[14px]">
                   <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[12px]">
@@ -1263,7 +1317,10 @@ export default function VouchersPage() {
                         return (
                           <tr key={v.voucher_id} className={`transition ${isCancelled ? 'bg-rose-950/25 opacity-75' : 'hover:bg-slate-800/30'}`}>
                             <td className="p-3.5 font-mono font-bold">
-                              <span className={isCancelled ? 'line-through text-slate-400' : 'text-amber-400'}>
+                              <span 
+                                className={isCancelled ? 'line-through text-slate-400' : ''}
+                                style={!isCancelled ? { color: primaryCol } : {}}
+                              >
                                 {v.voucher_number}
                               </span>
                             </td>
@@ -1306,7 +1363,7 @@ export default function VouchersPage() {
                                     <Users className="w-3.5 h-3.5" /> الموارد البشرية
                                   </span>
                                 ) : v.project_name ? (
-                                  <span className="inline-flex items-center gap-1 text-amber-400 font-bold">
+                                  <span className="inline-flex items-center gap-1 font-bold" style={{ color: primaryCol }}>
                                     <HardHat className="w-3.5 h-3.5" /> {v.project_name}
                                   </span>
                                 ) : (
@@ -1355,14 +1412,15 @@ export default function VouchersPage() {
                                   type="button"
                                   onClick={() => setDetailsModalVoucher(v)}
                                   className="bg-sky-500/20 hover:bg-sky-500 text-sky-400 hover:text-slate-950 font-bold p-1.5 rounded-xl border border-sky-500/30 transition shadow"
-                                  title="عرض تفاصيل هذا الوصل الغرض منه"
+                                  title="عرض تفاصيل هذا الوصل"
                                 >
                                   <Eye className="w-4 h-4" />
                                 </button>
 
                                 <button
-                                  onClick={() => setSelectedVoucher(v)}
-                                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 text-xs"
+                                  onClick={() => handleOpenPrintModal(v)}
+                                  className="text-slate-950 font-bold px-2.5 py-1.5 rounded-xl transition flex items-center gap-1 text-xs cursor-pointer shadow"
+                                  style={{ backgroundColor: primaryCol }}
                                   title="طباعة السند"
                                 >
                                   <Printer className="w-3.5 h-3.5" /> طباعة
@@ -1392,7 +1450,7 @@ export default function VouchersPage() {
           </div>
         </div>
 
-        {/* نافذة تفاصيل السند الكاملة والارتباط */}
+        {/* نافذة تفاصيل السند الكاملة */}
         {detailsModalVoucher && (() => {
           const d = parseVoucherData(detailsModalVoucher);
           const isReceiptType = String(detailsModalVoucher.voucher_type || '').toUpperCase() === 'RECEIPT';
@@ -1412,7 +1470,7 @@ export default function VouchersPage() {
                     <Info className="w-5 h-5 text-sky-400" />
                     <div>
                       <h3 className="text-base font-bold text-white">بطاقة التدقيق المالي للسند</h3>
-                      <p className="text-xs font-mono text-amber-400">{detailsModalVoucher.voucher_number}</p>
+                      <p className="text-xs font-mono font-bold" style={{ color: primaryCol }}>{detailsModalVoucher.voucher_number}</p>
                     </div>
                   </div>
                   <button onClick={() => setDetailsModalVoucher(null)} className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800">
@@ -1444,7 +1502,7 @@ export default function VouchersPage() {
 
                     <div className="flex justify-between items-center border-b border-slate-800/80 pb-2">
                       <span className="text-slate-400 font-semibold">المشروع الإنشائي:</span>
-                      <span className="text-amber-400 font-bold font-mono">
+                      <span className="font-bold font-mono" style={{ color: primaryCol }}>
                         {detailsModalVoucher.project_name || 'غير مرتبط بمشروع إنشائي'}
                       </span>
                     </div>
@@ -1488,9 +1546,10 @@ export default function VouchersPage() {
                   <button
                     onClick={() => {
                       setDetailsModalVoucher(null);
-                      setSelectedVoucher(detailsModalVoucher);
+                      handleOpenPrintModal(detailsModalVoucher);
                     }}
-                    className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    className="px-4 py-2 text-slate-950 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                    style={{ backgroundColor: primaryCol }}
                   >
                     <Printer className="w-3.5 h-3.5" /> معاينة وطباعة السند
                   </button>
@@ -1512,14 +1571,14 @@ export default function VouchersPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Link2 className="w-4 h-4 text-amber-400" /> ربط السند بمشروع مقاولة
+                  <Link2 className="w-4 h-4" style={{ color: primaryCol }} /> ربط السند بمشروع مقاولة
                 </h3>
                 <button onClick={() => setAssignModalVoucher(null)} className="text-slate-400 hover:text-white">
                   <X className="w-5 h-5" />
                 </button>
               </div>
               <p className="text-[14px] text-slate-300">
-                ربط السند رقم <span className="font-mono text-amber-400 font-bold">{assignModalVoucher.voucher_number}</span> بمشروع لاحتساب تكلفته أو مقبوضاته تلقائياً:
+                ربط السند رقم <span className="font-mono font-bold" style={{ color: primaryCol }}>{assignModalVoucher.voucher_number}</span> بمشروع لاحتساب تكلفته أو مقبوضاته تلقائياً:
               </p>
               <div>
                 <label className="block text-xs text-slate-400 mb-1 font-semibold">اختر المشروع:</label>
@@ -1540,7 +1599,12 @@ export default function VouchersPage() {
                 <button onClick={() => setAssignModalVoucher(null)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl text-xs">
                   إلغاء
                 </button>
-                <button onClick={handleAssignProject} disabled={savingAssign} className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl text-xs">
+                <button 
+                  onClick={handleAssignProject} 
+                  disabled={savingAssign} 
+                  className="px-4 py-2 text-slate-950 font-bold rounded-xl text-xs"
+                  style={{ backgroundColor: primaryCol }}
+                >
                   {savingAssign ? 'جاري الحفظ...' : 'تأكيد الربط'}
                 </button>
               </div>
@@ -1557,7 +1621,7 @@ export default function VouchersPage() {
                 <h3 className="text-base font-bold text-white">تأكيد إلغاء السند المالي</h3>
               </div>
               <p className="text-[14px] text-slate-300 leading-relaxed mb-4">
-                أنت على وشك تحويل السند رقم <span className="font-mono text-amber-400 font-bold">{cancelModalVoucher.voucher_number}</span> إلى حالة <span className="text-rose-400 font-bold">ملغي (VOID)</span> وتصفير أثره المالي.
+                أنت على وشك تحويل السند رقم <span className="font-mono font-bold" style={{ color: primaryCol }}>{cancelModalVoucher.voucher_number}</span> إلى حالة <span className="text-rose-400 font-bold">ملغي (VOID)</span> وتصفير أثره المالي.
               </p>
               <div className="mb-4">
                 <label className="block text-xs text-slate-400 mb-1 font-semibold">سبب الإلغاء (للتوثيق):</label>
@@ -1581,7 +1645,7 @@ export default function VouchersPage() {
           </div>
         )}
 
-        {/* 2. قالب السند الورقي الدفتري الرسمي (A4) */}
+        {/* 2. قالب السند الورقي الدفتري الرسمي المطبوع (A4) */}
         {selectedVoucher && (() => {
           const details = parseVoucherData(selectedVoucher);
           const isReceipt = String(selectedVoucher.voucher_type || '').toUpperCase() === 'RECEIPT';
@@ -1604,7 +1668,7 @@ export default function VouchersPage() {
                     <Printer className="w-4 h-4" /> أمر الطباعة الآن (Print)
                   </button>
                   <span className="text-xs text-slate-300 font-semibold hidden sm:inline">
-                    معاينة السند: <span className="font-mono text-amber-400 font-bold">{selectedVoucher.voucher_number}</span>
+                    معاينة السند: <span className="font-mono font-bold" style={{ color: primaryCol }}>{selectedVoucher.voucher_number}</span>
                   </span>
                   <span className={`px-3 py-0.5 rounded-full text-xs font-bold ${isCancelled ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'}`}>
                     {isCancelled ? 'الحالة: ملغي (VOID)' : 'الحالة: جاري (ACTIVE)'}
@@ -1616,7 +1680,10 @@ export default function VouchersPage() {
               </div>
 
               <div className="w-full max-w-4xl p-4 flex justify-center print:p-0 print:w-full print:max-w-none print:m-0">
-                <div className="print-voucher-card bg-white text-slate-900 w-full rounded-xl shadow-2xl p-5 md:p-6 border-2 border-slate-800 relative overflow-hidden">
+                <div 
+                  className="print-voucher-card bg-white text-slate-900 w-full rounded-xl shadow-2xl p-5 md:p-6 border-2 relative overflow-hidden"
+                  style={{ borderColor: primaryCol }}
+                >
                   {isCancelled && (
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-20">
                       <div className="border-8 border-rose-600/30 text-rose-600/30 font-black text-6xl md:text-8xl tracking-widest uppercase rotate-[-25deg] px-12 py-4 rounded-3xl select-none">
@@ -1626,10 +1693,10 @@ export default function VouchersPage() {
                   )}
 
                   <div dir="ltr" className="w-full bg-white text-slate-900 font-sans">
-                    <div className="grid grid-cols-3 items-center border-b-2 border-slate-800 pb-3 mb-4">
+                    <div className="grid grid-cols-3 items-center border-b-2 pb-3 mb-4" style={{ borderBottomColor: primaryCol }}>
                       <div className="text-left flex flex-col justify-between h-full">
                         <div>
-                          <h2 className="text-lg font-black tracking-tight text-slate-900 font-serif leading-none">
+                          <h2 className="text-lg font-black tracking-tight font-serif leading-none" style={{ color: primaryCol }}>
                             THE SHINING TOWER
                           </h2>
                           <p className="text-[10px] text-slate-800 font-semibold leading-tight mt-1">
@@ -1650,20 +1717,32 @@ export default function VouchersPage() {
 
                       <div className="flex flex-col items-center justify-center text-center">
                         <div className="w-24 h-20 relative flex items-center justify-center">
-                          <Image 
-                            src="/logo.png" 
-                            alt="شركة البرج المتألق" 
-                            width={75} 
-                            height={75} 
-                            className="object-contain" 
-                            priority 
-                          />
+                          {hasLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img 
+                              src={companySettings.logo_url} 
+                              alt={companySettings.company_name} 
+                              className="w-full h-full object-contain" 
+                            />
+                          ) : (
+                            <Image 
+                              src="/logo.png" 
+                              alt="شركة البرج المتألق" 
+                              width={75} 
+                              height={75} 
+                              className="object-contain" 
+                              priority 
+                            />
+                          )}
                         </div>
                         <div className="mt-1 text-center">
                           <div className="font-black text-sm text-slate-950 leading-tight">
                             {isReceipt ? 'وصل قبض' : 'سند صرف'}
                           </div>
-                          <div className="font-serif font-black text-[11px] text-slate-800 tracking-wider uppercase border-b-2 border-slate-800 pb-0.5">
+                          <div 
+                            className="font-serif font-black text-[11px] tracking-wider uppercase border-b-2 pb-0.5"
+                            style={{ color: primaryCol, borderBottomColor: primaryCol }}
+                          >
                             {isReceipt ? 'RECEIPT VOUCHER' : 'PAYMENT VOUCHER'}
                           </div>
                         </div>
@@ -1671,14 +1750,18 @@ export default function VouchersPage() {
 
                       <div className="text-right flex flex-col justify-between h-full" dir="rtl">
                         <div>
-                          <h1 className="text-xl font-black text-slate-900 leading-none">البرج المتألق</h1>
-                          <p className="text-[11px] text-slate-800 font-bold leading-tight mt-1">
-                            للمقاولات العامة والتجارة العامة<br />
-                            والنقل العام والإستثمارات العقارية
+                          <h1 className="text-xl font-black leading-none" style={{ color: primaryCol }}>
+                            {companySettings.company_name}
+                          </h1>
+                          <p className="text-[11px] text-slate-800 font-bold leading-tight mt-1 whitespace-pre-line">
+                            {companySettings.tagline || 'للمقاولات العامة والتجارة العامة\nوالنقل العام والإستثمارات العقارية'}
                           </p>
                         </div>
-                        <div className="mt-2 inline-flex border-2 border-slate-800 bg-slate-50 font-bold text-sm self-start">
-                          <div className="px-4 py-0.5 font-mono border-l-2 border-slate-800 min-w-[110px] text-center text-slate-950 font-black text-base">
+                        <div className="mt-2 inline-flex border-2 bg-slate-50 font-bold text-sm self-start" style={{ borderColor: primaryCol }}>
+                          <div 
+                            className="px-4 py-0.5 font-mono border-l-2 min-w-[110px] text-center text-slate-950 font-black text-base"
+                            style={{ borderLeftColor: primaryCol }}
+                          >
                             {Number(selectedVoucher.total_amount).toLocaleString()}
                           </div>
                           <div className="px-2.5 py-0.5 text-xs text-slate-800 flex items-center justify-center font-bold">
@@ -1775,20 +1858,20 @@ export default function VouchersPage() {
                     <div className="grid grid-cols-3 gap-6 pt-8 pb-2 text-center">
                       <div>
                         <p className="font-serif font-black text-slate-900 text-sm">Manager : المدير</p>
-                        <div className="border-b-2 border-slate-900 mt-6 w-36 mx-auto"></div>
+                        <div className="border-b-2 mt-6 w-36 mx-auto" style={{ borderBottomColor: primaryCol }}></div>
                       </div>
                       <div>
                         <p className="font-serif font-black text-slate-900 text-sm">Accountant : المحاسب</p>
-                        <div className="border-b-2 border-slate-900 mt-6 w-36 mx-auto"></div>
+                        <div className="border-b-2 mt-6 w-36 mx-auto" style={{ borderBottomColor: primaryCol }}></div>
                       </div>
                       <div>
                         <p className="font-serif font-black text-slate-900 text-sm">Receiver : المستلم</p>
-                        <div className="border-b-2 border-slate-900 mt-6 w-36 mx-auto"></div>
+                        <div className="border-b-2 mt-6 w-36 mx-auto" style={{ borderBottomColor: primaryCol }}></div>
                       </div>
                     </div>
 
                     <div className="border-t border-slate-400 mt-4 pt-2 text-center text-[10px] text-slate-800 font-bold" dir="rtl">
-                      العنوان : العراق - النجف الأشرف - حي الفرات - شارع الجنسية / التلفون : 07868006699 - 07737006699
+                      العنوان : {companySettings.address} / التلفون : {companySettings.phone_primary} {companySettings.phone_secondary ? ` - ${companySettings.phone_secondary}` : ''}
                     </div>
                   </div>
                 </div>

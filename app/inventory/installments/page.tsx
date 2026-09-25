@@ -147,6 +147,20 @@ async function syncInstallmentToCloud(plan: any) {
 
 export default function InstallmentsPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [plans, setPlans] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [clientTypeFilter, setClientTypeFilter] = useState('ALL');
@@ -174,10 +188,26 @@ export default function InstallmentsPage() {
   const [receiptVoucherForPrint, setReceiptVoucherForPrint] = useState<any | null>(null);
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
+
+    loadSettings();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -201,7 +231,6 @@ export default function InstallmentsPage() {
       } catch {}
     }
 
-    // قراءة أولية سريعة من الذاكرة المحلية
     const stored = localStorage.getItem('rtco_inventory_installments');
     if (stored) {
       try {
@@ -209,7 +238,6 @@ export default function InstallmentsPage() {
       } catch {}
     }
 
-    // مزامنة فورية وجلب سجل الأقساط من السيرفر السحابي لتوحيد اللابتوب والموبايل والآيباد
     fetch('/api/admin/system?action=GET_INSTALLMENTS', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -342,7 +370,6 @@ export default function InstallmentsPage() {
     setPlans(updated);
     localStorage.setItem('rtco_inventory_installments', JSON.stringify(updated));
 
-    // مزامنة عقد التقسيط مع السيرفر السحابي
     await syncInstallmentToCloud(newPlan);
 
     await pushSystemNotification(
@@ -503,7 +530,6 @@ export default function InstallmentsPage() {
     setPlans(updated);
     localStorage.setItem('rtco_inventory_installments', JSON.stringify(updated));
 
-    // حذف القيد من السيرفر السحابي
     try {
       await fetch('/api/admin/system', {
         method: 'POST',
@@ -531,7 +557,7 @@ export default function InstallmentsPage() {
     }
 
     const goodsDetails = client.allGoodsList.join(' و ');
-    const message = `عزيزنا العميل / ${client.customerName} المحترم،\n\nتذكركم شركة البرج المتألق للتجارة العامة بخصوص حسابكم المالي للأقساط:\n\n📦 المواد المشتراة: (${goodsDetails})\n💰 المبلغ الكلي مع الأرباح: ${formatNum(client.totalPrice)} د.ع\n💵 الواصل المسدد: ${formatNum(client.totalPaid)} د.ع\n🚨 المتبقي بذمتكم حالياً: ${formatNum(client.remainingBalance)} د.ع\n\nيرجى المبادرة بسداد الأقساط المستحقة في موعدها المحدد لضمان استمرار الخدمة. شاكرين حسن تعاونكم معنا.`;
+    const message = `عزيزنا العميل / ${client.customerName} المحترم،\n\nتذكركم ${companySettings.company_name} للتجارة العامة بخصوص حسابكم المالي للأقساط:\n\n📦 المواد المشتراة: (${goodsDetails})\n💰 المبلغ الكلي مع الأرباح: ${formatNum(client.totalPrice)} د.ع\n💵 الواصل المسدد: ${formatNum(client.totalPaid)} د.ع\n🚨 المتبقي بذمتكم حالياً: ${formatNum(client.remainingBalance)} د.ع\n\nيرجى المبادرة بسداد الأقساط المستحقة في موعدها المحدد لضمان استمرار الخدمة. شاكرين حسن تعاونكم معنا.`;
 
     const cleanPhone = phone.replace(/\D/g, '');
     const whatsappUrl = `https://wa.me/964${cleanPhone.startsWith('0') ? cleanPhone.slice(1) : cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -541,7 +567,7 @@ export default function InstallmentsPage() {
   const getVerificationUrl = (planId: string) => {
     const origin = typeof window !== 'undefined' && window.location.origin
       ? window.location.origin
-      : (siteOrigin || 'https://rtco2025.netlify.app');
+      : (companySettings.website || siteOrigin || 'https://rtco2025.netlify.app');
     return `${origin}/verify?type=installment&no=${encodeURIComponent(planId)}`;
   };
 
@@ -621,19 +647,22 @@ export default function InstallmentsPage() {
     }));
   };
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
+
   return (
     <AuthGuard moduleName="installments" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
         <style jsx global>{`
-          /* ضبط المعاينة في شاشة الموبايل للتمرير السلس */
           @media screen and (max-width: 768px) {
             .print-paper-sheet,
             .print-voucher-sheet {
               min-width: 720px !important;
             }
           }
-          /* أمر الطباعة الفعلي بمقاس A4 حقيقي موحد */
           @media print {
             @page {
               size: A4 portrait !important;
@@ -681,9 +710,14 @@ export default function InstallmentsPage() {
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
-            {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-tr from-emerald-600 via-emerald-500 to-teal-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-emerald-500/20 shrink-0 flex items-center justify-center">
+              <div 
+                className="w-14 h-14 p-3 rounded-2xl text-slate-950 font-black shadow-xl shrink-0 flex items-center justify-center transition-all"
+                style={{ 
+                  background: `linear-gradient(135deg, ${primaryCol}, ${secondaryCol})`,
+                  boxShadow: `0 10px 25px -5px ${primaryCol}40`
+                }}
+              >
                 <CreditCard className="w-8 h-8" />
               </div>
               <div className="space-y-1">
@@ -691,18 +725,20 @@ export default function InstallmentsPage() {
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     منظومة المبيعات بالأقساط والمواد المدمجة
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     مزامنة سحابية • باركود تحقق A4
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • تجميع فواتير ومواد العميل في حساب موحد مع إرسال التنبيهات وإصدار الوصولات
+                  {companySettings.company_name} • تجميع فواتير ومواد العميل في حساب موحد مع إرسال التنبيهات وإصدار الوصولات
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap self-end sm:self-auto">
               {canAdd && (
                 <button
@@ -710,7 +746,8 @@ export default function InstallmentsPage() {
                     setItemLines([{ itemName: '', qty: 1, unit: 'قطعة', price: 0, total: 0 }]);
                     setShowNewPlanModal(true);
                   }}
-                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 hover:to-emerald-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-emerald-500/20 cursor-pointer active:scale-95"
+                  className="px-4 py-2.5 text-slate-950 font-black rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer active:scale-95"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   <PlusCircle className="w-4 h-4" /> فتح عقد تقسيط جديد +
                 </button>
@@ -738,23 +775,23 @@ export default function InstallmentsPage() {
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6 print:hidden print-hidden-element">
           <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-3xl shadow-xl">
             <span className="text-xs text-slate-400 font-semibold block">إجمالي مبيعات الأقساط الكلية</span>
-            <div className="text-2xl font-black font-mono text-emerald-400 mt-2">
+            <div className="text-2xl font-black font-mono mt-2" style={{ color: primaryCol }}>
               {formatNum(totals.totalVolume)} <span className="text-xs font-sans text-slate-500">د.ع</span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">القيمة الكلية مع نسب الأرباح المحتسبة</p>
           </div>
 
-          <div className="bg-slate-900/90 border border-emerald-500/30 p-5 rounded-3xl shadow-xl">
-            <span className="text-xs text-emerald-400 font-semibold block">المقبوض الفعلي (مقدمات + أقساط مسددة)</span>
+          <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-3xl shadow-xl" style={{ borderColor: `${primaryCol}40` }}>
+            <span className="text-xs font-semibold block" style={{ color: primaryCol }}>المقبوض الفعلي (مقدمات + أقساط مسددة)</span>
             <div className="text-2xl font-black font-mono text-emerald-400 mt-2">
               {formatNum(totals.totalCollected)} <span className="text-xs font-sans text-slate-500">د.ع</span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">محصل رسمياً في حسابات الصندوق</p>
           </div>
 
-          <div className="bg-slate-900/90 border border-amber-500/30 p-5 rounded-3xl shadow-xl">
-            <span className="text-xs text-amber-400 font-semibold block">الأرصدة الآجلة المتبقية بذمة العملاء</span>
-            <div className="text-2xl font-black font-mono text-amber-400 mt-2">
+          <div className="bg-slate-900/90 border border-slate-800 p-5 rounded-3xl shadow-xl" style={{ borderColor: `${secondaryCol}40` }}>
+            <span className="text-xs font-semibold block" style={{ color: secondaryCol }}>الأرصدة الآجلة المتبقية بذمة العملاء</span>
+            <div className="text-2xl font-black font-mono text-rose-400 mt-2">
               {formatNum(totals.totalPending)} <span className="text-xs font-sans text-slate-500">د.ع</span>
             </div>
             <p className="text-[11px] text-slate-400 mt-1">مستحقة وفق الجدولة والتواريخ</p>
@@ -771,7 +808,7 @@ export default function InstallmentsPage() {
                 placeholder="ابحث باسم العميل أو التاجر، رقم الهاتف، أو المادة..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-3 py-2 text-white outline-none focus:border-emerald-500 text-xs"
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl pr-10 pl-3 py-2 text-white outline-none focus:border-amber-500 text-xs"
               />
             </div>
 
@@ -803,11 +840,17 @@ export default function InstallmentsPage() {
               const isExpanded = expandedClients[client.clientId] ?? true;
 
               return (
-                <div key={client.clientId} className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 border-r-4 border-r-emerald-500">
-                  
+                <div 
+                  key={client.clientId} 
+                  className="bg-slate-900/90 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 border-r-4"
+                  style={{ borderRightColor: primaryCol }}
+                >
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-slate-800/80 pb-4">
                     <div className="flex items-start gap-3.5">
-                      <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold shrink-0">
+                      <div 
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center font-bold shrink-0"
+                        style={{ backgroundColor: `${primaryCol}15`, borderColor: `${primaryCol}30`, color: primaryCol }}
+                      >
                         {client.customerType === 'MERCHANT' ? <Building2 className="w-6 h-6" /> : <User className="w-6 h-6" />}
                       </div>
                       <div>
@@ -815,7 +858,11 @@ export default function InstallmentsPage() {
                           <h2 className="text-lg font-black text-white">{client.customerName}</h2>
                           <div className="flex items-center gap-1.5 flex-wrap">
                             {client.contractIds.map(cid => (
-                              <span key={cid} className="font-mono text-xs text-amber-400 font-bold bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                              <span 
+                                key={cid} 
+                                className="font-mono text-xs font-bold px-2 py-0.5 rounded-md border"
+                                style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                              >
                                 {cid}
                               </span>
                             ))}
@@ -834,7 +881,7 @@ export default function InstallmentsPage() {
 
                         <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-300 flex-wrap">
                           <span className="text-slate-400">المواد المدمجة:</span>
-                          <strong className="text-amber-300 font-bold bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800">
+                          <strong className="font-bold bg-slate-950 px-2.5 py-1 rounded-xl border border-slate-800" style={{ color: primaryCol }}>
                             {client.allGoodsList.join(' + ')}
                           </strong>
                           <span className="text-slate-500">•</span>
@@ -867,7 +914,7 @@ export default function InstallmentsPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-950 p-4 rounded-2xl border border-slate-800 text-xs font-mono">
                     <div className="text-center sm:text-right">
                       <span className="text-slate-500 font-sans block text-[11px]">مجموع المبيعات المدمجة (مع الربح)</span>
-                      <strong className="text-emerald-400 text-base">{formatNum(client.totalPrice)} د.ع</strong>
+                      <strong className="text-base" style={{ color: primaryCol }}>{formatNum(client.totalPrice)} د.ع</strong>
                     </div>
                     <div className="text-center sm:text-right border-y sm:border-y-0 sm:border-x border-slate-800 py-2 sm:py-0 sm:px-4">
                       <span className="text-slate-500 font-sans block text-[11px]">المسدد الكلي (مقدمات + أقساط)</span>
@@ -888,11 +935,14 @@ export default function InstallmentsPage() {
                           <div key={plan.id} className="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
                               <div className="flex items-center gap-2">
-                                <span className="font-mono text-xs font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                <span 
+                                  className="font-mono text-xs font-black px-2 py-0.5 rounded border"
+                                  style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                                >
                                   {plan.id}
                                 </span>
                                 <h4 className="font-bold text-white text-xs">
-                                  المادة: <span className="text-emerald-300">{plan.goodsDescription}</span>
+                                  المادة: <span style={{ color: primaryCol }}>{plan.goodsDescription}</span>
                                 </h4>
                                 <span className="text-[11px] text-slate-500 font-mono">
                                   (القسط: {formatNum(plan.monthlyInstallment)} د.ع | المستحق: {paidCount}/{plan.monthsCount})
@@ -901,8 +951,12 @@ export default function InstallmentsPage() {
 
                               <div className="flex items-center gap-2">
                                 <button
-                                  onClick={() => setSelectedPlanForPrint(plan)}
-                                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-amber-400 font-bold rounded-lg text-xs flex items-center gap-1 border border-slate-700 cursor-pointer"
+                                  onClick={async () => {
+                                    await loadSettings();
+                                    setSelectedPlanForPrint(plan);
+                                  }}
+                                  className="px-3 py-1 bg-slate-800 hover:bg-slate-700 font-bold rounded-lg text-xs flex items-center gap-1 border border-slate-700 cursor-pointer"
+                                  style={{ color: primaryCol }}
                                 >
                                   <Printer className="w-3.5 h-3.5" /> طباعة هذا العقد A4
                                 </button>
@@ -960,7 +1014,8 @@ export default function InstallmentsPage() {
                                       ) : (
                                         <button
                                           onClick={() => handlePayInstallment(plan.id, idx)}
-                                          className="w-full py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl text-[11px] transition shadow cursor-pointer"
+                                          className="w-full py-1.5 text-slate-950 font-black rounded-xl text-[11px] transition shadow cursor-pointer"
+                                          style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                                         >
                                           تسديد وطباعة الوصل
                                         </button>
@@ -988,7 +1043,7 @@ export default function InstallmentsPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-3xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5 text-emerald-400" /> فتح عقد بيع بالتقسيط (دمج مواد متعددة لنفس الجهة)
+                  <CreditCard className="w-5 h-5" style={{ color: primaryCol }} /> فتح عقد بيع بالتقسيط (دمج مواد متعددة لنفس الجهة)
                 </h3>
                 <button onClick={() => setShowNewPlanModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
@@ -1024,7 +1079,8 @@ export default function InstallmentsPage() {
                       placeholder="الاسم الثلاثي أو اسم المتجر والمسؤول"
                       value={customerName}
                       onChange={(e) => setCustomerName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-emerald-500 font-bold"
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
+                      style={{ borderColor: `${primaryCol}50` }}
                     />
                   </div>
                   <div>
@@ -1064,13 +1120,14 @@ export default function InstallmentsPage() {
 
                 <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                    <span className="font-bold text-amber-400 flex items-center gap-1.5">
+                    <span className="font-bold flex items-center gap-1.5" style={{ color: primaryCol }}>
                       <Package className="w-4 h-4" /> المواد والبضائع المدمجة في هذا العقد:
                     </span>
                     <button
                       type="button"
                       onClick={handleAddItemLine}
-                      className="text-emerald-400 hover:text-emerald-300 font-bold text-xs flex items-center gap-1 cursor-pointer"
+                      className="font-bold text-xs flex items-center gap-1 cursor-pointer"
+                      style={{ color: primaryCol }}
                     >
                       <Plus className="w-3.5 h-3.5" /> + إضافة مادة أخرى
                     </button>
@@ -1119,7 +1176,8 @@ export default function InstallmentsPage() {
                             placeholder="سعر المفرد"
                             value={line.price || ''}
                             onChange={(e) => handleUpdateItemLine(idx, 'price', e.target.value)}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-emerald-400 font-mono text-xs outline-none font-bold"
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 font-mono text-xs outline-none font-bold"
+                            style={{ color: primaryCol }}
                           />
                         </div>
                         <div className="col-span-1 text-center">
@@ -1149,7 +1207,8 @@ export default function InstallmentsPage() {
                       type="number"
                       value={profitRate}
                       onChange={(e) => setProfitRate(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 text-amber-400 font-mono font-bold outline-none text-xs"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2 font-mono font-bold outline-none text-xs"
+                      style={{ color: primaryCol }}
                     />
                   </div>
                   <div>
@@ -1181,7 +1240,7 @@ export default function InstallmentsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-slate-400 font-sans">القسط الشهري المطلوب:</span>
-                    <strong className="text-amber-400 text-sm">{formatNum(calculationPreview.monthlyInstallment)} د.ع/شهر</strong>
+                    <strong className="text-sm" style={{ color: primaryCol }}>{formatNum(calculationPreview.monthlyInstallment)} د.ع/شهر</strong>
                   </div>
                 </div>
 
@@ -1210,7 +1269,11 @@ export default function InstallmentsPage() {
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                   <button type="button" onClick={() => setShowNewPlanModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
-                  <button type="submit" className="px-6 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
+                  <button 
+                    type="submit" 
+                    className="px-6 py-2.5 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+                  >
                     اعتماد وجدولة الأقساط للمواد المدمجة
                   </button>
                 </div>
@@ -1225,7 +1288,8 @@ export default function InstallmentsPage() {
             <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden print-hidden-element shadow-xl">
               <button
                 onClick={() => window.print()}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer"
+                className="text-slate-950 font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-lg"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
               >
                 <Printer className="w-4 h-4" /> طباعة سند قبض القسط (A4)
               </button>
@@ -1235,30 +1299,48 @@ export default function InstallmentsPage() {
             </div>
 
             <div className="w-full max-w-3xl overflow-x-auto pb-4">
-              <div className="print-voucher-sheet min-w-[720px] sm:min-w-0 bg-white text-slate-950 rounded-3xl p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6 font-sans">
-                <div className="flex justify-between items-center border-b-2 border-slate-900 pb-5">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                      <Image src="/logo.png" alt="شركة البرج المتألق" width={56} height={56} className="object-contain" priority />
+              <div 
+                className="print-voucher-sheet min-w-[720px] sm:min-w-0 bg-white text-slate-950 rounded-3xl p-8 md:p-12 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6 font-sans"
+                style={{ borderColor: primaryCol }}
+              >
+                {hasLetterhead ? (
+                  <div className="w-full border-b pb-4 mb-4">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                        {hasLogo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                        ) : (
+                          <Image src="/logo.png" alt="شركة البرج المتألق" width={56} height={56} className="object-contain" priority />
+                        )}
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                        <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address} | {companySettings.phone_primary}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h1 className="text-2xl font-black text-slate-950">شركة البرج المتألق</h1>
-                      <p className="text-xs text-slate-600 font-bold">قسم التجارة العامة والتوزيع بالتقسيط</p>
-                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">النجف الأشرف - حي الفرات | 07868006699</p>
+                    <div className="text-left font-mono text-xs">
+                      <div 
+                        className="border-2 px-3 py-1 font-black text-slate-950 rounded-lg inline-block"
+                        style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                      >
+                        سند قبض قسط شهري
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-800 mt-2 font-mono">رقم الوصل: <span style={{ color: primaryCol }}>{receiptVoucherForPrint.voucherNo}</span></p>
+                      <p className="text-[11px] text-slate-500">التاريخ: {receiptVoucherForPrint.date}</p>
                     </div>
                   </div>
-                  <div className="text-left font-mono text-xs">
-                    <div className="border-2 border-slate-900 px-3 py-1 font-black bg-emerald-600 text-white rounded-lg inline-block">
-                      سند قبض قسط شهري
-                    </div>
-                    <p className="text-[11px] font-bold text-slate-800 mt-2">رقم الوصل: {receiptVoucherForPrint.voucherNo}</p>
-                    <p className="text-[11px] text-slate-500">التاريخ: {receiptVoucherForPrint.date}</p>
-                  </div>
-                </div>
+                )}
 
                 <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-2 text-xs">
                   <p>استلمنا من السيد/ة: <strong className="text-slate-950 text-sm">{receiptVoucherForPrint.customerName}</strong></p>
-                  <p>مبلغاً وقدره: <strong className="font-mono text-emerald-700 text-base">{formatNum(receiptVoucherForPrint.amount)} د.ع</strong></p>
+                  <p>مبلغاً وقدره: <strong className="font-mono text-base font-black" style={{ color: primaryCol }}>{formatNum(receiptVoucherForPrint.amount)} د.ع</strong></p>
                   <p className="font-bold text-slate-700">{receiptVoucherForPrint.amountWords}</p>
                   <p className="pt-2 border-t border-slate-200">
                     وذلك عن: <strong>سداد القسط رقم ({receiptVoucherForPrint.installmentNumber}) من أصل ({receiptVoucherForPrint.totalInstallments}) أقساط عن بضاعة ({receiptVoucherForPrint.goodsDescription}).</strong>
@@ -1282,6 +1364,10 @@ export default function InstallmentsPage() {
                     <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
                 </div>
+
+                <div className="border-t border-slate-300 pt-2 text-center text-[10px] text-slate-500 font-mono">
+                  {companySettings.company_name} - {companySettings.address} • هاتف: {companySettings.phone_primary}
+                </div>
               </div>
             </div>
           </div>
@@ -1297,7 +1383,8 @@ export default function InstallmentsPage() {
               <div className="w-full max-w-[210mm] flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden print-hidden-element shadow-xl">
                 <button
                   onClick={() => window.print()}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-lg shadow-emerald-500/20"
+                  className="text-slate-950 font-black px-6 py-2 rounded-xl text-xs flex items-center gap-2 cursor-pointer shadow-lg"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
                   <Printer className="w-4 h-4" /> طباعة جدول وعقد التقسيط (A4)
                 </button>
@@ -1307,42 +1394,63 @@ export default function InstallmentsPage() {
               </div>
 
               <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
-                <div className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-950 rounded-3xl p-6 sm:p-8 md:p-10 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 font-sans my-auto">
+                <div 
+                  className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-950 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 font-sans my-auto"
+                  style={{ borderColor: primaryCol }}
+                >
                   
                   {/* رأس ورقة التقسيط */}
-                  <div className="flex justify-between items-center border-b-2 border-slate-900 pb-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                        <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+                  {hasLetterhead ? (
+                    <div className="w-full border-b pb-3 mb-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center border-b-2 pb-3" style={{ borderColor: primaryCol }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                          {hasLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                          ) : (
+                            <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+                          )}
+                        </div>
+                        <div>
+                          <span 
+                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-0.5"
+                            style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                          >
+                            قسم التجارة العامة • سجل الأقساط
+                          </span>
+                          <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                          <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block mb-0.5">
-                          قسم التجارة العامة • سجل الأقساط
-                        </span>
-                        <h1 className="text-xl font-black text-slate-950">شركة البرج المتألق</h1>
-                        <p className="text-xs text-slate-600 font-bold">عقد بيع بالتقسيط المريح وجدولة الاستحقاق</p>
+                      <div className="text-left font-mono text-xs">
+                        <div 
+                          className="border-2 px-3 py-1 font-black rounded-lg inline-block text-white"
+                          style={{ backgroundColor: primaryCol, borderColor: primaryCol }}
+                        >
+                          عقد رقم: {selectedPlanForPrint.id}
+                        </div>
+                        <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
                       </div>
                     </div>
-                    <div className="text-left font-mono text-xs">
-                      <div className="border-2 border-slate-900 px-3 py-1 font-black bg-slate-950 text-white rounded-lg inline-block">
-                        عقد رقم: {selectedPlanForPrint.id}
-                      </div>
-                      <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
-                    </div>
-                  </div>
+                  )}
 
                   {/* بيانات المشتري والحساب */}
                   <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
                     <div className="space-y-1">
-                      <strong className="text-slate-950 block border-b border-slate-200 pb-1">معلومات المشتري:</strong>
+                      <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>معلومات المشتري:</strong>
                       <p>الاسم: <strong className="text-slate-950">{selectedPlanForPrint.customerName}</strong></p>
                       <p>الهاتف: <span className="font-mono">{selectedPlanForPrint.customerPhone}</span></p>
                       <p>الهوية / السجل: <span className="font-mono">{selectedPlanForPrint.customerIdCard || '---'}</span></p>
                       <p>العنوان: {selectedPlanForPrint.customerAddress}</p>
                     </div>
                     <div className="space-y-1">
-                      <strong className="text-slate-950 block border-b border-slate-200 pb-1">ملخص الحساب:</strong>
-                      <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono text-emerald-700">{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
+                      <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>ملخص الحساب:</strong>
+                      <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono" style={{ color: primaryCol }}>{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
                       <p>المقدمة المستلمة: <strong className="font-mono text-slate-950">{formatNum(selectedPlanForPrint.downPayment)} د.ع</strong></p>
                       <p>المتبقي بالأقساط: <strong className="font-mono text-rose-700">{formatNum(selectedPlanForPrint.remainingBalance)} د.ع</strong></p>
                       <p>الكفيل الضامن: {selectedPlanForPrint.guarantorName || 'بدون كفيل'} ({selectedPlanForPrint.guarantorPhone || '---'})</p>
@@ -1352,7 +1460,7 @@ export default function InstallmentsPage() {
                   {/* قائمة المواد والبضائع */}
                   {selectedPlanForPrint.items && selectedPlanForPrint.items.length > 0 && (
                     <div>
-                      <strong className="text-xs font-bold text-slate-950 block mb-1">قائمة المواد والبضائع المدمجة بالعقد:</strong>
+                      <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>قائمة المواد والبضائع المدمجة بالعقد:</strong>
                       <div className="border border-slate-300 rounded-xl overflow-hidden">
                         <table className="w-full text-right text-xs">
                           <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
@@ -1369,7 +1477,7 @@ export default function InstallmentsPage() {
                                 <td className="p-2 font-sans font-bold text-slate-950">{it.itemName}</td>
                                 <td className="p-2 text-center">{it.qty} {it.unit}</td>
                                 <td className="p-2">{formatNum(it.price)} د.ع</td>
-                                <td className="p-2 text-left font-bold text-slate-900">{formatNum(it.total)} د.ع</td>
+                                <td className="p-2 text-left font-bold" style={{ color: primaryCol }}>{formatNum(it.total)} د.ع</td>
                               </tr>
                             ))}
                           </tbody>
@@ -1380,7 +1488,7 @@ export default function InstallmentsPage() {
 
                   {/* جدول استحقاق الأقساط */}
                   <div>
-                    <strong className="text-xs font-bold text-slate-950 block mb-1">جدول استحقاق الأقساط الشهرية:</strong>
+                    <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>جدول استحقاق الأقساط الشهرية:</strong>
                     <div className="border border-slate-300 rounded-xl overflow-hidden">
                       <table className="w-full text-right text-xs font-mono">
                         <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
@@ -1402,7 +1510,7 @@ export default function InstallmentsPage() {
                                 {inst.status === 'PAID' ? (
                                   <span className="text-emerald-700 font-bold">تم السداد ✓</span>
                                 ) : (
-                                  <span className="text-amber-700 font-bold">مستحق</span>
+                                  <span className="font-bold" style={{ color: primaryCol }}>مستحق</span>
                                 )}
                               </td>
                               <td className="p-1.5 text-center text-slate-500 text-[10px]">
@@ -1427,7 +1535,7 @@ export default function InstallmentsPage() {
                       <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
                     </div>
 
-                    {/* الباركود السحابي للتحقق المباشر */}
+                    {/* الباركود السحابي */}
                     <div className="flex flex-col items-center justify-center">
                       <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1437,7 +1545,7 @@ export default function InstallmentsPage() {
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <span className="font-mono text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-0.5">
+                      <span className="font-mono text-[9px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
                         <Globe className="w-2.5 h-2.5" /> امسح لسجل الأقساط أونلاين
                       </span>
                     </div>
@@ -1449,9 +1557,9 @@ export default function InstallmentsPage() {
                   </div>
 
                   {/* ذيل الورقة */}
-                  <div className="text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between">
-                    <span>شركة البرج المتألق للتجارة العامة والمقاولات والاستثمار العقاري</span>
-                    <span>النجف الأشرف - حي الفرات • هاتف الإدارة: 07868006699 - 07737006699</span>
+                  <div className="text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between font-mono">
+                    <span>{companySettings.company_name} - {companySettings.address}</span>
+                    <span>هاتف الإدارة: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
                   </div>
 
                 </div>

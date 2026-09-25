@@ -30,11 +30,41 @@ function VerifyContent() {
   const type = searchParams ? searchParams.get('type') || 'doc' : 'doc';
   const no = searchParams ? searchParams.get('no') || '' : '';
 
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
+    loadSettings();
+
     if (!no) {
       setError('رقم الوثيقة أو القيد غير محدد في الرابط');
       setLoading(false);
@@ -93,10 +123,13 @@ function VerifyContent() {
     fetchData();
   }, [type, no]);
 
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center p-8 space-y-4">
-        <div className="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <div className="w-12 h-12 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: primaryCol, borderTopColor: 'transparent' }}></div>
         <p className="text-sm font-bold text-slate-300">جاري التحقق من السجل الرقمي المعتمد...</p>
       </div>
     );
@@ -111,7 +144,7 @@ function VerifyContent() {
         <h2 className="text-lg font-black text-white">تعذر إثبات صحة الصدور</h2>
         <p className="text-xs text-rose-300 leading-relaxed font-semibold">{error}</p>
         <p className="text-[11px] text-slate-500">
-          يرجى مراجعة إدارة شركة البرج المتألق للتأكد من تسجيل البيانات في السجل العام.
+          يرجى مراجعة إدارة {companySettings.company_name} للتأكد من تسجيل البيانات في السجل العام.
         </p>
       </div>
     );
@@ -122,7 +155,7 @@ function VerifyContent() {
 
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 max-w-2xl mx-auto">
-      {/* شارة التوثيق الأخضر */}
+      {/* شارة التوثيق */}
       <div className="flex flex-col items-center text-center space-y-2 pb-4 border-b border-slate-800">
         <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/10 mb-1">
           <ShieldCheck className="w-9 h-9" />
@@ -134,7 +167,7 @@ function VerifyContent() {
           {isInstallment ? `سجل حساب الأقساط: ${data.customerName}` : isContract ? data.title : data.subject}
         </h2>
         <p className="text-xs text-slate-400">
-          صادرة عن منظومة شركة البرج المتألق للمقاولات والتجارة والاستثمار العقاري
+          صادرة عن منظومة {companySettings.company_name}
         </p>
       </div>
 
@@ -237,7 +270,7 @@ function VerifyContent() {
               <Hash className="w-3.5 h-3.5 text-amber-400" />
               {isContract ? 'رقم وثيقة العقد' : 'العدد الإداري'}
             </span>
-            <p className="font-mono font-bold text-amber-400 text-sm">
+            <p className="font-mono font-bold text-sm" style={{ color: primaryCol }}>
               {isContract ? data.contractNo : data.docNumber}
             </p>
           </div>
@@ -318,10 +351,10 @@ function VerifyContent() {
       {/* ذيل الصفحة والمعلومات الاتصالية */}
       <div className="pt-2 border-t border-slate-800 text-[11px] text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
         <span className="flex items-center gap-1 font-mono">
-          <Phone className="w-3.5 h-3.5 text-slate-400" /> 07868006699
+          <Phone className="w-3.5 h-3.5 text-slate-400" /> {companySettings.phone_primary}
         </span>
         <span className="flex items-center gap-1">
-          <MapPin className="w-3.5 h-3.5 text-slate-400" /> العراق - النجف الأشرف - حي الفرات
+          <MapPin className="w-3.5 h-3.5 text-slate-400" /> {companySettings.address}
         </span>
       </div>
     </div>
@@ -329,6 +362,25 @@ function VerifyContent() {
 }
 
 export default function VerifyPage() {
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
+  useEffect(() => {
+    fetch('/api/settings', { cache: 'no-store' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const primaryCol = companySettings.primary_color || '#d97706';
+
   return (
     <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 flex flex-col justify-between font-sans">
       <header className="max-w-2xl mx-auto w-full flex items-center justify-between pb-6 pt-2">
@@ -337,11 +389,11 @@ export default function VerifyPage() {
             <Image src="/logo.png" alt="البرج المتألق" width={38} height={38} className="object-contain" priority />
           </div>
           <div>
-            <h1 className="text-sm font-black text-white">شركة البرج المتألق</h1>
+            <h1 className="text-sm font-black text-white">{companySettings.company_name}</h1>
             <p className="text-[10px] text-slate-400">بوابة التحقق الإلكتروني العام من صحة الصدور والتعاقد</p>
           </div>
         </div>
-        <span className="text-[10px] bg-slate-900 border border-slate-800 text-amber-400 px-2.5 py-1 rounded-full font-mono font-bold">
+        <span className="text-[10px] bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-full font-mono font-bold" style={{ color: primaryCol }}>
           E-VERIFY PORTAL
         </span>
       </header>
@@ -353,7 +405,7 @@ export default function VerifyPage() {
       </main>
 
       <footer className="max-w-2xl mx-auto w-full text-center text-[10px] text-slate-600 pt-6">
-        جميع الحقوق محفوظة © شركة البرج المتألق للمقاولات والتجارة والاستثمار العقاري {new Date().getFullYear()}
+        جميع الحقوق محفوظة © {companySettings.company_name} للتجارة والاستثمار العقاري {new Date().getFullYear()}
       </footer>
     </div>
   );

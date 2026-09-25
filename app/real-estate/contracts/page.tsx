@@ -121,6 +121,20 @@ async function syncContractToCloud(contract: any) {
 
 export default function ElectronicContractsPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [selectedCategory, setSelectedCategory] = useState<ContractCategory>('REALESTATE_SALE');
 
   const [savedContracts, setSavedContracts] = useState<any[]>([]);
@@ -162,10 +176,26 @@ export default function ElectronicContractsPage() {
   const [selectedContractForPrint, setSelectedContractForPrint] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
+
+    loadSettings();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -173,7 +203,6 @@ export default function ElectronicContractsPage() {
         const u = JSON.parse(raw);
         setCurrentUser(u);
 
-        // التحقق من صلاحية الجلسة الحصرية ضد أي تسجيل دخول بجهاز آخر
         if (u.user_id && u.session_token) {
           fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(u.user_id)}&session_token=${encodeURIComponent(u.session_token)}`)
             .then(res => res.json())
@@ -189,7 +218,6 @@ export default function ElectronicContractsPage() {
       } catch {}
     }
 
-    // جلب العقود من التخزين المحلي كخطوة أولية وسريعة
     const storedContracts = localStorage.getItem('rtco_electronic_contracts');
     if (storedContracts) {
       try {
@@ -210,7 +238,6 @@ export default function ElectronicContractsPage() {
       } catch {}
     }
 
-    // مزامنة فورية مع السيرفر السحابي لتوحيد العقود عبر اللابتوب والموبايل والآيباد
     fetch('/api/admin/system?action=GET_CONTRACTS', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -294,7 +321,6 @@ export default function ElectronicContractsPage() {
     setSavedContracts(updatedList);
     localStorage.setItem('rtco_electronic_contracts', JSON.stringify(updatedList));
 
-    // إرسال ومزامنة العقد للسيرفر المركزي لشموله بالنسخ الاحتياطي وتوحيد الأجهزة
     const cloudPayload = {
       id: newContractData.id,
       contractType: newContractData.category,
@@ -310,7 +336,6 @@ export default function ElectronicContractsPage() {
     };
     await syncContractToCloud(cloudPayload);
 
-    // إرسال إشعار فوري عند إصدار العقد
     await pushSystemNotification(
       `عقد جديد: ${newContractData.title}`,
       `تم إصدار ${newContractData.title} رقم (${newContractData.contractNo}) بين الطرفين (${newContractData.sellerName}) و (${newContractData.buyerName}) بقيمة ${formatNum(newContractData.totalAmount)} د.ع`,
@@ -324,7 +349,8 @@ export default function ElectronicContractsPage() {
     setContractNo(`9577${Math.floor(100000 + Math.random() * 900000)}`);
   };
 
-  const handleOpenExistingContract = (contract: any) => {
+  const handleOpenExistingContract = async (contract: any) => {
+    await loadSettings();
     setSelectedContractForPrint(contract);
     setShowPreviewModal(true);
   };
@@ -344,7 +370,6 @@ export default function ElectronicContractsPage() {
     setSavedContracts(updated);
     localStorage.setItem('rtco_electronic_contracts', JSON.stringify(updated));
 
-    // مزامنة حذف العقد على السيرفر المركزي
     try {
       await fetch('/api/admin/system', {
         method: 'POST',
@@ -373,25 +398,27 @@ export default function ElectronicContractsPage() {
   }, [savedContracts, searchQuery]);
 
   const getVerificationUrl = (cNo: string) => {
-    // توجيه الرابط لبوابة التحقق العام الرسمية دون طلب تسجيل دخول
     const origin = typeof window !== 'undefined' && window.location.origin
       ? window.location.origin
-      : (siteOrigin || 'https://rtco2025.netlify.app');
+      : (companySettings.website || siteOrigin || 'https://rtco2025.netlify.app');
     return `${origin}/verify?type=contract&no=${encodeURIComponent(cNo)}`;
   };
+
+  const primaryCol = companySettings.primary_color || '#d97706';
+  const secondaryCol = companySettings.secondary_color || '#ea580c';
+  const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+  const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
 
   return (
     <AuthGuard moduleName="contracts" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans print:bg-white print:p-0">
         
         <style jsx global>{`
-          /* ضبط المعاينة في شاشة الموبايل للتمرير السلس دون انضغاط */
           @media screen and (max-width: 768px) {
             .print-paper-sheet {
               min-width: 720px !important;
             }
           }
-          /* أمر الطباعة الفعلي بمقاس A4 حقيقي موحد */
           @media print {
             @page {
               size: A4 portrait !important;
@@ -425,32 +452,39 @@ export default function ElectronicContractsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر */}
+        {/* الترويسة الرئيسية */}
         <div className="max-w-5xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
-            {/* الطرف الأيمن: الشعار والعنوان والوصف */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 relative rounded-2xl overflow-hidden bg-slate-950 border border-purple-500/30 flex items-center justify-center shrink-0 p-2 shadow-xl shadow-purple-500/10">
-                <Image src="/logo.png" alt="شركة البرج المتألق" width={48} height={48} className="object-contain" priority />
+              <div 
+                className="w-14 h-14 p-3 rounded-2xl text-slate-950 font-black shadow-xl shrink-0 flex items-center justify-center transition-all"
+                style={{ 
+                  background: `linear-gradient(135deg, ${primaryCol}, ${secondaryCol})`,
+                  boxShadow: `0 10px 25px -5px ${primaryCol}40`
+                }}
+              >
+                <Image src="/logo.png" alt={companySettings.company_name} width={48} height={48} className="object-contain" priority />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2.5 flex-wrap">
                   <h1 className="text-xl md:text-2xl font-black text-white tracking-wide">
                     منظومة العقود الإلكترونية الرسمية
                   </h1>
-                  <span className="inline-flex items-center gap-1.5 bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
+                  <span 
+                    className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
+                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                  >
+                    <Sparkles className="w-3 h-3" />
                     أرشيف العقود • باركود تحقق مباشر
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • عقود معتمدة لبيع وإيجار السيارات، الدراجات، والدور السكنية والأملاك
+                  {companySettings.company_name} • عقود معتمدة لبيع وإيجار السيارات، الدراجات، والدور السكنية والأملاك
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: أزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-wrap sm:flex-nowrap self-end sm:self-auto">
               <Link
                 href="/real-estate"
@@ -474,7 +508,7 @@ export default function ElectronicContractsPage() {
         <div className="max-w-5xl mx-auto mt-6 print:hidden print-hidden-element space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-slate-300">اختر نوع العقد الإلكتروني المراد إنشاؤه:</span>
-            <span className="text-[11px] text-amber-400 font-mono font-bold">
+            <span className="text-[11px] font-mono font-bold" style={{ color: primaryCol }}>
               النمط النشط: {getContractTitle()}
             </span>
           </div>
@@ -612,12 +646,12 @@ export default function ElectronicContractsPage() {
         <div className="max-w-5xl mx-auto mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 print:hidden print-hidden-element">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
-              <FileCheck className="w-4 h-4 text-amber-400" />
+              <FileCheck className="w-4 h-4" style={{ color: primaryCol }} />
               بيانات ومواصفات {getContractTitle()}
             </h2>
             <div className="flex items-center gap-2 text-xs font-mono">
               <span className="text-slate-400">رقم العقد:</span>
-              <span className="font-bold text-amber-400">{contractNo}</span>
+              <span className="font-bold" style={{ color: primaryCol }}>{contractNo}</span>
             </div>
           </div>
 
@@ -639,14 +673,15 @@ export default function ElectronicContractsPage() {
                   type="text"
                   value={contractNo}
                   onChange={(e) => setContractNo(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-400 font-mono font-bold outline-none"
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-mono font-bold outline-none"
+                  style={{ color: primaryCol }}
                 />
               </div>
             </div>
 
             {/* الطرف الأول */}
             <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <span className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
+              <span className="text-xs font-bold flex items-center gap-1.5" style={{ color: primaryCol }}>
                 <User className="w-4 h-4" /> الطرف الأول ({isRent ? 'المؤجر' : 'البائع / المالك الشرعي'}) *
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -737,7 +772,7 @@ export default function ElectronicContractsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-slate-400 mb-1">رقم اللوحة والمحافظة *</label>
+                    <label className="block text-slate-400 mb-1">رقم اللوحة والتسجيل *</label>
                     <input
                       type="text"
                       required
@@ -838,7 +873,7 @@ export default function ElectronicContractsPage() {
                   onChange={(e) => setPaidDeposit(e.target.value)}
                   className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-mono font-bold text-sm outline-none"
                 />
-                <span className="text-[11px] text-amber-400 mt-1 block font-mono">
+                <span className="text-[11px] mt-1 block font-mono" style={{ color: primaryCol }}>
                   المتبقي بذمة المشتري: {formatNum(remainingBalance)} د.ع
                 </span>
               </div>
@@ -846,7 +881,7 @@ export default function ElectronicContractsPage() {
 
             {/* الشروط */}
             <div>
-              <label className="block text-slate-400 mb-1 font-semibold">الشروط والبنود الإضافية:</label>
+              <label className="block text-slate-400 mb-1 font-semibold">الشروط والأحكام والالتزامات القانونية:</label>
               <textarea
                 rows={3}
                 value={extraConditions}
@@ -858,7 +893,8 @@ export default function ElectronicContractsPage() {
             <div className="pt-3 flex justify-end">
               <button
                 type="submit"
-                className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xl shadow-amber-500/20 transition cursor-pointer"
+                className="w-full sm:w-auto px-8 py-3 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xl transition cursor-pointer"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
               >
                 <Printer className="w-4 h-4" /> حفظ وإصدار ورقة العقد الرسمية (عقد الشاري A4)
               </button>
@@ -914,7 +950,7 @@ export default function ElectronicContractsPage() {
                 ) : (
                   filteredContracts.map((c) => (
                     <tr key={c.id} className="hover:bg-slate-800/40 transition font-sans">
-                      <td className="p-3 font-mono font-bold text-amber-400">{c.contractNo}</td>
+                      <td className="p-3 font-mono font-bold" style={{ color: primaryCol }}>{c.contractNo}</td>
                       <td className="p-3">
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
                           {c.title}
@@ -952,7 +988,7 @@ export default function ElectronicContractsPage() {
           </div>
         </div>
 
-        {/* نافذة المعاينة والطباعة */}
+        {/* نافذة المعاينة والطباعة A4 */}
         {showPreviewModal && selectedContractForPrint && (() => {
           const c = selectedContractForPrint;
           const verificationUrl = getVerificationUrl(c.contractNo);
@@ -965,7 +1001,8 @@ export default function ElectronicContractsPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => window.print()}
-                    className="bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer"
+                    className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     <Printer className="w-4 h-4" /> طباعة فورية (Print A4)
                   </button>
@@ -983,52 +1020,67 @@ export default function ElectronicContractsPage() {
                 </button>
               </div>
 
-              {/* حاوية A4 موحدة تمنع تشوه التصميم بين الهواتف والكمبيوتر */}
               <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
-                <div className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 border-slate-900 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto">
+                <div 
+                  className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto"
+                  style={{ borderColor: primaryCol }}
+                >
                   <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
-                    <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain" priority />
+                    {hasLogo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={companySettings.logo_url} alt="علامة مائية" width={480} height={480} className="object-contain grayscale" />
+                    ) : (
+                      <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain grayscale" priority />
+                    )}
                   </div>
 
-                  <div className="h-1.5 w-full bg-gradient-to-r from-slate-950 via-amber-500 to-slate-950 rounded-full"></div>
+                  <div className="h-1.5 w-full rounded-full" style={{ background: `linear-gradient(90deg, #0f172a, ${primaryCol}, #0f172a)` }}></div>
 
-                  <div className="relative z-10 flex items-center justify-between pb-4 border-b border-slate-200">
-                    <div className="flex items-center gap-4 text-right">
-                      <div className="w-16 h-16 relative flex items-center justify-center p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                        <Image 
-                          src="/logo.png" 
-                          alt="شعار شركة البرج المتألق" 
-                          width={58} 
-                          height={58} 
-                          className="object-contain" 
-                          priority 
-                        />
+                  {hasLetterhead ? (
+                    <div className="w-full border-b pb-3 mb-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="relative z-10 flex items-center justify-between pb-4 border-b border-slate-200">
+                      <div className="flex items-center gap-4 text-right">
+                        <div className="w-16 h-16 relative flex items-center justify-center p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
+                          {hasLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                          ) : (
+                            <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+                          )}
+                        </div>
+                        <div>
+                          <span 
+                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-1"
+                            style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                          >
+                            جمهورية العراق • شركة معتمدة
+                          </span>
+                          <h1 className="text-xl font-black leading-tight" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                          <p className="text-[11px] text-slate-600 font-bold">{companySettings.tagline}</p>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] font-black uppercase tracking-widest text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 inline-block mb-1">
-                          جمهورية العراق • شركة معتمدة
-                        </span>
-                        <h1 className="text-xl font-black text-slate-950 leading-tight">شركة البرج المتألق</h1>
-                        <p className="text-[11px] text-slate-600 font-bold">للمقاولات العامة، التجارة، النقل والاستثمار العقاري</p>
+
+                      <div className="text-center">
+                        <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-6 py-2 rounded-2xl shadow-md">
+                          <h2 className="text-lg font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
+                          <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
+                            {!c.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="text-left font-mono text-xs space-y-1">
+                        <div className="border border-slate-300 bg-slate-50 px-3 py-1.5 rounded-xl font-black text-slate-950 inline-block text-[11px]">
+                          REF: <span style={{ color: primaryCol }}>{c.contractNo}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{c.contractDate}</strong></p>
                       </div>
                     </div>
-
-                    <div className="text-center">
-                      <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-6 py-2 rounded-2xl shadow-md">
-                        <h2 className="text-lg font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
-                        <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
-                          {!c.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="text-left font-mono text-xs space-y-1">
-                      <div className="border border-slate-300 bg-slate-50 px-3 py-1.5 rounded-xl font-black text-slate-950 inline-block text-[11px]">
-                        REF: <span className="text-amber-700">{c.contractNo}</span>
-                      </div>
-                      <p className="text-[11px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{c.contractDate}</strong></p>
-                    </div>
-                  </div>
+                  )}
 
                   <div className="relative z-10 grid grid-cols-2 gap-4">
                     <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
@@ -1050,7 +1102,7 @@ export default function ElectronicContractsPage() {
                     <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
                       <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                         <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-amber-600"></span>
+                          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryCol }}></span>
                           الطرف الثاني ({c.isRent ? 'المستأجر' : 'المشتري'})
                         </span>
                         <span className="text-[10px] text-slate-500 font-mono">SECOND PARTY</span>
@@ -1067,7 +1119,7 @@ export default function ElectronicContractsPage() {
                   <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-white shadow-sm space-y-2">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs font-bold">
                       <span className="text-slate-950 flex items-center gap-1.5">
-                        <Award className="w-3.5 h-3.5 text-amber-600" />
+                        <Award className="w-3.5 h-3.5" style={{ color: primaryCol }} />
                         مواصفات المبيع المتفق عليه وتفاصيله الفنية:
                       </span>
                       <span className="text-[10px] text-slate-400 font-mono">SPECIFICATIONS</span>
@@ -1127,7 +1179,7 @@ export default function ElectronicContractsPage() {
                     </div>
                     
                     <p className="text-[11px] font-bold text-slate-800 leading-relaxed font-sans">
-                      كتابة وتفقيطاً: <span className="text-amber-800 font-bold">{numberToArabicWords(Number(c.totalAmount) || 0)}</span>
+                      كتابة وتفقيطاً: <span className="font-bold" style={{ color: primaryCol }}>{numberToArabicWords(Number(c.totalAmount) || 0)}</span>
                     </p>
                     
                     <div className="grid grid-cols-2 gap-4 pt-2 font-sans text-xs border-t border-slate-100 text-slate-800">
@@ -1169,7 +1221,7 @@ export default function ElectronicContractsPage() {
                           className="w-full h-full object-contain"
                         />
                       </div>
-                      <span className="font-mono text-[9px] text-emerald-700 font-bold mt-1 flex items-center gap-0.5">
+                      <span className="font-mono text-[9px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
                         <Globe className="w-2.5 h-2.5" /> امسح للتحقق أونلاين
                       </span>
                     </div>
@@ -1181,9 +1233,9 @@ export default function ElectronicContractsPage() {
                     </div>
                   </div>
 
-                  <div className="relative z-10 text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between">
-                    <span>شركة البرج المتألق للمقاولات والتجارة العامة والاستثمار العقاري</span>
-                    <span>النجف الأشرف - حي الفرات • هاتف الإدارة: 07868006699</span>
+                  <div className="relative z-10 text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between font-mono">
+                    <span>{companySettings.company_name} - {companySettings.address}</span>
+                    <span>هاتف الإدارة: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
                   </div>
 
                 </div>
@@ -1193,7 +1245,7 @@ export default function ElectronicContractsPage() {
 
             </div>
           );
-        })()}
+        })}
 
       </div>
     </AuthGuard>

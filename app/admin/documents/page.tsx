@@ -140,6 +140,20 @@ async function syncDocToCloud(doc: OfficialDoc) {
 
 export default function AdministrativeDocumentsPage() {
   const [currentUser, setCurrentUser] = useState<any | null>(null);
+  const [companySettings, setCompanySettings] = useState<any>({
+    company_name: 'شركة البرج المتألق',
+    tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
+    phone_primary: '07868006699',
+    phone_secondary: '07737006699',
+    email: '',
+    website: '',
+    address: 'العراق - النجف الأشرف - حي الفرات',
+    logo_url: '',
+    letterhead_url: '',
+    primary_color: '#d97706',
+    secondary_color: '#ea580c'
+  });
+
   const [documents, setDocuments] = useState<OfficialDoc[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -204,10 +218,26 @@ export default function AdministrativeDocumentsPage() {
     return `${prefix}/${Math.floor(100 + Math.random() * 900)} / ${new Date().getFullYear()}`;
   };
 
+  const loadSettings = async () => {
+    try {
+      const res = await fetch('/api/settings', { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && data.settings) {
+          setCompanySettings(data.settings);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
+
+    loadSettings();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -219,7 +249,6 @@ export default function AdministrativeDocumentsPage() {
           setOrderSignatoryName(parsed.full_name);
         }
 
-        // فحص أمني لمنع فتح الحساب في أكثر من جهاز بالوقت نفسه
         if (parsed.user_id && parsed.session_token) {
           fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(parsed.user_id)}&session_token=${encodeURIComponent(parsed.session_token)}`)
             .then(res => res.json())
@@ -235,7 +264,6 @@ export default function AdministrativeDocumentsPage() {
       } catch {}
     }
 
-    // جلب من التخزين المحلي أولاً
     const stored = localStorage.getItem('rtco_official_documents');
     if (stored) {
       try {
@@ -244,7 +272,6 @@ export default function AdministrativeDocumentsPage() {
       } catch {}
     }
 
-    // مزامنة فورية وجلب الوثائق الرسمية من السيرفر السحابي لتوحيدها بين الأجهزة
     fetch('/api/admin/system?action=GET_OFFICIAL_DOCS', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
@@ -275,7 +302,6 @@ export default function AdministrativeDocumentsPage() {
     return Boolean(isSuperAdmin || hasPermission(currentUser, 'admin_docs', 'delete'));
   }, [currentUser, isSuperAdmin]);
 
-  // مكتبة النماذج والصيغ الرسمية الشاملة والموسعة (24 نموذجاً تخصصياً)
   const documentTemplates = useMemo(() => {
     return {
       OUTGOING: [
@@ -292,7 +318,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'موارد بشرية',
           recipient: 'إلى / من يهمه الأمر',
           subject: 'م / تأييد استمرار بالخدمة',
-          content: 'تهديكم شركة البرج المتألق للمقاولات والتجارة العامة أطيب التحيات.\nنؤيد لكم بأن السيد/ة (..................) مستمر/ة بالعمل والخدمة الوظيفية لدى شركتنا بصفة (مهندس موقع / إداري) وذلك اعتباراً من تاريخ (   /   / 202  ) ولحد الآن، ويتقاضى راتباً شهرياً قدره (............) دينار عراقي.\nوقد زُوّد بهذا التأييد بناءً على طلبه/ا لتقديمه إلى جهتكم الموقرة دون أدنى مسؤولية مالية أو قانونية مترتبة على شركتنا تجاه الغير.\n\nمع فائق الشكر والتقدير.',
+          content: `تهديكم ${companySettings.company_name} للتجارة والمقاولات أطيب التحيات.\nنؤيد لكم بأن السيد/ة (..................) مستمر/ة بالعمل والخدمة الوظيفية لدى شركتنا بصفة (مهندس موقع / إداري) وذلك اعتباراً من تاريخ (   /   / 202  ) ولحد الآن، ويتقاضى راتباً شهرياً قدره (............) دينار عراقي.\nوقد زُوّد بهذا التأييد بناءً على طلبه/ا لتقديمه إلى جهتكم الموقرة دون أدنى مسؤولية مالية أو قانونية مترتبة على شركتنا تجاه الغير.\n\nمع فائق الشكر والتقدير.`,
           attachments: 'لا يوجد'
         },
         {
@@ -308,7 +334,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'تجارة ومشتريات',
           recipient: 'إلى / السادة إدارة مشتريات ومشاريع (................) المحترمون',
           subject: 'م / تقديم عرض أسعار ومواصفات تجارية',
-          content: 'تحية طيبة...\nيسر شركة البرج المتألق للتجارة العامة والمقاولات أن ترفق لكم طياً العرض الفني والمالي الخاص بتجهيز وتوريد المواد المطلوبة لمشروعكم الموقر.\nنحيطكم علماً بأن أسعارنا تشمل التوريد والتوصيل والفحص المختبري مع منح ضمان الجودة وسرعة التجهيز المباشر فور التعاقد.\n\nآملين أن ينال عرضنا ثقتكم وقبولكم.',
+          content: `تحية طيبة...\nيسر ${companySettings.company_name} أن ترفق لكم طياً العرض الفني والمالي الخاص بتجهيز وتوريد المواد المطلوبة لمشروعكم الموقر.\nنحيطكم علماً بأن أسعارنا تشمل التوريد والتوصيل والفحص المختبري مع منح ضمان الجودة وسرعة التجهيز المباشر فور التعاقد.\n\nآملين أن ينال عرضنا ثقتكم وقبولكم.`,
           attachments: 'طياً جدول الكميات وعروض الأسعار التنافسية'
         },
         {
@@ -340,7 +366,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'قانونية وإدارة',
           recipient: 'إلى / الدوائر والجهات ذات العلاقة المحترمون',
           subject: 'م / كتاب تخويل ومتابعة رسمية',
-          content: 'تهديكم شركة البرج المتألق أطيب التحيات.\nنود إعلامكم بأننا خولنا السيد (................) حامل البطاقة الوطنية رقم (................) لمراجعة دائرتكم الموقرة ومتابعة كافة الإجراءات والمعاملات الإدارية والمالية المتعلقة بشركتنا واستلام وتسليم المكاتبات دون توقيع الالتزامات المالية الكبرى، وذلك لمدة (30) يوماً من تاريخه.\n\nشاكرين حسن تعاونكم وتسهيل مهمته.',
+          content: `تهديكم ${companySettings.company_name} أطيب التحيات.\nنود إعلامكم بأننا خولنا السيد (................) حامل البطاقة الوطنية رقم (................) لمراجعة دائرتكم الموقرة ومتابعة كافة الإجراءات والمعاملات الإدارية والمالية المتعلقة بشركتنا واستلام وتسليم المكاتبات دون توقيع الالتزامات المالية الكبرى، وذلك لمدة (30) يوماً من تاريخه.\n\nشاكرين حسن تعاونكم وتسهيل مهمته.`,
           attachments: 'طياً صورة البطاقة الوطنية للمخول'
         },
         {
@@ -364,7 +390,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'مناقصات وعقود',
           recipient: 'إلى / السادة لجنة فتح وتحليل العطاءات المحترمون',
           subject: 'م / اعتذار عن المشاركة في المناقصة المرقمة (   )',
-          content: 'تحية طيبة واعتزاز...\nنشكر دعوتكم الكريمة الموجهة إلى شركة البرج المتألق للمشاركة في المناقصة رقم (...........) الخاصة بمشروع (................).\nنود إعلامكم باعتذارنا عن تقديم العطاء لهذه المناقصة في الوقت الراهن لانشغال كوادرنا الهندسية ومعداتنا الثقيلة بعدة مشاريع كبرى قيد التنفيذ، متطلعين إلى دوام التعاون والتنسيق في المشاريع القادمة بإذن الله.\n\nدمتم برعاية الله وحفظه.',
+          content: `تحية طيبة واعتزاز...\nنشكر دعوتكم الكريمة الموجهة إلى ${companySettings.company_name} للمشاركة في المناقصة رقم (...........) الخاصة بمشروع (................).\nنود إعلامكم باعتذارنا عن تقديم العطاء لهذه المناقصة في الوقت الراهن لانشغال كوادرنا الهندسية ومعداتنا الثقيلة بعدة مشاريع كبرى قيد التنفيذ، متطلعين إلى دوام التعاون والتنسيق في المشاريع القادمة بإذن الله.\n\nدمتم برعاية الله وحفظه.`,
           attachments: 'لا يوجد'
         },
         {
@@ -382,7 +408,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'لجان وكوادر',
           recipient: 'إلى / الكوادر الهندسية والفنية المدرجة أسماؤهم أدناه',
           subject: 'م / تشكيل لجنة استلام موقعي وتدقيق أولي',
-          content: 'بناءً على الصلاحيات المخولة لنا ولمقتضيات مصلحة العمل في شركة البرج المتألق، تقرر ما يلي:\n\n1. تشكيل لجنة استلام هندسية برئاسة المهندس (................) وعضوية كل من المهندس (................) والمشرف الفني (................).\n2. تتولى اللجنة إجراء الكشف الموقعي الشامل لفقرات مشروع (................) والتأكد من مطابقتها للمواصفات الهندسية القياسية.\n3. تقدم اللجنة تقريرها الفني المفصل وقوائم الملاحظات إن وجدت للإدارة العليا خلال مدة لا تتجاوز (48) ساعة من تاريخ صدور أمرنا.\n\nيُنفذ هذا الأمر اعتباراً من تاريخ صدوره.',
+          content: `بناءً على الصلاحيات المخولة لنا ولمقتضيات مصلحة العمل في ${companySettings.company_name}، تقرر ما يلي:\n\n1. تشكيل لجنة استلام هندسية برئاسة المهندس (................) وعضوية كل من المهندس (................) والمشرف الفني (................).\n2. تتولى اللجنة إجراء الكشف الموقعي الشامل لفقرات مشروع (................) والتأكد من مطابقتها للمواصفات الهندسية القياسية.\n3. تقدم اللجنة تقريرها الفني المفصل وقوائم الملاحظات إن وجدت للإدارة العليا خلال مدة لا تتجاوز (48) ساعة من تاريخ صدور أمرنا.\n\nيُنفذ هذا الأمر اعتباراً من تاريخ صدوره.`,
           attachments: 'لا يوجد'
         },
         {
@@ -398,7 +424,7 @@ export default function AdministrativeDocumentsPage() {
           badge: 'حوافز وظيفية',
           recipient: 'إلى / كوادر قسم الهندسة والمشاريع المحترمون',
           subject: 'م / شكر وتقدير وتثمين جهود متميزة',
-          content: 'نظراً للجهود المتميزة والمخلصة المبذولة من قبلكم في إنجاز الأعمال الموكلة إليكم في مشروع (................) قبل الموعد التعاقدي المحدد وبدقة واحترافية هندسية عالية نالت استحسان الجهات المشرفة.\nلا يسعنا إلا أن نتقدم لكم بوافر الشكر وعظيم الامتنان، مع منحكم مكافأة تشجيعية مجزية تقديراً لعطائكم.\nآملين منكم الاستمرار بهذا النهج المشرف خدمةً لأهداف وتطور شركة البرج المتألق.',
+          content: `نظراً للجهود المتميزة والمخلصة المبذولة من قبلكم في إنجاز الأعمال الموكلة إليكم في مشروع (................) قبل الموعد التعاقدي المحدد وبدقة واحترافية هندسية عالية نالت استحسان الجهات المشرفة.\nلا يسعنا إلا أن نتقدم لكم بوافر الشكر وعظيم الامتنان، مع منحكم مكافأة تشجيعية مجزية تقديراً لعطائكم.\nآملين منكم الاستمرار بهذا النهج المشرف خدمةً لأهداف وتطور ${companySettings.company_name}.`,
           attachments: 'لا يوجد'
         },
         {
@@ -477,7 +503,7 @@ export default function AdministrativeDocumentsPage() {
         }
       ]
     };
-  }, []);
+  }, [companySettings]);
 
   const handleApplyTemplate = (tpl: any) => {
     if (activeTab === 'OUTGOING') {
@@ -739,6 +765,8 @@ export default function AdministrativeDocumentsPage() {
     const incomingDocs = documents.filter(d => d.type === 'INCOMING');
     const orderDocs = documents.filter(d => d.type === 'INTERNAL_ORDER');
 
+    const primaryColor = companySettings.primary_color || '#d97706';
+
     const escapeXml = (unsafe: any) => {
       if (unsafe === null || unsafe === undefined) return '';
       return String(unsafe)
@@ -752,16 +780,14 @@ export default function AdministrativeDocumentsPage() {
     const buildXmlWorksheet = (sheetName: string, titleArabic: string, headers: string[], rows: any[][]) => {
       let rowsXml = '';
 
-      // سطر الترويسة 1: اسم الشركة الرسمي بحجم 16pt غامق ذهبي
       rowsXml += `
         <Row ss:Height="32">
           <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sCompanyHeader">
-            <Data ss:Type="String">شركة البرج المتألق للمقاولات العامة والاستثمارات العقارية والتجارة والنقل العام</Data>
+            <Data ss:Type="String">${escapeXml(companySettings.company_name)} ${escapeXml(companySettings.tagline)}</Data>
           </Cell>
         </Row>
       `;
 
-      // سطر الترويسة 2: عنوان السجل الحالي وتاريخ التصدير
       rowsXml += `
         <Row ss:Height="26">
           <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sSubHeader">
@@ -770,10 +796,8 @@ export default function AdministrativeDocumentsPage() {
         </Row>
       `;
 
-      // سطر فارغ فاصل
       rowsXml += `<Row ss:Height="12" />`;
 
-      // سطر عناوين الأعمدة بحجم خط 14pt ولون كحلي
       rowsXml += `<Row ss:Height="28">`;
       headers.forEach(h => {
         rowsXml += `
@@ -784,7 +808,6 @@ export default function AdministrativeDocumentsPage() {
       });
       rowsXml += `</Row>`;
 
-      // سطور البيانات بحجم خط 14pt وتنسيق منسق
       if (rows.length === 0) {
         rowsXml += `
           <Row ss:Height="30">
@@ -841,7 +864,6 @@ export default function AdministrativeDocumentsPage() {
       `;
     };
 
-    // إعداد بيانات السجلات الثلاثة
     const outgoingHeaders = ['العدد الإداري', 'تاريخ الصادر', 'درجة الأسبقية', 'الجهة الموجه إليها', 'موضوع الكتاب', 'المرفقات', 'الموقع على الكتاب'];
     const outgoingRows = outgoingDocs.map(d => [
       d.docNumber,
@@ -875,7 +897,6 @@ export default function AdministrativeDocumentsPage() {
       d.signatoryName || 'المدير المفوض'
     ]);
 
-    // تجميع مصنف الإكسل المتكامل والمتوافق مع أحدث معايير مايكروسوفت أوفيس
     const excelXmlWorkbook = `<?xml version="1.0" encoding="UTF-8"?>
 <?mso-application progid="Excel.Sheet"?>
 <Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
@@ -884,7 +905,7 @@ export default function AdministrativeDocumentsPage() {
  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"
  xmlns:html="http://www.w3.org/TR/REC-html40">
  <DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">
-  <Author>شركة البرج المتألق</Author>
+  <Author>${escapeXml(companySettings.company_name)}</Author>
   <Company>Al Burj Al Mutalaa'iq Co</Company>
   <Created>${new Date().toISOString()}</Created>
  </DocumentProperties>
@@ -895,10 +916,10 @@ export default function AdministrativeDocumentsPage() {
   </Style>
   <Style ss:ID="sCompanyHeader">
    <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
-   <Font ss:FontName="Segoe UI" ss:Size="16" ss:Bold="1" ss:Color="#D97706" />
+   <Font ss:FontName="Segoe UI" ss:Size="16" ss:Bold="1" ss:Color="${primaryColor}" />
    <Interior ss:Color="#FEF3C7" ss:Pattern="Solid" />
    <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#D97706" />
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="${primaryColor}" />
    </Borders>
   </Style>
   <Style ss:ID="sSubHeader">
@@ -939,7 +960,7 @@ export default function AdministrativeDocumentsPage() {
   </Style>
   <Style ss:ID="sDataCenter">
    <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
-   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="#B45309" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="${primaryColor}" />
    <Interior ss:Color="#FFFFFF" ss:Pattern="Solid" />
    <Borders>
     <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
@@ -949,7 +970,7 @@ export default function AdministrativeDocumentsPage() {
   </Style>
   <Style ss:ID="sDataCenterAlt">
    <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
-   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="#B45309" />
+   <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="${primaryColor}" />
    <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
    <Borders>
     <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
@@ -967,7 +988,7 @@ export default function AdministrativeDocumentsPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `أرشيف_الكتب_الرسمية_البرج_المتألق_${new Date().toISOString().substring(0, 10)}.xls`);
+    link.setAttribute('download', `أرشيف_الكتب_الرسمية_${companySettings.company_name.replace(/\s+/g, '_')}_${new Date().toISOString().substring(0, 10)}.xls`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -1000,6 +1021,11 @@ export default function AdministrativeDocumentsPage() {
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
+  };
+
+  const handleOpenPrintPreview = async (doc: OfficialDoc) => {
+    await loadSettings();
+    setSelectedDocForPrint(doc);
   };
 
   return (
@@ -1062,13 +1088,18 @@ export default function AdministrativeDocumentsPage() {
           }
         `}</style>
 
-        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر بالكامل */}
+        {/* الترويسة الرئيسية */}
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
-            {/* الطرف الأيمن: الأيقونة والعنوان والشارة */}
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 bg-gradient-to-tr from-amber-600 via-amber-500 to-amber-400 p-3 rounded-2xl text-slate-950 font-black shadow-xl shadow-amber-500/20 shrink-0 flex items-center justify-center">
+              <div 
+                className="w-14 h-14 p-3 rounded-2xl text-slate-950 font-black shadow-xl shrink-0 flex items-center justify-center transition-all"
+                style={{ 
+                  background: `linear-gradient(135deg, ${companySettings.primary_color || '#d97706'}, ${companySettings.secondary_color || '#ea580c'})`,
+                  boxShadow: `0 10px 25px -5px ${companySettings.primary_color || '#d97706'}40`
+                }}
+              >
                 <Building2 className="w-8 h-8" />
               </div>
               <div className="space-y-1.5">
@@ -1082,12 +1113,11 @@ export default function AdministrativeDocumentsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  شركة البرج المتألق • الصادر والوارد والأوامر الإدارية مع المزامنة السحابية الفورية
+                  {companySettings.company_name} • الصادر والوارد والأوامر الإدارية مع المزامنة السحابية الفورية
                 </p>
               </div>
             </div>
 
-            {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل في سطر واحد ثابت */}
             <div className="flex items-center gap-2 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               {canAdd && (
                 <>
@@ -1097,7 +1127,10 @@ export default function AdministrativeDocumentsPage() {
                       setOutScannedUrls([]);
                       setShowOutgoingModal(true);
                     }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg shadow-amber-500/20 whitespace-nowrap active:scale-95 cursor-pointer"
+                    className="px-4 py-2.5 text-slate-950 font-black rounded-xl text-xs flex items-center gap-1.5 transition shadow-lg whitespace-nowrap active:scale-95 cursor-pointer"
+                    style={{ 
+                      background: `linear-gradient(90deg, ${companySettings.primary_color || '#d97706'}, ${companySettings.secondary_color || '#ea580c'})` 
+                    }}
                   >
                     <Send className="w-4 h-4" /> صادر جديد +
                   </button>
@@ -1146,7 +1179,7 @@ export default function AdministrativeDocumentsPage() {
           </div>
         </div>
 
-        {/* شريط النماذج والصيغ التخصصية الموسعة */}
+        {/* شريط النماذج */}
         <div className="max-w-7xl mx-auto mt-6 print:hidden print-hidden-element bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 p-4 rounded-3xl space-y-3 shadow-xl">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs font-bold text-amber-400 flex items-center gap-2">
@@ -1202,9 +1235,10 @@ export default function AdministrativeDocumentsPage() {
               onClick={() => setActiveTab('OUTGOING')}
               className={`px-5 py-2.5 rounded-2xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shrink-0 ${
                 activeTab === 'OUTGOING'
-                  ? 'bg-amber-500 text-slate-950 shadow-lg shadow-amber-500/20 font-black'
+                  ? 'text-slate-950 font-black shadow-lg'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
+              style={activeTab === 'OUTGOING' ? { backgroundColor: companySettings.primary_color || '#d97706' } : {}}
             >
               <Send className="w-4 h-4" /> سجل الكتب الصادرة ({counts.outgoing})
             </button>
@@ -1278,7 +1312,7 @@ export default function AdministrativeDocumentsPage() {
 
                     return (
                       <tr key={doc.id} className="hover:bg-slate-800/40 transition">
-                        <td className="p-3.5 font-mono font-bold text-amber-400">{doc.docNumber}</td>
+                        <td className="p-3.5 font-mono font-bold" style={{ color: companySettings.primary_color || '#d97706' }}>{doc.docNumber}</td>
                         <td className="p-3.5 font-mono text-slate-400">{doc.docDate}</td>
                         
                         {activeTab === 'INCOMING' && (
@@ -1295,7 +1329,7 @@ export default function AdministrativeDocumentsPage() {
                         <td className="p-3.5 text-center">
                           {totalPages > 0 ? (
                             <button
-                              onClick={() => setSelectedDocForPrint(doc)}
+                              onClick={() => handleOpenPrintPreview(doc)}
                               className="px-2.5 py-1 bg-sky-500/15 text-sky-300 hover:bg-sky-500 hover:text-white rounded-lg border border-sky-500/30 transition text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
                             >
                               <Layers className="w-3.5 h-3.5" /> ({totalPages}) صفحات
@@ -1308,7 +1342,7 @@ export default function AdministrativeDocumentsPage() {
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
-                              onClick={() => setSelectedDocForPrint(doc)}
+                              onClick={() => handleOpenPrintPreview(doc)}
                               className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 rounded-xl border border-amber-500/30 font-bold transition flex items-center gap-1 text-[11px] cursor-pointer"
                               title="معاينة وطباعة الكتاب مع المرفقات"
                             >
@@ -1340,7 +1374,7 @@ export default function AdministrativeDocumentsPage() {
             <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
-                  <Send className="w-5 h-5 text-amber-400" />
+                  <Send className="w-5 h-5" style={{ color: companySettings.primary_color || '#d97706' }} />
                   <div>
                     <h3 className="text-base font-bold text-white">تحرير كتاب صادر رسمي (إرفاق صور ومستندات متعددة)</h3>
                     <p className="text-[11px] text-slate-400">ستطبع المرفقات في صفحات ثانية ولاحقة مستقلة وبدقة عالية وكبيرة</p>
@@ -1360,7 +1394,8 @@ export default function AdministrativeDocumentsPage() {
                       required
                       value={outDocNumber}
                       onChange={(e) => setOutDocNumber(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-amber-400 font-mono font-bold outline-none"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 font-mono font-bold outline-none"
+                      style={{ color: companySettings.primary_color || '#d97706' }}
                     />
                   </div>
 
@@ -1427,7 +1462,7 @@ export default function AdministrativeDocumentsPage() {
 
                 <div className="bg-slate-950 p-4 rounded-2xl border border-amber-500/30 space-y-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-bold text-amber-400 flex items-center gap-1 text-xs">
+                    <span className="font-bold flex items-center gap-1 text-xs" style={{ color: companySettings.primary_color || '#d97706' }}>
                       <Paperclip className="w-4 h-4" /> إرفاق مستندات وصفحات المرفقات:
                     </span>
                     <span className="text-[11px] font-mono text-slate-400">
@@ -1538,7 +1573,11 @@ export default function AdministrativeDocumentsPage() {
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
                   <button type="button" onClick={() => setShowOutgoingModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
-                  <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
+                  <button 
+                    type="submit" 
+                    className="px-6 py-2.5 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${companySettings.primary_color || '#d97706'}, ${companySettings.secondary_color || '#ea580c'})` }}
+                  >
                     اعتماد وإصدار الكتاب الصادر مع المرفقات
                   </button>
                 </div>
@@ -1566,7 +1605,7 @@ export default function AdministrativeDocumentsPage() {
 
               <form onSubmit={handleSaveIncoming} className="space-y-4 text-xs">
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
-                  <span className="font-bold text-amber-400 block text-xs">بيانات قيد الوارد لدى شركة البرج المتألق:</span>
+                  <span className="font-bold block text-xs" style={{ color: companySettings.primary_color || '#d97706' }}>بيانات قيد الوارد لدى {companySettings.company_name}:</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-slate-400 mb-1 font-semibold">رقم قيد الوارد (العدد) *</label>
@@ -1575,7 +1614,8 @@ export default function AdministrativeDocumentsPage() {
                         required
                         value={inDocNumber}
                         onChange={(e) => setInDocNumber(e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-amber-400 font-mono font-bold outline-none"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 font-mono font-bold outline-none"
+                        style={{ color: companySettings.primary_color || '#d97706' }}
                       />
                     </div>
                     <div>
@@ -2012,11 +2052,17 @@ export default function AdministrativeDocumentsPage() {
           
           const activeOrigin = typeof window !== 'undefined' && window.location.origin
             ? window.location.origin
-            : (siteOrigin || 'https://rtco2025.netlify.app');
+            : (companySettings.website || siteOrigin || 'https://rtco2025.netlify.app');
 
           const verificationUrl = `${activeOrigin}/verify?type=doc&no=${encodeURIComponent(doc.docNumber)}`;
           const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
           const attachmentsList = doc.scannedFileUrls || [];
+
+          const hasLetterhead = Boolean(companySettings.letterhead_url && companySettings.letterhead_url.trim().length > 10);
+          const hasLogo = Boolean(companySettings.logo_url && companySettings.logo_url.trim().length > 10);
+
+          const primaryCol = companySettings.primary_color || '#d97706';
+          const secondaryCol = companySettings.secondary_color || '#ea580c';
 
           return (
             <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible">
@@ -2025,7 +2071,8 @@ export default function AdministrativeDocumentsPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => window.print()}
-                    className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg shadow-amber-500/20 cursor-pointer"
+                    className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     <Printer className="w-4 h-4" /> أمر الطباعة الآن (Print A4)
                   </button>
@@ -2063,72 +2110,105 @@ export default function AdministrativeDocumentsPage() {
                 </div>
               </div>
 
-              {/* حاوية متجاوبة بعرض قياسي A4 موحد لجميع الشاشات */}
+              {/* ورقة الطباعة A4 */}
               <div className="w-full max-w-[210mm] overflow-x-auto pb-6">
                 <div className="w-full min-w-[720px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
                   <div 
                     id="page-first"
                     className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300 print:border-none print:m-0 print:p-0"
                   >
+                    {/* العلامة المائية */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                      <div className="w-[460px] h-[460px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-25 relative p-6">
+                      <div className="w-[480px] h-[480px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-20 relative p-6">
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                          <Image 
-                            src="/logo.png" 
-                            alt="شركة البرج المتألق" 
-                            width={270} 
-                            height={270} 
-                            className="object-contain grayscale opacity-60" 
-                            priority 
-                          />
+                          {hasLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img 
+                              src={companySettings.logo_url} 
+                              alt="العلامة المائية للشركة" 
+                              className="w-[280px] h-[280px] object-contain grayscale opacity-60" 
+                            />
+                          ) : (
+                            <Image 
+                              src="/logo.png" 
+                              alt="شركة البرج المتألق" 
+                              width={270} 
+                              height={270} 
+                              className="object-contain grayscale opacity-60" 
+                              priority 
+                            />
+                          )}
                         </div>
-                        <div className="text-center mt-44 text-[#64748b] text-[11px] font-bold tracking-wider">
-                          Al Burj Al Mutalaa'iq General Contracting Company
+                        <div className="text-center mt-52 text-[#64748b] text-[11px] font-bold tracking-wider">
+                          {companySettings.company_name}
                         </div>
                       </div>
                     </div>
 
                     <div className="relative z-10 flex flex-col flex-1">
-                      <div className="h-6 w-full bg-[#71717a]"></div>
-
-                      {/* الترويسة المحدثة والمطابقة للصورة المطلوبة تماماً */}
-                      <div className="px-10 pt-4 pb-3 flex items-center justify-between border-b border-slate-200">
-                        <div className="text-right flex-1 font-sans">
-                          <h1 className="text-xl md:text-2xl font-black text-[#d97706] tracking-wide leading-none">
-                            شركة البرج المتألق
-                          </h1>
-                          <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1.5 leading-snug">
-                            للمقاولات العامة والاستثمارات العقارية<br />والتجارة العامة والنقل العام
-                          </p>
-                        </div>
-
-                        <div className="w-20 h-20 relative flex items-center justify-center shrink-0 mx-4">
-                          <Image 
-                            src="/logo.png" 
-                            alt="شعار شركة البرج المتألق" 
-                            width={75} 
-                            height={75} 
-                            className="object-contain" 
-                            priority 
+                      
+                      {/* ترويسة الصفحة A4 */}
+                      {hasLetterhead ? (
+                        <div className="w-full border-b border-slate-200">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={companySettings.letterhead_url} 
+                            alt="ترويسة الشركة الرسمية" 
+                            className="w-full max-h-[160px] object-contain"
                           />
                         </div>
+                      ) : (
+                        <>
+                          <div className="h-6 w-full" style={{ backgroundColor: secondaryCol }}></div>
+                          <div className="px-10 pt-4 pb-3 flex items-center justify-between border-b border-slate-200">
+                            <div className="text-right flex-1 font-sans">
+                              <h1 className="text-xl md:text-2xl font-black tracking-wide leading-none" style={{ color: primaryCol }}>
+                                {companySettings.company_name}
+                              </h1>
+                              <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1.5 leading-snug whitespace-pre-line">
+                                {companySettings.tagline || 'للمقاولات العامة والاستثمارات العقارية\nوالتجارة العامة والنقل العام'}
+                              </p>
+                            </div>
 
-                        <div className="text-left flex-1 font-sans text-[10px] text-slate-700 leading-tight space-y-0.5">
-                          <p className="font-bold text-slate-900 text-[11px]">Resplendently Tower Co</p>
-                          <p className="text-[#d97706] font-semibold">General Contracting</p>
-                          <p className="text-[#d97706] font-semibold">General Trading</p>
-                          <p className="text-[#d97706] font-semibold">General Transport</p>
-                          <p className="text-[#d97706] font-semibold">Real Estate Investments</p>
-                        </div>
-                      </div>
+                            <div className="w-20 h-20 relative flex items-center justify-center shrink-0 mx-4">
+                              {hasLogo ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img 
+                                  src={companySettings.logo_url} 
+                                  alt="شعار الشركة" 
+                                  className="w-[75px] h-[75px] object-contain" 
+                                />
+                              ) : (
+                                <Image 
+                                  src="/logo.png" 
+                                  alt="شعار شركة البرج المتألق" 
+                                  width={75} 
+                                  height={75} 
+                                  className="object-contain" 
+                                  priority 
+                                />
+                              )}
+                            </div>
 
+                            <div className="text-left flex-1 font-sans text-[10px] text-slate-700 leading-tight space-y-0.5">
+                              <p className="font-bold text-slate-900 text-[11px]">Resplendently Tower Co</p>
+                              <p className="font-semibold" style={{ color: primaryCol }}>General Contracting</p>
+                              <p className="font-semibold" style={{ color: primaryCol }}>General Trading</p>
+                              <p className="font-semibold" style={{ color: primaryCol }}>General Transport</p>
+                              <p className="font-semibold" style={{ color: primaryCol }}>Real Estate Investments</p>
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {/* شريط العدد والتاريخ */}
                       <div className="mx-10 mt-3 bg-[#e4e4e7] px-6 py-2 rounded-sm flex items-center justify-between font-black text-xs text-slate-900 border border-slate-300">
                         <div className="flex items-center gap-2">
                           <span className="text-slate-900 font-bold">{isIncoming ? 'تاريخ استلام الوارد :' : 'التاريخ :'}</span>
                           <span className="font-mono text-sm tracking-widest">{doc.docDate}</span>
                         </div>
 
-                        <div className="border border-slate-800 bg-white text-slate-950 px-3 py-0.5 rounded text-[11px] font-black">
+                        <div className="border bg-white px-3 py-0.5 rounded text-[11px] font-black" style={{ borderColor: primaryCol, color: primaryCol }}>
                           {isIncoming ? 'سجل الكتب الواردة' : isOrder ? 'أمر إداري داخلي' : 'كتاب صادر رسمي'}
                         </div>
 
@@ -2157,7 +2237,7 @@ export default function AdministrativeDocumentsPage() {
                         </div>
 
                         <div className="text-center font-black text-sm text-slate-900 pt-1">
-                          <span className="border-b-2 border-slate-900 pb-0.5 px-4 inline-block">
+                          <span className="border-b-2 pb-0.5 px-4 inline-block" style={{ borderBottomColor: primaryCol }}>
                             {doc.subject}
                           </span>
                         </div>
@@ -2203,11 +2283,14 @@ export default function AdministrativeDocumentsPage() {
                               <div className="text-center space-y-1 min-w-[220px]">
                                 <p className="font-black text-base text-slate-950">{doc.signatoryName}</p>
                                 <p className="text-xs font-bold text-slate-700">{doc.signatoryTitle}</p>
-                                <p className="text-[11px] text-slate-500">شركة البرج المتألق</p>
+                                <p className="text-[11px] text-slate-500">{companySettings.company_name}</p>
                                 
                                 <div className="h-16 flex items-center justify-center relative">
-                                  <div className="border-2 border-dashed border-red-700/60 rounded-full w-20 h-20 flex flex-col items-center justify-center rotate-[-12deg] p-1 text-red-700/80 pointer-events-none absolute">
-                                    <span className="text-[8px] font-black">البرج المتألق</span>
+                                  <div 
+                                    className="border-2 border-dashed rounded-full w-20 h-20 flex flex-col items-center justify-center rotate-[-12deg] p-1 pointer-events-none absolute"
+                                    style={{ borderColor: primaryCol, color: primaryCol }}
+                                  >
+                                    <span className="text-[8px] font-black">{companySettings.company_name}</span>
                                     <span className="text-[7px] font-bold">مصادق رسمياً</span>
                                     <span className="text-[7px] font-mono">{doc.docDate}</span>
                                   </div>
@@ -2220,7 +2303,7 @@ export default function AdministrativeDocumentsPage() {
                       </div>
                     </div>
 
-                    {/* الجزء الثابت أسفل الصفحة (المرفقات ونسخة منه إلى) */}
+                    {/* تذييل الصفحة المطبوعة */}
                     <div className="relative z-10 w-full bg-white mt-auto">
                       <div className="mx-10 pt-3 pb-2 border-t border-slate-300 text-[11px] text-slate-700 space-y-1 font-medium">
                         <div className="flex items-center justify-between">
@@ -2231,7 +2314,8 @@ export default function AdministrativeDocumentsPage() {
                           {attachmentsList.length > 0 && (
                             <button
                               onClick={() => scrollToSection('att-0')}
-                              className="text-amber-700 font-bold hover:underline flex items-center gap-1 print:hidden cursor-pointer"
+                              className="font-bold hover:underline flex items-center gap-1 print:hidden cursor-pointer"
+                              style={{ color: primaryCol }}
                             >
                               <span>تصفح المرفقات في الصفحات التالية</span>
                               <ChevronDown className="w-3.5 h-3.5" />
@@ -2248,29 +2332,39 @@ export default function AdministrativeDocumentsPage() {
                           <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <Globe className="w-3.5 h-3.5" />
                           </div>
-                          <span className="hover:underline">{activeOrigin}</span>
+                          <span className="hover:underline">{companySettings.website || activeOrigin}</span>
                         </div>
 
                         <div className="flex items-center gap-1.5 text-xs text-slate-800">
                           <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <MapPin className="w-3.5 h-3.5" />
                           </div>
-                          <span>العراق - النجف الأشرف - حي الفرات</span>
+                          <span>{companySettings.address}</span>
                         </div>
 
                         <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
                           <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <Phone className="w-3.5 h-3.5" />
                           </div>
-                          <span className="font-bold">07868006699 - 07737006699</span>
+                          <span className="font-bold">
+                            {companySettings.phone_primary}
+                            {companySettings.phone_secondary && ` - ${companySettings.phone_secondary}`}
+                          </span>
                         </div>
                       </div>
 
-                      <div className="h-1 w-full bg-[#71717a] mb-2"></div>
+                      <div className="h-1 w-full mb-2" style={{ backgroundColor: primaryCol }}></div>
 
+                      {/* الزخرفة السفلية باللونين المعتمدين من الإعدادات */}
                       <div className="relative h-12 w-full">
-                        <div className="absolute bottom-0 left-0 w-32 h-10 bg-[#ea580c] rounded-tr-[50px] opacity-90"></div>
-                        <div className="absolute bottom-0 right-0 w-36 h-12 bg-[#f97316] rounded-tl-[70px]"></div>
+                        <div 
+                          className="absolute bottom-0 left-0 w-32 h-10 rounded-tr-[50px] opacity-90 transition-colors"
+                          style={{ backgroundColor: secondaryCol }}
+                        ></div>
+                        <div 
+                          className="absolute bottom-0 right-0 w-36 h-12 rounded-tl-[70px] transition-colors"
+                          style={{ backgroundColor: primaryCol }}
+                        ></div>
                       </div>
                     </div>
 
@@ -2285,11 +2379,16 @@ export default function AdministrativeDocumentsPage() {
                       <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 relative flex items-center justify-center">
-                            <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
+                            {hasLogo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={companySettings.logo_url} alt="شعار الشركة" className="w-full h-full object-contain" />
+                            ) : (
+                              <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
+                            )}
                           </div>
                           <div>
-                            <h4 className="font-black text-slate-900 text-sm">شركة البرج المتألق للمقاولات العامة</h4>
-                            <p className="text-[10px] text-amber-700 font-bold">ملف مرفق طي الوثيقة الرسمية</p>
+                            <h4 className="font-black text-slate-900 text-sm">{companySettings.company_name}</h4>
+                            <p className="text-[10px] font-bold" style={{ color: primaryCol }}>ملف مرفق طي الوثيقة الرسمية</p>
                           </div>
                         </div>
 
