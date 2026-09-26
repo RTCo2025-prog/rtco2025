@@ -15,20 +15,20 @@ async function logNotification(sector: string, action_type: string, title: strin
 // جلب قائمة السندات مع اسم المشروع وحساب المبالغ بمرونة
 export async function GET() {
   try {
-    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id UUID;`);
-    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;`);
-    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;`);
+    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id VARCHAR(50);`).catch(() => {});
+    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;`).catch(() => {});
+    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;`).catch(() => {});
 
     const res = await query(`
       SELECT 
-        v.voucher_id, 
+        v.voucher_id::text AS voucher_id, 
         v.voucher_number, 
         v.voucher_type, 
         v.issue_date, 
         COALESCE(v.currency, 'IQD') as currency, 
         v.status, 
         v.notes, 
-        v.project_id,
+        v.project_id::text AS project_id,
         COALESCE(b.name_ar, 'قطاع النقل العام واللوجستيات') as branch_name,
         COALESCE(p.project_name, cp.project_name) as project_name,
         CASE 
@@ -37,16 +37,16 @@ export async function GET() {
           ELSE COALESCE(v.amount, 0)
         END as total_amount
       FROM vouchers v
-      LEFT JOIN branches b ON v.branch_id = b.branch_id
-      LEFT JOIN projects p ON v.project_id = p.project_id
-      LEFT JOIN contracting_projects cp ON v.project_id = cp.project_id
-      LEFT JOIN journal_lines jl ON v.voucher_id = jl.voucher_id
-      GROUP BY v.voucher_id, b.name_ar, p.project_name, cp.project_name, v.total_amount, v.amount
+      LEFT JOIN branches b ON v.branch_id::text = b.branch_id::text
+      LEFT JOIN projects p ON v.project_id::text = p.project_id::text
+      LEFT JOIN contracting_projects cp ON v.project_id::text = cp.project_id::text
+      LEFT JOIN journal_lines jl ON v.voucher_id::text = jl.voucher_id::text
+      GROUP BY v.voucher_id, b.name_ar, p.project_name, cp.project_name, v.total_amount, v.amount, v.voucher_number, v.voucher_type, v.issue_date, v.currency, v.status, v.notes, v.project_id, v.created_at
       ORDER BY v.created_at DESC
       LIMIT 200
     `);
 
-    return NextResponse.json({ vouchers: res.rows });
+    return NextResponse.json({ vouchers: res.rows || [] });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
@@ -73,10 +73,11 @@ export async function POST(req: Request) {
     }
 
     const vNum = `VCH-${Date.now().toString().slice(-6)}`;
+    const finalVoucherId = `VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     let userId = null;
     try {
-      const userRes = await query('SELECT user_id FROM users LIMIT 1');
+      const userRes = await query('SELECT user_id FROM system_users LIMIT 1');
       userId = userRes.rows[0]?.user_id || null;
     } catch {}
 
@@ -93,6 +94,7 @@ export async function POST(req: Request) {
 
     const vRes = await query(`
       INSERT INTO vouchers (
+        voucher_id,
         branch_id, 
         project_id, 
         voucher_number, 
@@ -105,20 +107,21 @@ export async function POST(req: Request) {
         notes, 
         created_by
       )
-      VALUES ($1, $2, $3, $4, $5, $5, CURRENT_DATE, $6, 'POSTED', $7, $8)
-      RETURNING voucher_id
+      VALUES ($1, $2, $3, $4, $5, $6, $6, CURRENT_DATE, $7, 'POSTED', $8, $9)
+      RETURNING voucher_id::text AS voucher_id
     `, [
-      branch_id || null, 
-      project_id ? project_id : null, 
+      finalVoucherId,
+      branch_id ? String(branch_id) : null, 
+      project_id ? String(project_id) : null, 
       vNum, 
       voucher_type, 
       numAmount, 
       currency || 'IQD', 
-      notes, 
-      userId
+      notes || '', 
+      userId ? String(userId) : null
     ]);
 
-    const voucherId = vRes.rows[0].voucher_id;
+    const voucherId = vRes.rows[0]?.voucher_id || finalVoucherId;
 
     if (cashAccId && revAccId) {
       if (voucher_type === 'RECEIPT') {
@@ -127,14 +130,14 @@ export async function POST(req: Request) {
           VALUES 
             ($1, $2, $3, 0, 1, 'قبض نقدية'),
             ($1, $4, 0, $3, 2, 'إيراد / دفعة مستلمة')
-        `, [voucherId, cashAccId, numAmount, revAccId]);
+        `, [voucherId, cashAccId, numAmount, revAccId]).catch(() => {});
       } else {
         await query(`
           INSERT INTO journal_lines (voucher_id, account_id, debit, credit, line_order, description)
           VALUES 
             ($1, $4, $3, 0, 1, 'صرف مستحقات ومواد مشروع'),
             ($1, $2, 0, $3, 2, 'صرف نقدية من الصندوق')
-        `, [voucherId, cashAccId, numAmount, revAccId]);
+        `, [voucherId, cashAccId, numAmount, revAccId]).catch(() => {});
       }
     }
 
@@ -178,7 +181,7 @@ export async function PATCH(req: Request) {
 
     // فحص قفل الفترة المالية عند طلب الإلغاء
     if (cancel_reason) {
-      const vDateRes = await query('SELECT issue_date FROM vouchers WHERE voucher_id = $1', [voucher_id]);
+      const vDateRes = await query('SELECT issue_date FROM vouchers WHERE voucher_id::text = $1::text', [String(voucher_id)]);
       const vMonth = String(vDateRes.rows[0]?.issue_date || '').slice(0, 7);
       const lockCheck = await query(
         `SELECT * FROM closed_financial_periods WHERE period_month = $1`,
@@ -195,11 +198,11 @@ export async function PATCH(req: Request) {
 
     if (assign_project_id !== undefined) {
       await query(
-        `UPDATE vouchers SET project_id = $1 WHERE voucher_id = $2`,
-        [assign_project_id || null, voucher_id]
+        `UPDATE vouchers SET project_id = $1 WHERE voucher_id::text = $2::text`,
+        [assign_project_id ? String(assign_project_id) : null, String(voucher_id)]
       );
 
-      const vInfo = await query(`SELECT voucher_number FROM vouchers WHERE voucher_id = $1`, [voucher_id]);
+      const vInfo = await query(`SELECT voucher_number FROM vouchers WHERE voucher_id::text = $1::text`, [String(voucher_id)]);
       const vNum = vInfo.rows[0]?.voucher_number || 'سند';
 
       let pName = 'فك الارتباط';
@@ -219,7 +222,7 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ success: true, message: 'تم تحديث ربط المشروع بنجاح' });
     }
 
-    const checkRes = await query('SELECT * FROM vouchers WHERE voucher_id = $1', [voucher_id]);
+    const checkRes = await query('SELECT * FROM vouchers WHERE voucher_id::text = $1::text', [String(voucher_id)]);
     if (checkRes.rows.length === 0) {
       return NextResponse.json({ error: 'السند غير موجود' }, { status: 404 });
     }
@@ -241,16 +244,16 @@ export async function PATCH(req: Request) {
     await query(
       `UPDATE vouchers 
        SET status = 'VOID', notes = $1 
-       WHERE voucher_id = $2`,
-      [JSON.stringify(notesData), voucher_id]
+       WHERE voucher_id::text = $2::text`,
+      [JSON.stringify(notesData), String(voucher_id)]
     );
 
     try {
       await query(
         `UPDATE journal_lines 
          SET description = description || ' (ملغي)' 
-         WHERE voucher_id = $1`,
-        [voucher_id]
+         WHERE voucher_id::text = $1::text`,
+        [String(voucher_id)]
       );
     } catch {}
 

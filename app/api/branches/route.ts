@@ -4,7 +4,7 @@ import { query } from '@/lib/db';
 async function initBranchesTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS branches (
-      branch_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      branch_id VARCHAR(50) PRIMARY KEY,
       branch_code VARCHAR(50) UNIQUE NOT NULL,
       name_ar VARCHAR(255) NOT NULL,
       branch_type VARCHAR(100) NOT NULL,
@@ -33,13 +33,13 @@ async function initBranchesTable() {
   const countRes = await query(`SELECT count(*) FROM branches`);
   if (Number(countRes.rows[0]?.count || 0) === 0) {
     await query(`
-      INSERT INTO branches (branch_code, name_ar, branch_type, manager_name, phone, city, address)
+      INSERT INTO branches (branch_id, branch_code, name_ar, branch_type, manager_name, phone, city, address)
       VALUES 
-        ('HQ-01', 'الإدارة العامة - شركة البرج المتألق', 'الإدارة المركزية والمقر العام', 'الإدارة العليا', '07868006699', 'النجف الأشرف', 'حي الفرات'),
-        ('CNT-01', 'فرع المقاولات العامة والإنشاءات', 'تنفيذ المشاريع الإنشائية والهندسية', 'المهندس المقيم', '07800000001', 'النجف الأشرف', 'المدينة القديمة'),
-        ('TRD-01', 'فرع التجارة العامة والتجهيزات', 'استيراد وتوريد المواد الأولية', 'مدير المشتريات', '07800000002', 'النجف الأشرف', 'حي الحرفيين'),
-        ('FLT-01', 'فرع النقل العام واللوجستيات', 'حركة الأسطول والنقل البري', 'كابتن الأسطول', '07800000003', 'النجف الأشرف', 'ساحة الآليات المركزية'),
-        ('EST-01', 'فرع التطوير والاستثمار العقاري', 'إدارة العقارات والوحدات السكنية', 'مسؤول الاستثمار', '07800000004', 'النجف الأشرف', 'شارع الكوفة');
+        ('BR-HQ-01', 'HQ-01', 'الإدارة العامة - شركة البرج المتألق', 'الإدارة المركزية والمقر العام', 'الإدارة العليا', '07868006699', 'النجف الأشرف', 'حي الفرات'),
+        ('BR-CNT-01', 'CNT-01', 'فرع المقاولات العامة والإنشاءات', 'تنفيذ المشاريع الإنشائية والهندسية', 'المهندس المقيم', '07800000001', 'النجف الأشرف', 'المدينة القديمة'),
+        ('BR-TRD-01', 'TRD-01', 'فرع التجارة العامة والتجهيزات', 'استيراد وتوريد المواد الأولية', 'مدير المشتريات', '07800000002', 'النجف الأشرف', 'حي الحرفيين'),
+        ('BR-FLT-01', 'FLT-01', 'فرع النقل العام واللوجستيات', 'حركة الأسطول والنقل البري', 'كابتن الأسطول', '07800000003', 'النجف الأشرف', 'ساحة الآليات المركزية'),
+        ('BR-EST-01', 'EST-01', 'فرع التطوير والاستثمار العقاري', 'إدارة العقارات والوحدات السكنية', 'مسؤول الاستثمار', '07800000004', 'النجف الأشرف', 'شارع الكوفة');
     `);
   }
 }
@@ -49,7 +49,7 @@ export async function GET() {
     await initBranchesTable();
     const res = await query(`
       SELECT 
-        branch_id,
+        branch_id::text AS branch_id,
         COALESCE(branch_code, 'BR-01') AS branch_code,
         name_ar,
         COALESCE(branch_type, 'قطاع تجاري') AS branch_type,
@@ -73,9 +73,10 @@ export async function POST(req: Request) {
   try {
     await initBranchesTable();
     const body = await req.json();
-    const { branch_code, name_ar, branch_type, manager_name, phone, city, address } = body;
+    const { branch_id, id, branch_code, name_ar, branch_type, manager_name, phone, city, address } = body;
 
     const cleanCode = String(branch_code || '').trim().toUpperCase();
+    const finalBranchId = String(branch_id || id || `BR-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
     const exist = await query(`SELECT branch_id FROM branches WHERE branch_code = $1`, [cleanCode]);
     if (exist.rows.length > 0) {
@@ -83,10 +84,11 @@ export async function POST(req: Request) {
     }
 
     const res = await query(`
-      INSERT INTO branches (branch_code, name_ar, branch_type, manager_name, phone, city, address, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'ACTIVE')
+      INSERT INTO branches (branch_id, branch_code, name_ar, branch_type, manager_name, phone, city, address, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE')
       RETURNING *
     `, [
+      finalBranchId,
       cleanCode,
       String(name_ar).trim(),
       String(branch_type || 'قطاع تجاري').trim(),
@@ -120,8 +122,8 @@ export async function PATCH(req: Request) {
           city = COALESCE($5, city),
           address = COALESCE($6, address),
           status = COALESCE($7, status)
-      WHERE branch_id = $8
-    `, [name_ar, branch_type, manager_name, phone, city, address, status, branch_id]);
+      WHERE branch_id::text = $8::text
+    `, [name_ar, branch_type, manager_name, phone, city, address, status, String(branch_id)]);
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -138,7 +140,7 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'معرف الفرع مطلوب' }, { status: 400 });
     }
 
-    await query(`DELETE FROM branches WHERE branch_id = $1`, [branchId]);
+    await query(`DELETE FROM branches WHERE branch_id::text = $1::text`, [String(branchId)]);
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

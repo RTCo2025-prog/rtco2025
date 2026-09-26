@@ -17,7 +17,7 @@ async function initInventoryTables() {
     // 1. جدول الأصناف والمواد بالمخزن المركزي
     await query(`
       CREATE TABLE IF NOT EXISTS inventory_items (
-        item_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        item_id VARCHAR(50) PRIMARY KEY,
         item_code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(255),
         item_name VARCHAR(255),
@@ -45,19 +45,20 @@ async function initInventoryTables() {
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS selling_price NUMERIC DEFAULT 0;`).catch(() => {});
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS location VARCHAR(100);`).catch(() => {});
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS warehouse_location VARCHAR(100);`).catch(() => {});
+    await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS notes TEXT;`).catch(() => {});
 
     // 2. جدول أذونات الحركات المخزنية
     await query(`
       CREATE TABLE IF NOT EXISTS inventory_transactions (
-        trans_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        trans_id VARCHAR(50) PRIMARY KEY,
         trans_code VARCHAR(50),
-        item_id UUID REFERENCES inventory_items(item_id) ON DELETE CASCADE,
+        item_id VARCHAR(50),
         trans_type VARCHAR(20) NOT NULL,
         purpose VARCHAR(50) NOT NULL DEFAULT 'PURCHASE',
         quantity NUMERIC NOT NULL DEFAULT 1,
         unit_price NUMERIC NOT NULL DEFAULT 0,
         total_amount NUMERIC NOT NULL DEFAULT 0,
-        project_id UUID,
+        project_id VARCHAR(50),
         project_name VARCHAR(255),
         supplier_or_recipient VARCHAR(255),
         notes TEXT,
@@ -67,6 +68,7 @@ async function initInventoryTables() {
 
     await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS trans_code VARCHAR(50);`).catch(() => {});
     await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS purpose VARCHAR(50) DEFAULT 'PURCHASE';`).catch(() => {});
+    await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS notes TEXT;`).catch(() => {});
     await query(`ALTER TABLE inventory_transactions ALTER COLUMN trans_code DROP NOT NULL;`).catch(() => {});
   } catch (e) {
     console.error("Init Inventory Tables Error:", e);
@@ -80,7 +82,7 @@ export async function GET() {
     const [itemsRes, transRes, projectsRes] = await Promise.all([
       query(`
         SELECT 
-          item_id,
+          item_id::text,
           item_code,
           COALESCE(NULLIF(name, ''), item_name, 'صنف') AS name,
           COALESCE(NULLIF(item_name, ''), name, 'صنف') AS item_name,
@@ -100,17 +102,29 @@ export async function GET() {
       `),
       query(`
         SELECT 
-          t.*, 
+          t.trans_id::text,
+          t.trans_code,
+          t.item_id::text,
+          t.trans_type,
+          t.purpose,
+          t.quantity,
+          t.unit_price,
+          t.total_amount,
+          t.project_id::text,
+          t.project_name,
+          t.supplier_or_recipient,
+          t.notes,
+          t.created_at,
           COALESCE(t.trans_code, CONCAT('TR-', SUBSTRING(t.trans_id::text, 1, 8))) AS trans_code,
           COALESCE(NULLIF(i.name, ''), i.item_name, 'صنف') as item_name, 
           i.item_code, 
           i.unit
         FROM inventory_transactions t
-        JOIN inventory_items i ON t.item_id = i.item_id
+        JOIN inventory_items i ON t.item_id::text = i.item_id::text
         ORDER BY t.created_at DESC
         LIMIT 300
       `),
-      query(`SELECT project_id, project_name FROM projects ORDER BY project_name ASC`).catch(() => ({ rows: [] }))
+      query(`SELECT project_id::text, project_name FROM projects ORDER BY project_name ASC`).catch(() => ({ rows: [] }))
     ]);
 
     const items = itemsRes.rows || [];
@@ -156,6 +170,7 @@ export async function POST(req: Request) {
 
     // 1. إضافة صنف جديد
     if (action === 'ADD_ITEM' || action === 'CREATE_ITEM') {
+      const finalItemId = String(body.item_id || body.id || `ITM-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
       const code = String(body.item_code || `ITM-${Date.now().toString().slice(-4)}`).trim().toUpperCase();
       const finalName = body.name || body.item_name || 'مادة جديدة';
       const finalCategory = body.category || 'مواد إنشائية وبناء';
@@ -169,13 +184,14 @@ export async function POST(req: Request) {
 
       const res = await query(`
         INSERT INTO inventory_items (
-          item_code, name, item_name, category, unit, 
+          item_id, item_code, name, item_name, category, unit, 
           quantity_on_hand, current_qty, unit_cost, selling_price, 
           min_reorder_level, min_qty, location, warehouse_location, notes
         )
-        VALUES ($1, $2, $2, $3, $4, $5, $5, $6, $7, $8, $8, $9, $9, $10)
+        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $9, $10, $10, $11)
         RETURNING *
       `, [
+        finalItemId,
         code,
         finalName,
         finalCategory,
@@ -188,7 +204,6 @@ export async function POST(req: Request) {
         finalNotes
       ]);
 
-      // إشعار إضافة صنف جديد
       await logNotification(
         'INVENTORY',
         'ADD',
@@ -203,6 +218,8 @@ export async function POST(req: Request) {
     // 2. تسجيل حركة مخزنية
     if (action === 'RECORD_TRANSACTION' || action === 'STOCK_TRANSACTION') {
       const { 
+        trans_id,
+        id,
         item_id, 
         trans_type, 
         purpose, 
@@ -219,7 +236,7 @@ export async function POST(req: Request) {
       const numPrice = Number(unit_price) || 0;
       const totalAmount = numQty * numPrice;
 
-      const itemRes = await query(`SELECT * FROM inventory_items WHERE item_id = $1`, [item_id]);
+      const itemRes = await query(`SELECT * FROM inventory_items WHERE item_id::text = $1::text`, [String(item_id)]);
       if (itemRes.rows.length === 0) {
         return NextResponse.json({ error: 'المادة غير متوفرة في دليل المخزن' }, { status: 404 });
       }
@@ -243,22 +260,24 @@ export async function POST(req: Request) {
       }
 
       const transCode = `TR-${trans_type}-${Date.now().toString().slice(-6)}`;
+      const finalTransId = String(trans_id || id || `TRN-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
       const transRes = await query(`
         INSERT INTO inventory_transactions (
-          trans_code, item_id, trans_type, purpose, quantity, unit_price, total_amount, project_id, project_name, supplier_or_recipient, notes
+          trans_id, trans_code, item_id, trans_type, purpose, quantity, unit_price, total_amount, project_id, project_name, supplier_or_recipient, notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING *
       `, [
+        finalTransId,
         transCode,
-        item_id,
+        String(item_id),
         trans_type,
         finalPurpose,
         numQty,
         numPrice,
         totalAmount,
-        project_id || null,
+        project_id ? String(project_id) : null,
         project_name || '',
         supplier_or_recipient || '',
         notes || ''
@@ -279,21 +298,23 @@ export async function POST(req: Request) {
       await query(`
         UPDATE inventory_items
         SET quantity_on_hand = $1, current_qty = $1, unit_cost = $2
-        WHERE item_id = $3
-      `, [newQty, newCost, item_id]);
+        WHERE item_id::text = $3::text
+      `, [newQty, newCost, String(item_id)]);
 
       // تنزيل التكلفة تلقائياً على مشروع المقاولة
       if (trans_type === 'OUT' && finalPurpose === 'PROJECT_ISSUE' && project_id) {
+        const matId = `MAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         await query(`
           INSERT INTO project_materials (
-            project_id, material_name, unit, quantity_required, quantity_received, unit_price, supplier_name
+            material_id, project_id, material_name, unit, quantity_required, quantity_received, unit_price, supplier_name
           )
-          VALUES ($1, $2, $3, $4, $4, $5, 'المخزن المركزي للشركة')
-        `, [project_id, matName, currentItem.unit, numQty, numPrice]).catch(() => {});
+          VALUES ($1, $2, $3, $4, $5, $5, $6, 'المخزن المركزي للشركة')
+        `, [matId, String(project_id), matName, currentItem.unit, numQty, numPrice]).catch(() => {});
       }
 
       // قيد السندات المالية بالصندوق تلقائياً
       if (trans_type === 'IN' && finalPurpose === 'PURCHASE' && totalAmount > 0) {
+        const vId = `VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const vNum = `V-INV-IN-${Date.now().toString().slice(-5)}`;
         const vNotes = JSON.stringify({
           sector: 'INVENTORY',
@@ -303,10 +324,11 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, 'PAYMENT', $2, $2, $3, 'POSTED', CURRENT_TIMESTAMP)
-        `, [vNum, totalAmount, vNotes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+          VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
+        `, [vId, vNum, totalAmount, vNotes]).catch(() => {});
       } else if (trans_type === 'OUT' && finalPurpose === 'COMMERCIAL_SALE' && totalAmount > 0) {
+        const vId = `VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const vNum = `V-INV-OUT-${Date.now().toString().slice(-5)}`;
         const vNotes = JSON.stringify({
           sector: 'INVENTORY',
@@ -316,9 +338,9 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, 'RECEIPT', $2, $2, $3, 'POSTED', CURRENT_TIMESTAMP)
-        `, [vNum, totalAmount, vNotes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+          VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
+        `, [vId, vNum, totalAmount, vNotes]).catch(() => {});
       }
 
       // تسجيل الإشعار الفوري بحسب نوع الحركة
@@ -364,7 +386,7 @@ export async function DELETE(req: Request) {
     const transId = searchParams.get('trans_id');
 
     if (transId) {
-      const transObj = await query(`SELECT * FROM inventory_transactions WHERE trans_id = $1`, [transId]);
+      const transObj = await query(`SELECT * FROM inventory_transactions WHERE trans_id::text = $1::text`, [String(transId)]);
       if (transObj.rows.length > 0) {
         const t = transObj.rows[0];
         const qty = Number(t.quantity) || 0;
@@ -373,15 +395,15 @@ export async function DELETE(req: Request) {
             UPDATE inventory_items 
             SET quantity_on_hand = GREATEST(0, quantity_on_hand - $1),
                 current_qty = GREATEST(0, current_qty - $1)
-            WHERE item_id = $2
-          `, [qty, t.item_id]);
+            WHERE item_id::text = $2::text
+          `, [qty, String(t.item_id)]);
         } else {
           await query(`
             UPDATE inventory_items 
             SET quantity_on_hand = quantity_on_hand + $1,
                 current_qty = current_qty + $1
-            WHERE item_id = $2
-          `, [qty, t.item_id]);
+            WHERE item_id::text = $2::text
+          `, [qty, String(t.item_id)]);
         }
 
         await logNotification(
@@ -392,15 +414,16 @@ export async function DELETE(req: Request) {
           '/inventory'
         );
       }
-      await query(`DELETE FROM inventory_transactions WHERE trans_id = $1`, [transId]);
+      await query(`DELETE FROM inventory_transactions WHERE trans_id::text = $1::text`, [String(transId)]);
       return NextResponse.json({ success: true });
     }
 
     if (itemId) {
-      const itemRow = await query(`SELECT name, item_name FROM inventory_items WHERE item_id = $1`, [itemId]);
+      const itemRow = await query(`SELECT name, item_name FROM inventory_items WHERE item_id::text = $1::text`, [String(itemId)]);
       const iName = itemRow.rows[0]?.name || itemRow.rows[0]?.item_name || 'صنف';
 
-      await query(`DELETE FROM inventory_items WHERE item_id = $1`, [itemId]);
+      await query(`DELETE FROM inventory_transactions WHERE item_id::text = $1::text`, [String(itemId)]);
+      await query(`DELETE FROM inventory_items WHERE item_id::text = $1::text`, [String(itemId)]);
 
       await logNotification(
         'INVENTORY',

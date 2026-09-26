@@ -15,7 +15,7 @@ async function logNotification(sector: string, action_type: string, title: strin
 async function initFleetTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS fleet_vehicles (
-      vehicle_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      vehicle_id VARCHAR(50) PRIMARY KEY,
       vehicle_name VARCHAR(150) NOT NULL,
       plate_number VARCHAR(50) UNIQUE NOT NULL,
       vehicle_type VARCHAR(100) DEFAULT 'شاحنة نقل ثقيل',
@@ -59,8 +59,8 @@ async function initFleetTables() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS fleet_trips (
-      trip_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vehicle_id UUID,
+      trip_id VARCHAR(50) PRIMARY KEY,
+      vehicle_id VARCHAR(50),
       truck_source_type VARCHAR(50) DEFAULT 'INTERNAL',
       external_truck_info VARCHAR(200),
       external_driver_name VARCHAR(150),
@@ -106,8 +106,8 @@ async function initFleetTables() {
 
   await query(`
     CREATE TABLE IF NOT EXISTS fleet_maintenance_logs (
-      log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vehicle_id UUID,
+      log_id VARCHAR(50) PRIMARY KEY,
+      vehicle_id VARCHAR(50),
       log_type VARCHAR(50) NOT NULL,
       description TEXT NOT NULL,
       cost NUMERIC NOT NULL DEFAULT 0,
@@ -126,7 +126,7 @@ export async function GET() {
     const [vehiclesRes, tripsRes, maintenanceRes] = await Promise.all([
       query(`
         SELECT 
-          vehicle_id,
+          vehicle_id::text,
           COALESCE(vehicle_name, 'شاحنة أسطول') AS vehicle_name,
           COALESCE(plate_number, 'بدون رقم') AS plate_number,
           COALESCE(vehicle_type, 'شاحنة نقل مواد') AS vehicle_type,
@@ -145,17 +145,46 @@ export async function GET() {
       `),
       query(`
         SELECT 
-          t.*, 
+          t.trip_id::text,
+          t.vehicle_id::text,
+          t.truck_source_type,
+          t.external_truck_info,
+          t.external_driver_name,
+          t.external_driver_phone,
+          t.external_rental_cost,
+          t.cargo_description,
+          t.origin,
+          t.destination,
+          t.cargo_weight_tons,
+          t.captain_name,
+          t.trip_status,
+          t.estimated_hours,
+          t.manifest_doc_url,
+          t.trip_cost,
+          t.departure_time,
+          t.arrival_time,
+          t.created_at,
           COALESCE(v.vehicle_name, t.external_truck_info, 'شاحنة') AS vehicle_name,
           COALESCE(v.plate_number, t.external_truck_info, '') AS plate_number
         FROM fleet_trips t
-        LEFT JOIN fleet_vehicles v ON t.vehicle_id = v.vehicle_id
+        LEFT JOIN fleet_vehicles v ON t.vehicle_id::text = v.vehicle_id::text
         ORDER BY t.departure_time DESC LIMIT 150
       `),
       query(`
-        SELECT m.*, v.vehicle_name, v.plate_number
+        SELECT 
+          m.log_id::text,
+          m.vehicle_id::text,
+          m.log_type,
+          m.description,
+          m.cost,
+          m.mileage_at_service,
+          m.service_date,
+          m.performed_by,
+          m.created_at,
+          v.vehicle_name,
+          v.plate_number
         FROM fleet_maintenance_logs m
-        LEFT JOIN fleet_vehicles v ON m.vehicle_id = v.vehicle_id
+        LEFT JOIN fleet_vehicles v ON m.vehicle_id::text = v.vehicle_id::text
         ORDER BY m.service_date DESC LIMIT 100
       `)
     ]);
@@ -179,7 +208,7 @@ export async function POST(req: Request) {
 
     // 1. إضافة آلية جديدة
     if (action === 'ADD_VEHICLE') {
-      const { vehicle_name, plate_number, vehicle_type, assigned_driver, driver_phone, current_location, current_mileage, oil_change_interval_km, ownership_type } = body;
+      const { vehicle_id, id, vehicle_name, plate_number, vehicle_type, assigned_driver, driver_phone, current_location, current_mileage, oil_change_interval_km, ownership_type } = body;
       const cleanPlate = String(plate_number || '').trim();
 
       if (!cleanPlate) {
@@ -197,9 +226,11 @@ export async function POST(req: Request) {
       }
 
       const initialMileage = Number(current_mileage) || 0;
+      const finalVehicleId = String(vehicle_id || id || `VHC-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
       const res = await query(`
         INSERT INTO fleet_vehicles (
+          vehicle_id,
           vehicle_name, 
           plate_number, 
           vehicle_type, 
@@ -213,9 +244,10 @@ export async function POST(req: Request) {
           last_oil_change_mileage, 
           oil_change_interval_km
         )
-        VALUES ($1, $2, $3, $4, 'AVAILABLE', $5, $6, $7, $8, 100, $8, $9)
+        VALUES ($1, $2, $3, $4, $5, 'AVAILABLE', $6, $7, $8, $9, 100, $9, $10)
         RETURNING *
       `, [
+        finalVehicleId,
         vehicle_name || 'شاحنة نقل',
         cleanPlate,
         vehicle_type || 'شاحنة نقل مواد',
@@ -241,6 +273,8 @@ export async function POST(req: Request) {
     // 2. إطلاق مهمة نقل
     if (action === 'CREATE_TRIP') {
       const { 
+        trip_id,
+        id,
         vehicle_id, 
         truck_source_type,
         external_truck_info,
@@ -259,9 +293,11 @@ export async function POST(req: Request) {
       } = body;
 
       const isExternal = truck_source_type === 'EXTERNAL';
+      const finalTripId = String(trip_id || id || `TRP-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
       const tripRes = await query(`
         INSERT INTO fleet_trips (
+          trip_id,
           vehicle_id, 
           truck_source_type,
           external_truck_info,
@@ -278,10 +314,11 @@ export async function POST(req: Request) {
           manifest_doc_url, 
           trip_cost
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::timestamp, CURRENT_TIMESTAMP), $14, $15)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14::timestamp, CURRENT_TIMESTAMP), $15, $16)
         RETURNING *
       `, [
-        isExternal ? null : vehicle_id,
+        finalTripId,
+        isExternal ? null : (vehicle_id ? String(vehicle_id) : null),
         truck_source_type || 'INTERNAL',
         external_truck_info || null,
         external_driver_name || null,
@@ -302,8 +339,8 @@ export async function POST(req: Request) {
         await query(`
           UPDATE fleet_vehicles 
           SET status = 'IN_TRANSIT', current_location = $1 
-          WHERE vehicle_id = $2
-        `, [`في الطريق إلى: ${destination}`, vehicle_id]);
+          WHERE vehicle_id::text = $2::text
+        `, [`في الطريق إلى: ${destination}`, String(vehicle_id)]);
       }
 
       // قيد إيراد النقل المستقل
@@ -319,9 +356,9 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, 'RECEIPT', $2, $2, $3, 'POSTED', CURRENT_TIMESTAMP)
-          `, [voucherNumber, Number(trip_cost), voucherNotes]);
+            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, voucherNumber, Number(trip_cost), voucherNotes]);
         } catch (vErr) {
           console.error('Auto Fleet Voucher Error:', vErr);
         }
@@ -340,9 +377,9 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, 'PAYMENT', $2, $2, $3, 'POSTED', CURRENT_TIMESTAMP)
-          `, [vExpNumber, Number(external_rental_cost), vExpNotes]);
+            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, vExpNumber, Number(external_rental_cost), vExpNotes]);
         } catch (rErr) {
           console.error('Fleet Rental Expense Voucher Error:', rErr);
         }
@@ -361,10 +398,12 @@ export async function POST(req: Request) {
 
     // 3. قيد مصاريف الوقود والصيانة
     if (action === 'ADD_MAINTENANCE_LOG') {
-      const { vehicle_id, log_type, description, cost, mileage_at_service, performed_by } = body;
+      const { log_id, id, vehicle_id, log_type, description, cost, mileage_at_service, performed_by } = body;
+      const finalLogId = String(log_id || id || `MNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
       const maintRes = await query(`
         INSERT INTO fleet_maintenance_logs (
+          log_id,
           vehicle_id, 
           log_type, 
           description, 
@@ -372,10 +411,11 @@ export async function POST(req: Request) {
           mileage_at_service, 
           performed_by
         )
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
         RETURNING *
       `, [
-        vehicle_id,
+        finalLogId,
+        String(vehicle_id),
         log_type,
         description,
         Number(cost) || 0,
@@ -387,16 +427,16 @@ export async function POST(req: Request) {
         await query(`
           UPDATE fleet_vehicles 
           SET last_oil_change_mileage = $1 
-          WHERE vehicle_id = $2
-        `, [Number(mileage_at_service) || 0, vehicle_id]);
+          WHERE vehicle_id::text = $2::text
+        `, [Number(mileage_at_service) || 0, String(vehicle_id)]);
       }
 
       if (log_type === 'FUEL') {
         await query(`
           UPDATE fleet_vehicles 
           SET current_fuel_pct = 100 
-          WHERE vehicle_id = $1
-        `, [vehicle_id]);
+          WHERE vehicle_id::text = $1::text
+        `, [String(vehicle_id)]);
       }
 
       const typeName = log_type === 'OIL_CHANGE' ? 'تبديل دهن وفلاتر' : log_type === 'FUEL' ? 'وقود' : 'صيانة وقطع غيار';
@@ -413,15 +453,15 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, 'PAYMENT', $2, $2, $3, 'POSTED', CURRENT_TIMESTAMP)
-          `, [voucherNumber, Number(cost), voucherNotes]);
+            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, voucherNumber, Number(cost), voucherNotes]);
         } catch (e) {
           console.error(e);
         }
       }
 
-      const vData = await query(`SELECT vehicle_name, plate_number FROM fleet_vehicles WHERE vehicle_id = $1`, [vehicle_id]);
+      const vData = await query(`SELECT vehicle_name, plate_number FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicle_id)]);
       const vName = vData.rows[0]?.vehicle_name || 'الشاحنة';
 
       await logNotification(
@@ -455,13 +495,13 @@ export async function PATCH(req: Request) {
             current_location = COALESCE($2, current_location),
             current_mileage = COALESCE($3, current_mileage),
             current_fuel_pct = COALESCE($4, current_fuel_pct)
-        WHERE vehicle_id = $5
+        WHERE vehicle_id::text = $5::text
       `, [
         status, 
         current_location, 
         current_mileage !== undefined && current_mileage !== '' ? Number(current_mileage) : null, 
         current_fuel_pct !== undefined && current_fuel_pct !== '' ? Number(current_fuel_pct) : null, 
-        vehicle_id
+        String(vehicle_id)
       ]);
 
       return NextResponse.json({ success: true });
@@ -473,18 +513,18 @@ export async function PATCH(req: Request) {
       await query(`
         UPDATE fleet_trips
         SET trip_status = 'COMPLETED', arrival_time = CURRENT_TIMESTAMP
-        WHERE trip_id = $1
-      `, [trip_id]);
+        WHERE trip_id::text = $1::text
+      `, [String(trip_id)]);
 
       if (vehicle_id) {
         await query(`
           UPDATE fleet_vehicles
           SET status = 'AVAILABLE', current_location = $1
-          WHERE vehicle_id = $2
-        `, [arrival_location || 'النجف الأشرف - تم التفريغ', vehicle_id]);
+          WHERE vehicle_id::text = $2::text
+        `, [arrival_location || 'النجف الأشرف - تم التفريغ', String(vehicle_id)]);
       }
 
-      const tripInfo = await query(`SELECT cargo_description, destination FROM fleet_trips WHERE trip_id = $1`, [trip_id]);
+      const tripInfo = await query(`SELECT cargo_description, destination FROM fleet_trips WHERE trip_id::text = $1::text`, [String(trip_id)]);
       const cargo = tripInfo.rows[0]?.cargo_description || 'الشحنة';
 
       await logNotification(
@@ -511,12 +551,12 @@ export async function DELETE(req: Request) {
     const vehicleId = searchParams.get('id');
 
     if (tripId) {
-      await query(`DELETE FROM fleet_trips WHERE trip_id = $1`, [tripId]);
+      await query(`DELETE FROM fleet_trips WHERE trip_id::text = $1::text`, [String(tripId)]);
       return NextResponse.json({ success: true, message: 'تم حذف الرحلة بنجاح' });
     }
 
     if (vehicleId) {
-      await query(`DELETE FROM fleet_vehicles WHERE vehicle_id = $1`, [vehicleId]);
+      await query(`DELETE FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicleId)]);
       return NextResponse.json({ success: true, message: 'تم حذف الشاحنة بنجاح' });
     }
 

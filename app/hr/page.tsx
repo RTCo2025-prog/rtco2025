@@ -688,12 +688,20 @@ export default function HRManagementPage() {
     });
   }, [employees, searchQuery, selectedDept]);
 
+  // حصر إجازات الشهر بالشهر المختار فقط
   const filteredLeaves = useMemo(() => {
-    return leaves.filter(l => String(l.start_date || '').startsWith(filterMonth));
+    return leaves.filter(l => {
+      const sDate = formatDateOnly(l.start_date);
+      return sDate.startsWith(filterMonth);
+    });
   }, [leaves, filterMonth]);
 
+  // حصر حركات وأقساط السلف بالشهر المختار حصراً
   const filteredAdjustments = useMemo(() => {
-    return adjustments.filter(a => String(a.effective_month || a.created_at || '').startsWith(filterMonth));
+    return adjustments.filter(a => {
+      const eff = String(a.effective_month || '');
+      return eff.startsWith(filterMonth);
+    });
   }, [adjustments, filterMonth]);
 
   const currentMonthRuns = useMemo(() => {
@@ -724,7 +732,11 @@ export default function HRManagementPage() {
     const totalActualNetPayroll = activeEmps.reduce((acc, emp) => {
       const base = Number(emp.base_salary) || 0;
       const allow = Number(emp.allowances) || 0;
-      const empAdjs = adjustments.filter(a => a.employee_id === emp.employee_id && String(a.effective_month || a.created_at || '').startsWith(filterMonth));
+      const empAdjs = adjustments.filter(a => {
+        const matchEmp = String(a.employee_id) === String(emp.employee_id);
+        const eff = String(a.effective_month || '');
+        return matchEmp && eff.startsWith(filterMonth);
+      });
       
       const adds = empAdjs.filter(a => a.adj_type === 'BONUS' || a.adj_type === 'OVERTIME').reduce((sum, a) => sum + Number(a.amount || 0), 0);
       const deds = empAdjs.filter(a => a.adj_type === 'DEDUCTION' || a.adj_type === 'LOAN').reduce((sum, a) => sum + ((a.adj_type === 'LOAN' && Number(a.monthly_installment) > 0) ? Number(a.monthly_installment) : Number(a.amount || 0)), 0);
@@ -734,11 +746,11 @@ export default function HRManagementPage() {
     }, 0);
 
     const monthLoans = adjustments
-      .filter(a => a.adj_type === 'LOAN' && String(a.effective_month || a.created_at || '').startsWith(filterMonth))
+      .filter(a => a.adj_type === 'LOAN' && String(a.effective_month || '').startsWith(filterMonth))
       .reduce((acc, a) => acc + (Number(a.monthly_installment) || Number(a.amount) || 0), 0);
 
     const monthLeavesCount = leaves
-      .filter(l => String(l.start_date || '').startsWith(filterMonth))
+      .filter(l => formatDateOnly(l.start_date).startsWith(filterMonth))
       .length;
 
     return {
@@ -1028,8 +1040,20 @@ export default function HRManagementPage() {
               ) : (
                 filteredEmployees.map((emp) => {
                   const isExpanded = expandedEmpId === emp.employee_id;
-                  const empLeaves = leaves.filter(l => l.employee_id === emp.employee_id && String(l.start_date || '').startsWith(filterMonth));
-                  const empAdjustments = adjustments.filter(a => a.employee_id === emp.employee_id && String(a.effective_month || a.created_at || '').startsWith(filterMonth));
+                  
+                  // تصفية إجازات الموظف لهذا الشهر بدقة
+                  const empLeaves = leaves.filter(l => {
+                    const matchEmp = String(l.employee_id) === String(emp.employee_id);
+                    const sDate = formatDateOnly(l.start_date);
+                    return matchEmp && sDate.startsWith(filterMonth);
+                  });
+
+                  // تصفية حركات وسلف الموظف لهذا الشهر حصراً
+                  const empAdjustments = adjustments.filter(a => {
+                    const matchEmp = String(a.employee_id) === String(emp.employee_id);
+                    const eff = String(a.effective_month || '');
+                    return matchEmp && eff.startsWith(filterMonth);
+                  });
                   
                   const base = Number(emp.base_salary) || 0;
                   const allow = Number(emp.allowances) || 0;
@@ -1158,7 +1182,7 @@ export default function HRManagementPage() {
                                     }}
                                     className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-lg font-bold transition flex items-center gap-1 text-[11px] cursor-pointer"
                                   >
-                                    <Scissors className="w-3 h-3" /> خصم
+                                    <Scissors className="w-3.5 h-3.5" /> خصم
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1204,22 +1228,34 @@ export default function HRManagementPage() {
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/60">
-                                      {empLeaves.map(l => (
-                                        <tr key={l.leave_id}>
-                                          <td className="py-1.5 font-sans">
-                                            {l.leave_type === 'UNPAID' ? <span className="text-rose-400 font-bold">بدون راتب</span> : <span className="text-sky-400">اعتيادية</span>}
-                                          </td>
-                                          <td className="py-1.5 text-white font-bold">{l.days_count} يوم</td>
-                                          <td className="py-1.5 text-slate-400">{formatDateOnly(l.start_date)}</td>
-                                          {canDelete && (
-                                            <td className="py-1.5 text-center">
-                                              <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                              </button>
+                                      {empLeaves.map(l => {
+                                        const rawType = String(l.leave_type || '').toUpperCase();
+                                        const isUnpaid = rawType === 'UNPAID' || rawType.includes('بدون');
+                                        const isSick = rawType === 'SICK' || rawType.includes('مرض');
+
+                                        return (
+                                          <tr key={l.leave_id}>
+                                            <td className="py-1.5 font-sans">
+                                              {isUnpaid ? (
+                                                <span className="text-rose-400 font-bold">بدون راتب</span>
+                                              ) : isSick ? (
+                                                <span className="text-amber-400 font-bold">مرضية معتمدة</span>
+                                              ) : (
+                                                <span className="text-sky-400 font-bold">اعتيادية</span>
+                                              )}
                                             </td>
-                                          )}
-                                        </tr>
-                                      ))}
+                                            <td className="py-1.5 text-white font-bold">{l.days_count} يوم</td>
+                                            <td className="py-1.5 text-slate-400">{formatDateOnly(l.start_date)}</td>
+                                            {canDelete && (
+                                              <td className="py-1.5 text-center">
+                                                <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </td>
+                                            )}
+                                          </tr>
+                                        );
+                                      })}
                                     </tbody>
                                   </table>
                                 </div>
@@ -1512,21 +1548,35 @@ export default function HRManagementPage() {
                       {filteredLeaves.length === 0 ? (
                         <tr><td colSpan={5} className="py-4 text-center text-slate-500 font-sans">لا توجد إجازات في هذا الشهر.</td></tr>
                       ) : (
-                        filteredLeaves.map(l => (
-                          <tr key={l.leave_id}>
-                            <td className="py-2 font-sans font-bold text-slate-200">{l.full_name}</td>
-                            <td className="py-2 font-sans">{l.leave_type === 'UNPAID' ? <span className="text-rose-400 font-bold">بدون راتب</span> : <span className="text-sky-400">اعتيادية</span>}</td>
-                            <td className="py-2 text-white font-bold">{l.days_count} يوم</td>
-                            <td className="py-2 text-slate-400">{formatDateOnly(l.start_date)}</td>
-                            {canDelete && (
-                              <td className="py-2 text-center">
-                                <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
+                        filteredLeaves.map(l => {
+                          const rawType = String(l.leave_type || '').toUpperCase();
+                          const isUnpaid = rawType === 'UNPAID' || rawType.includes('بدون');
+                          const isSick = rawType === 'SICK' || rawType.includes('مرض');
+
+                          return (
+                            <tr key={l.leave_id}>
+                              <td className="py-2 font-sans font-bold text-slate-200">{l.full_name}</td>
+                              <td className="py-2 font-sans">
+                                {isUnpaid ? (
+                                  <span className="text-rose-400 font-bold">بدون راتب</span>
+                                ) : isSick ? (
+                                  <span className="text-amber-400 font-bold">مرضية معتمدة</span>
+                                ) : (
+                                  <span className="text-sky-400 font-bold">اعتيادية</span>
+                                )}
                               </td>
-                            )}
-                          </tr>
-                        ))
+                              <td className="py-2 text-white font-bold">{l.days_count} يوم</td>
+                              <td className="py-2 text-slate-400">{formatDateOnly(l.start_date)}</td>
+                              {canDelete && (
+                                <td className="py-2 text-center">
+                                  <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </td>
+                              )}
+                            </tr>
+                          );
+                        })
                       )}
                     </tbody>
                   </table>
@@ -1896,7 +1946,7 @@ export default function HRManagementPage() {
                     <div>
                       <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
                       <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
-                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address}</p>
                     </div>
                   </div>
                   <div className="text-left font-mono">

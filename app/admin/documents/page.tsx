@@ -264,26 +264,34 @@ export default function AdministrativeDocumentsPage() {
       } catch {}
     }
 
-    const stored = localStorage.getItem('rtco_official_documents');
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setDocuments(parsed);
-      } catch {}
-    }
-
+    // جلب الوثائق والكتب الرسمية من قاعدة البيانات النشطة حصراً وتحديث الكاش
     fetch('/api/admin/system?action=GET_OFFICIAL_DOCS', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        if (data && data.success && Array.isArray(data.documents) && data.documents.length > 0) {
+        if (data && data.success && Array.isArray(data.documents)) {
           setDocuments(data.documents);
           try {
             const lightList = data.documents.slice(0, 30);
             localStorage.setItem('rtco_official_documents', JSON.stringify(lightList));
           } catch {}
+        } else {
+          setDocuments([]);
+          localStorage.removeItem('rtco_official_documents');
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // في حال انقطاع الاتصال المؤقت فقط نحاول استرجاع المخزن
+        const stored = localStorage.getItem('rtco_official_documents');
+        if (stored) {
+          try {
+            setDocuments(JSON.parse(stored));
+          } catch {
+            setDocuments([]);
+          }
+        } else {
+          setDocuments([]);
+        }
+      });
 
     setOutDocNumber(generateCode('ص'));
     setInDocNumber(generateCode('و'));
@@ -1819,7 +1827,7 @@ export default function AdministrativeDocumentsPage() {
                           <span className="text-[10px] text-slate-300 mt-1 font-bold">صفحة مرفق #{idx + 1}</span>
                           <button
                             type="button"
-                            onClick={() => removeAttachment(idx, setOrderScannedUrls)}
+                            onClick={() => removeAttachment(idx, setInScannedUrls)}
                             className="absolute top-1 left-1 bg-rose-600 hover:bg-rose-500 text-white rounded-full p-1 shadow cursor-pointer"
                             title="حذف هذا المرفق"
                           >

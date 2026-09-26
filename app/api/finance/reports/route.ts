@@ -10,7 +10,7 @@ export async function GET(req: Request) {
     // 1. جلب السندات المحاسبية المقيدة
     let voucherQuery = `
       SELECT 
-        v.voucher_id,
+        v.voucher_id::text AS voucher_id,
         v.voucher_number,
         v.voucher_type,
         v.currency,
@@ -24,8 +24,8 @@ export async function GET(req: Request) {
           ELSE COALESCE(v.amount, 0)
         END AS amount
       FROM vouchers v
-      LEFT JOIN journal_lines jl ON v.voucher_id = jl.voucher_id
-      WHERE v.status NOT IN ('VOID', 'CANCELLED')
+      LEFT JOIN journal_lines jl ON v.voucher_id::text = jl.voucher_id::text
+      WHERE v.status::text NOT IN ('VOID', 'CANCELLED')
     `;
 
     const vParams: any[] = [];
@@ -46,27 +46,27 @@ export async function GET(req: Request) {
 
     // 2. جلب أسطول النقل اللوجستي
     const [fleetTripsRes, fleetMaintRes] = await Promise.all([
-      query(`SELECT COALESCE(SUM(trip_cost), 0) AS transport_revenue FROM fleet_trips WHERE trip_status = 'COMPLETED'`).catch(() => ({ rows: [{ transport_revenue: 0 }] })),
+      query(`SELECT COALESCE(SUM(trip_cost), 0) AS transport_revenue FROM fleet_trips WHERE trip_status::text = 'COMPLETED'`).catch(() => ({ rows: [{ transport_revenue: 0 }] })),
       query(`SELECT COALESCE(SUM(cost), 0) AS transport_expenses FROM fleet_maintenance_logs`).catch(() => ({ rows: [{ transport_expenses: 0 }] }))
     ]);
 
     // 3. جلب بيانات مشاريع المقاولات + المواد + مقاولي الباطن
     const [projRes, matRes, subsRes] = await Promise.all([
-      query(`SELECT * FROM projects ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
-      query(`SELECT * FROM project_materials`).catch(() => ({ rows: [] })),
-      query(`SELECT * FROM project_subcontractors`).catch(() => ({ rows: [] }))
+      query(`SELECT *, project_id::text AS project_id FROM projects ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
+      query(`SELECT *, project_id::text AS project_id FROM project_materials`).catch(() => ({ rows: [] })),
+      query(`SELECT *, project_id::text AS project_id FROM project_subcontractors`).catch(() => ({ rows: [] }))
     ]);
 
     // 4. جلب بيانات الموارد البشرية ومسير الرواتب المعتمد
     const [payrollRunsRes, employeesRes] = await Promise.all([
-      query(`SELECT * FROM hr_payroll_runs ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
-      query(`SELECT * FROM hr_employees WHERE status = 'ACTIVE'`).catch(() => ({ rows: [] }))
+      query(`SELECT *, employee_id::text AS employee_id FROM hr_payroll_runs ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
+      query(`SELECT *, employee_id::text AS employee_id FROM hr_employees WHERE status::text = 'ACTIVE'`).catch(() => ({ rows: [] }))
     ]);
 
     // 5. جلب بيانات العقارات والاستثمار
     const [realEstateUnitsRes, realEstateContractsRes] = await Promise.all([
-      query(`SELECT * FROM real_estate_units`).catch(() => ({ rows: [] })),
-      query(`SELECT * FROM real_estate_contracts`).catch(() => ({ rows: [] }))
+      query(`SELECT *, unit_id::text AS unit_id FROM real_estate_units`).catch(() => ({ rows: [] })),
+      query(`SELECT * FROM real_estate_installments`).catch(() => ({ rows: [] }))
     ]);
 
     const vouchersList = vouchersRes.rows || [];
@@ -75,7 +75,7 @@ export async function GET(req: Request) {
     const subsList = subsRes.rows || [];
     const payrollRunsList = payrollRunsRes.rows || [];
     const employeesList = employeesRes.rows || [];
-    const realEstateContracts = realEstateContractsRes.rows || [];
+    const realEstateInstallmentsList = realEstateContractsRes.rows || [];
 
     const clean = (t: string) => (t || '').trim().toLowerCase().replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/\s+/g, ' ');
 
@@ -146,9 +146,9 @@ export async function GET(req: Request) {
       totalPayrollPaid = employeesList.reduce((acc: number, e: any) => acc + (Number(e.base_salary || 0) + Number(e.allowances || 0)), 0);
     }
 
-    // 9. حسابات قطاع العقارات والاستثمار
-    const realEstateRevenue = realEstateContracts.reduce((acc: number, c: any) => acc + Number(c.total_amount || c.amount || 0), 0);
-    const realEstateExpenses = 0; // أو أي مصاريف مسندة في حال إدراجها
+    // 9. حسابات قطاع العقارات والاستثمار (من الأقساط المسددة أو الإيرادات)
+    const realEstateRevenue = realEstateInstallmentsList.filter((c: any) => c.is_paid).reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
+    const realEstateExpenses = 0;
     const realEstateNet = realEstateRevenue - realEstateExpenses;
 
     const totalContractValue = projectsList.reduce((acc: number, p: any) => acc + Number(p.contract_value || 0), 0);

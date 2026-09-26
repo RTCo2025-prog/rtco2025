@@ -16,7 +16,7 @@ async function initTables() {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS projects (
-        project_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        project_id VARCHAR(50) PRIMARY KEY,
         project_name VARCHAR(255) NOT NULL,
         client_name VARCHAR(255) NOT NULL,
         location VARCHAR(255),
@@ -31,8 +31,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_milestones (
-        milestone_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        milestone_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         name VARCHAR(255) NOT NULL,
         completion_percentage NUMERIC(5, 2) DEFAULT 0,
         weight NUMERIC(5, 2) DEFAULT 10,
@@ -40,8 +40,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_subcontractors (
-        subcontractor_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        subcontractor_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         name VARCHAR(255) NOT NULL,
         trade VARCHAR(100) NOT NULL,
         contract_value NUMERIC(15, 2) DEFAULT 0,
@@ -51,8 +51,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_operating_expenses (
-        expense_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        expense_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         title VARCHAR(255) NOT NULL,
         category VARCHAR(100) NOT NULL,
         amount NUMERIC(15, 2) DEFAULT 0,
@@ -62,8 +62,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_documents (
-        doc_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        doc_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         title VARCHAR(255) NOT NULL,
         doc_type VARCHAR(50) DEFAULT 'CONTRACT',
         file_url TEXT NOT NULL,
@@ -71,8 +71,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_materials (
-        material_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        material_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         material_name VARCHAR(255) NOT NULL,
         unit VARCHAR(50) DEFAULT 'طن',
         quantity_required NUMERIC(12, 2) DEFAULT 0,
@@ -83,8 +83,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_site_logs (
-        log_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        log_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         log_date DATE DEFAULT CURRENT_DATE,
         workers_count INTEGER DEFAULT 0,
         weather VARCHAR(50) DEFAULT 'صحو',
@@ -93,8 +93,8 @@ async function initTables() {
       );
 
       CREATE TABLE IF NOT EXISTS project_payment_terms (
-        term_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        project_id UUID,
+        term_id VARCHAR(50) PRIMARY KEY,
+        project_id VARCHAR(50),
         term_title VARCHAR(255) NOT NULL,
         due_percentage NUMERIC(5, 2) DEFAULT 0,
         amount NUMERIC(15, 2) DEFAULT 0,
@@ -103,7 +103,7 @@ async function initTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
-      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id UUID;
+      ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id VARCHAR(50);
       ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(15, 2) DEFAULT 0;
       ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE project_materials ADD COLUMN IF NOT EXISTS unit_price NUMERIC(15, 2) DEFAULT 0;
@@ -331,20 +331,22 @@ export async function POST(req: Request) {
 
     if (action === 'ADD_MILESTONE') {
       const { project_id, name, weight } = body;
+      const mId = `MLS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_milestones (project_id, name, weight, completion_percentage) 
-         VALUES ($1, $2, $3, 0) RETURNING *`,
-        [project_id, name, weight || 10]
+        `INSERT INTO project_milestones (milestone_id, project_id, name, weight, completion_percentage) 
+         VALUES ($1, $2, $3, $4, 0) RETURNING *`,
+        [mId, String(project_id), name, Number(weight) || 10]
       );
       return NextResponse.json({ success: true, milestone: res.rows[0] });
     }
 
     if (action === 'ADD_SUBCONTRACTOR') {
       const { project_id, name, trade, contract_value, paid_amount, notes } = body;
+      const sId = `SUB-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_subcontractors (project_id, name, trade, contract_value, paid_amount, notes) 
-         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
-        [project_id, name, trade || 'أعمال عامة', Number(contract_value) || 0, Number(paid_amount) || 0, notes || '']
+        `INSERT INTO project_subcontractors (subcontractor_id, project_id, name, trade, contract_value, paid_amount, notes) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+        [sId, String(project_id), name, trade || 'أعمال عامة', Number(contract_value) || 0, Number(paid_amount) || 0, notes || '']
       );
 
       const projRes = await query(`SELECT project_name FROM projects WHERE project_id::text = $1::text`, [String(project_id)]);
@@ -363,10 +365,11 @@ export async function POST(req: Request) {
 
     if (action === 'ADD_OPERATING_EXPENSE') {
       const { project_id, title, category, amount, notes } = body;
+      const expId = `EXP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_operating_expenses (project_id, title, category, amount, paid_amount, notes) 
-         VALUES ($1, $2, $3, $4, 0, $5) RETURNING *`,
-        [project_id, title, category || 'مصاريف تشغيلية', Number(amount) || 0, notes || '']
+        `INSERT INTO project_operating_expenses (expense_id, project_id, title, category, amount, paid_amount, notes) 
+         VALUES ($1, $2, $3, $4, $5, 0, $6) RETURNING *`,
+        [expId, String(project_id), title, category || 'مصاريف تشغيلية', Number(amount) || 0, notes || '']
       );
 
       const projRes = await query(`SELECT project_name FROM projects WHERE project_id::text = $1::text`, [String(project_id)]);
@@ -385,20 +388,22 @@ export async function POST(req: Request) {
 
     if (action === 'ADD_DOCUMENT') {
       const { project_id, title, file_url } = body;
+      const docId = `DOC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_documents (project_id, title, doc_type, file_url) 
-         VALUES ($1, $2, 'CONTRACT', $3) RETURNING *`,
-        [project_id, title, file_url]
+        `INSERT INTO project_documents (doc_id, project_id, title, doc_type, file_url) 
+         VALUES ($1, $2, $3, 'CONTRACT', $4) RETURNING *`,
+        [docId, String(project_id), title, file_url]
       );
       return NextResponse.json({ success: true, document: res.rows[0] });
     }
 
     if (action === 'ADD_MATERIAL') {
       const { project_id, material_name, unit, quantity_required, quantity_received, unit_price, supplier_name } = body;
+      const matId = `MAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_materials (project_id, material_name, unit, quantity_required, quantity_received, unit_price, supplier_name) 
-         VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-        [project_id, material_name, unit || 'طن', Number(quantity_required) || 0, Number(quantity_received) || 0, Number(unit_price) || 0, supplier_name || '']
+        `INSERT INTO project_materials (material_id, project_id, material_name, unit, quantity_required, quantity_received, unit_price, supplier_name) 
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+        [matId, String(project_id), material_name, unit || 'طن', Number(quantity_required) || 0, Number(quantity_received) || 0, Number(unit_price) || 0, supplier_name || '']
       );
 
       const projRes = await query(`SELECT project_name FROM projects WHERE project_id::text = $1::text`, [String(project_id)]);
@@ -417,20 +422,22 @@ export async function POST(req: Request) {
 
     if (action === 'ADD_SITE_LOG') {
       const { project_id, log_date, workers_count, weather, notes } = body;
+      const logId = `LOG-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_site_logs (project_id, log_date, workers_count, weather, notes) 
-         VALUES ($1, COALESCE($2, CURRENT_DATE), $3, $4, $5) RETURNING *`,
-        [project_id, log_date || null, workers_count || 0, weather || 'صحو', notes || '']
+        `INSERT INTO project_site_logs (log_id, project_id, log_date, workers_count, weather, notes) 
+         VALUES ($1, $2, COALESCE($3, CURRENT_DATE), $4, $5, $6) RETURNING *`,
+        [logId, String(project_id), log_date || null, Number(workers_count) || 0, weather || 'صحو', notes || '']
       );
       return NextResponse.json({ success: true, log: res.rows[0] });
     }
 
     if (action === 'ADD_PAYMENT_TERM') {
       const { project_id, term_title, due_percentage, amount, target_milestone_rate } = body;
+      const termId = `TRM-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
       const res = await query(
-        `INSERT INTO project_payment_terms (project_id, term_title, due_percentage, amount, target_milestone_rate) 
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [project_id, term_title, due_percentage || 0, Number(amount) || 0, target_milestone_rate || 0]
+        `INSERT INTO project_payment_terms (term_id, project_id, term_title, due_percentage, amount, target_milestone_rate) 
+         VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`,
+        [termId, String(project_id), term_title, Number(due_percentage) || 0, Number(amount) || 0, Number(target_milestone_rate) || 0]
       );
 
       const projRes = await query(`SELECT project_name FROM projects WHERE project_id::text = $1::text`, [String(project_id)]);
@@ -447,11 +454,43 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, term: res.rows[0] });
     }
 
-    const { project_name, client_name, location, contract_value, currency = 'IQD', start_date, expected_end_date, completion_rate = 0, notes } = body;
+    // إضافة مشروع جديد
+    const { 
+      project_id, 
+      id, 
+      project_name, 
+      client_name, 
+      location, 
+      contract_value, 
+      currency = 'IQD', 
+      start_date, 
+      expected_end_date, 
+      completion_rate = 0, 
+      notes 
+    } = body;
+
+    const finalProjectId = String(project_id || id || `PRJ-${Date.now()}`);
+    const validStartDate = start_date && String(start_date).trim() !== '' ? start_date : new Date().toISOString().substring(0, 10);
+    const validEndDate = expected_end_date && String(expected_end_date).trim() !== '' ? expected_end_date : null;
+
     const res = await query(`
-      INSERT INTO projects (project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes)
-      VALUES ($1, $2, $3, $4, $5, COALESCE($6, CURRENT_DATE), $7, $8, $9) RETURNING *
-    `, [project_name, client_name, location || 'النجف الأشرف', Number(contract_value) || 0, currency, start_date || null, expected_end_date || null, Number(completion_rate) || 0, notes || '']);
+      INSERT INTO projects (
+        project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [
+      finalProjectId,
+      project_name || 'مشروع جديد',
+      client_name || 'جهة غير محددة',
+      location || 'النجف الأشرف',
+      Number(contract_value) || 0,
+      currency,
+      validStartDate,
+      validEndDate,
+      Number(completion_rate) || 0,
+      notes || ''
+    ]);
 
     await logNotification(
       'PROJECTS',
@@ -461,8 +500,24 @@ export async function POST(req: Request) {
       '/projects'
     );
 
-    return NextResponse.json({ success: true, project: res.rows[0] });
+    const createdProject = {
+      ...res.rows[0],
+      milestones: [],
+      subcontractors: [],
+      operating_expenses: [],
+      documents: [],
+      materials: [],
+      site_logs: [],
+      payment_terms: [],
+      vouchers: [],
+      total_received: 0,
+      total_expenses: 0,
+      total_site_costs: 0
+    };
+
+    return NextResponse.json({ success: true, project: createdProject });
   } catch (error: any) {
+    console.error("Project API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
@@ -476,7 +531,7 @@ export async function PATCH(req: Request) {
       const { milestone_id, completion_percentage } = body;
       await query(
         `UPDATE project_milestones SET completion_percentage = $1 WHERE milestone_id::text = $2::text`,
-        [completion_percentage, String(milestone_id)]
+        [Number(completion_percentage) || 0, String(milestone_id)]
       );
       return NextResponse.json({ success: true });
     }

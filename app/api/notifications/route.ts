@@ -9,7 +9,7 @@ async function initNotificationsTable() {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_notifications (
-        notification_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        notification_id VARCHAR(50) PRIMARY KEY,
         sector VARCHAR(50) NOT NULL,
         action_type VARCHAR(50) NOT NULL DEFAULT 'ADD',
         title VARCHAR(255) NOT NULL,
@@ -28,7 +28,7 @@ export async function GET() {
   try {
     await initNotificationsTable();
     const res = await query(`
-      SELECT DISTINCT ON (title, message) * 
+      SELECT DISTINCT ON (title, message) notification_id::text AS notification_id, sector, action_type, title, message, link, is_read, created_at 
       FROM system_notifications 
       ORDER BY title, message, created_at DESC
       LIMIT 100
@@ -65,8 +65,8 @@ export async function POST(req: Request) {
       const { notification_id } = body;
       if (notification_id) {
         await query(
-          `UPDATE system_notifications SET is_read = TRUE WHERE notification_id = $1`,
-          [notification_id]
+          `UPDATE system_notifications SET is_read = TRUE WHERE notification_id::text = $1::text`,
+          [String(notification_id)]
         );
       } else {
         await query(`UPDATE system_notifications SET is_read = TRUE`);
@@ -74,6 +74,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
+    const finalNotifId = String(body.notification_id || `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
     const title = String(body.title || 'إشعار إداري').slice(0, 255);
     const message = String(body.message || '');
     const sector = String(body.sector || 'ADMIN_DOCS').slice(0, 50);
@@ -91,10 +92,10 @@ export async function POST(req: Request) {
     }
 
     const res = await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-      RETURNING *
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING notification_id::text AS notification_id, sector, action_type, title, message, link, is_read, created_at
+    `, [finalNotifId, sector, action_type, title, message, link]);
 
     return NextResponse.json({ success: true, notification: res.rows ? res.rows[0] : null });
   } catch (err: any) {

@@ -231,22 +231,31 @@ export default function InstallmentsPage() {
       } catch {}
     }
 
-    const stored = localStorage.getItem('rtco_inventory_installments');
-    if (stored) {
-      try {
-        setPlans(JSON.parse(stored));
-      } catch {}
-    }
-
+    // جلب الأقساط حصراً من قاعدة البيانات النشطة أولاً وتصفيرها إذا كانت القاعدة جديدة وفارغة
     fetch('/api/admin/system?action=GET_INSTALLMENTS', { cache: 'no-store' })
       .then(res => res.json())
       .then(data => {
-        if (data && data.success && Array.isArray(data.installments) && data.installments.length > 0) {
+        if (data && data.success && Array.isArray(data.installments)) {
           setPlans(data.installments);
           localStorage.setItem('rtco_inventory_installments', JSON.stringify(data.installments));
+        } else {
+          setPlans([]);
+          localStorage.removeItem('rtco_inventory_installments');
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        // في حال انقطاع الاتصال فقط نحاول قراءة المخزن المحلي
+        const stored = localStorage.getItem('rtco_inventory_installments');
+        if (stored) {
+          try {
+            setPlans(JSON.parse(stored));
+          } catch {
+            setPlans([]);
+          }
+        } else {
+          setPlans([]);
+        }
+      });
   }, []);
 
   const isSuperAdmin = useMemo(() => {

@@ -16,6 +16,7 @@ async function initSettingsTable() {
       letterhead_url TEXT DEFAULT '',
       primary_color VARCHAR(30) DEFAULT '#d97706',
       secondary_color VARCHAR(30) DEFAULT '#ea580c',
+      database_url TEXT DEFAULT '',
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
   `);
@@ -35,14 +36,17 @@ async function initSettingsTable() {
       BEGIN
         ALTER TABLE company_settings ADD COLUMN secondary_color VARCHAR(30) DEFAULT '#ea580c';
       EXCEPTION WHEN duplicate_column THEN END;
+      BEGIN
+        ALTER TABLE company_settings ADD COLUMN database_url TEXT DEFAULT '';
+      EXCEPTION WHEN duplicate_column THEN END;
     END $$;
   `);
 
   const check = await query(`SELECT id FROM company_settings WHERE id = 1`);
   if (check.rows.length === 0) {
     await query(`
-      INSERT INTO company_settings (id, company_name, address, tagline, primary_color, secondary_color)
-      VALUES (1, 'شركة البرج المتألق', 'العراق - النجف الأشرف - حي الفرات', 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام', '#d97706', '#ea580c')
+      INSERT INTO company_settings (id, company_name, address, tagline, primary_color, secondary_color, database_url)
+      VALUES (1, 'شركة البرج المتألق', 'العراق - النجف الأشرف - حي الفرات', 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام', '#d97706', '#ea580c', '')
     `);
   }
 }
@@ -57,7 +61,8 @@ export async function GET() {
       settings: {
         ...settings,
         primary_color: settings.primary_color || '#d97706',
-        secondary_color: settings.secondary_color || '#ea580c'
+        secondary_color: settings.secondary_color || '#ea580c',
+        database_url: settings.database_url || ''
       } 
     });
   } catch (err: any) {
@@ -80,7 +85,8 @@ export async function POST(req: Request) {
       logo_url, 
       letterhead_url,
       primary_color,
-      secondary_color
+      secondary_color,
+      database_url
     } = body;
 
     const pColor = primary_color || '#d97706';
@@ -89,10 +95,10 @@ export async function POST(req: Request) {
     await query(`
       INSERT INTO company_settings (
         id, company_name, tagline, phone_primary, phone_secondary, 
-        email, website, address, logo_url, letterhead_url, primary_color, secondary_color, updated_at
+        email, website, address, logo_url, letterhead_url, primary_color, secondary_color, database_url, updated_at
       )
       VALUES (
-        1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP
+        1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, CURRENT_TIMESTAMP
       )
       ON CONFLICT (id) DO UPDATE SET
         company_name = EXCLUDED.company_name,
@@ -106,6 +112,11 @@ export async function POST(req: Request) {
         letterhead_url = EXCLUDED.letterhead_url,
         primary_color = EXCLUDED.primary_color,
         secondary_color = EXCLUDED.secondary_color,
+        database_url = CASE 
+          WHEN EXCLUDED.database_url IS NOT NULL AND EXCLUDED.database_url <> '' 
+          THEN EXCLUDED.database_url 
+          ELSE company_settings.database_url 
+        END,
         updated_at = CURRENT_TIMESTAMP;
     `, [
       company_name || 'شركة البرج المتألق', 
@@ -118,7 +129,8 @@ export async function POST(req: Request) {
       logo_url || '', 
       letterhead_url || '', 
       pColor, 
-      sColor
+      sColor,
+      database_url || ''
     ]);
 
     return NextResponse.json({ 
