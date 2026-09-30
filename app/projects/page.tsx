@@ -714,18 +714,21 @@ export default function ProjectsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          project_name: projectName,
-          client_name: clientName,
-          location,
-          contract_value: contractValue,
+          project_name: projectName.trim(),
+          client_name: clientName.trim(),
+          location: location.trim(),
+          contract_value: Number(contractValue) || 0,
           currency,
-          start_date: startDate || null,
-          expected_end_date: expectedEndDate || null,
-          completion_rate: completionRate,
-          notes,
+          start_date: startDate && startDate.trim() !== '' ? startDate : null,
+          expected_end_date: expectedEndDate && expectedEndDate.trim() !== '' ? expectedEndDate : null,
+          completion_rate: Number(completionRate) || 0,
+          notes: notes.trim(),
         }),
       });
-      if (res.ok) {
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setMessage('تم تسجيل المشروع بنجاح!');
         setProjectName('');
         setClientName('');
@@ -734,7 +737,9 @@ export default function ProjectsPage() {
         setCompletionRate('0');
         setNotes('');
         setExpectedEndDate('');
-        loadData();
+        await loadData();
+      } else {
+        setMessage(`خطأ: ${data.error || 'فشل تسجيل المشروع'}`);
       }
     } catch (err: any) {
       setMessage(`خطأ: ${err.message}`);

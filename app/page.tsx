@@ -46,7 +46,9 @@ import {
   Globe2,
   ChevronDown,
   LayoutGrid,
-  Settings
+  Settings,
+  Sliders,
+  RefreshCw
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
 
@@ -75,18 +77,18 @@ function AnalogClock() {
   const hourAngle = hours * 30 + minutes * 0.5;
 
   return (
-    <div className="relative w-28 h-28 sm:w-32 sm:h-32 rounded-full border-2 border-amber-500/40 bg-gradient-to-br from-slate-950 via-[#0d1322] to-slate-950 p-2 shadow-2xl flex items-center justify-center shrink-0">
+    <div className="relative w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full border-2 border-amber-500/40 bg-gradient-to-br from-slate-950 via-[#0d1322] to-slate-950 p-2 shadow-2xl flex items-center justify-center shrink-0">
       {/* علامات الساعات الرئيسية */}
-      <span className="absolute top-1.5 text-[10px] font-mono font-bold text-amber-400">12</span>
-      <span className="absolute bottom-1.5 text-[10px] font-mono font-bold text-slate-400">6</span>
-      <span className="absolute right-2 text-[10px] font-mono font-bold text-slate-400">3</span>
-      <span className="absolute left-2 text-[10px] font-mono font-bold text-slate-400">9</span>
+      <span className="absolute top-1.5 text-[9px] sm:text-[10px] font-mono font-bold text-amber-400">12</span>
+      <span className="absolute bottom-1.5 text-[9px] sm:text-[10px] font-mono font-bold text-slate-400">6</span>
+      <span className="absolute right-2 text-[9px] sm:text-[10px] font-mono font-bold text-slate-400">3</span>
+      <span className="absolute left-2 text-[9px] sm:text-[10px] font-mono font-bold text-slate-400">9</span>
 
       {/* عقرب الساعات */}
       <div
         className="absolute w-1 bg-amber-400 rounded-full origin-bottom"
         style={{
-          height: '24px',
+          height: '22px',
           bottom: '50%',
           transform: `rotate(${hourAngle}deg)`,
           transformOrigin: '50% 100%',
@@ -98,7 +100,7 @@ function AnalogClock() {
       <div
         className="absolute w-0.5 bg-sky-300 rounded-full origin-bottom"
         style={{
-          height: '34px',
+          height: '30px',
           bottom: '50%',
           transform: `rotate(${minAngle}deg)`,
           transformOrigin: '50% 100%',
@@ -110,7 +112,7 @@ function AnalogClock() {
       <div
         className="absolute w-[1.5px] bg-rose-500 rounded-full origin-bottom"
         style={{
-          height: '40px',
+          height: '36px',
           bottom: '50%',
           transform: `rotate(${secAngle}deg)`,
           transformOrigin: '50% 100%'
@@ -118,7 +120,7 @@ function AnalogClock() {
       />
 
       {/* نقطة الارتكاز المركزية */}
-      <div className="w-2.5 h-2.5 rounded-full bg-amber-400 border border-slate-950 z-10 shadow-sm" />
+      <div className="w-2 h-2 rounded-full bg-amber-400 border border-slate-950 z-10 shadow-sm" />
     </div>
   );
 }
@@ -133,7 +135,7 @@ export default function DashboardPage() {
     phone_secondary: '07737006699',
     email: '',
     website: '',
-    address: 'العراق - النجف الأشرف - حي الفرات',
+    address: 'العراق - النجف الأشرف - حي الفرات - شارع الجنسية',
     logo_url: '',
     letterhead_url: '',
     primary_color: '#d97706',
@@ -174,8 +176,6 @@ export default function DashboardPage() {
   const [formStatus, setFormStatus] = useState('ACTIVE');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formMessage, setFormMessage] = useState('');
-
-  const isFetchingNotifs = useRef(false);
 
   const [dashboardData, setDashboardData] = useState<{
     branches: any[];
@@ -238,15 +238,9 @@ export default function DashboardPage() {
     }
   };
 
+  // جلب الإشعارات الفورية الشاملة
   const fetchNotifications = async () => {
-    if (isFetchingNotifs.current) return;
-    isFetchingNotifs.current = true;
-
     try {
-      if (typeof window !== 'undefined') {
-        localStorage.removeItem('rtco_system_notifications');
-      }
-
       const res = await fetch('/api/notifications', { 
         cache: 'no-store',
         headers: { 'Accept': 'application/json' }
@@ -260,9 +254,8 @@ export default function DashboardPage() {
           setUnreadCount(apiNotifs.filter((n: any) => !n.is_read).length);
         }
       }
-    } catch {
-    } finally {
-      isFetchingNotifs.current = false;
+    } catch (e) {
+      console.error("Error fetching notifications:", e);
     }
   };
 
@@ -447,7 +440,8 @@ export default function DashboardPage() {
     fetchData();
     fetchNotifications();
 
-    const interval = setInterval(fetchNotifications, 10000);
+    // تحديث الإشعارات كل 5 ثوانٍ لضمان وصول كل حركة تلقائياً
+    const interval = setInterval(fetchNotifications, 5000);
     return () => clearInterval(interval);
   }, []);
 
@@ -685,9 +679,12 @@ export default function DashboardPage() {
     return alerts;
   }, [ongoingProjects, dashboardData.employees]);
 
+  // تصنيف وتحديد شارات الإشعارات بدقة لكافة قطاعات المنظومة
   const getSectorBadge = (sector: string) => {
-    switch (sector) {
+    const s = String(sector || '').toUpperCase();
+    switch (s) {
       case 'ADMIN_DOCS':
+      case 'DOCS':
         return { name: 'الإدارة والكتب الرسمية', icon: <FileText className="w-3.5 h-3.5" />, color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
       case 'CONTRACTS':
         return { name: 'العقود الإلكترونية الرسمية', icon: <FileCheck className="w-3.5 h-3.5" />, color: 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30' };
@@ -699,14 +696,22 @@ export default function DashboardPage() {
       case 'PROJECTS':
       case 'CONTRACTING':
         return { name: 'المقاولات والمشاريع', icon: <HardHat className="w-3.5 h-3.5" />, color: 'bg-amber-500/20 text-amber-300 border-amber-500/30' };
+      case 'REAL_ESTATE':
+      case 'REALESTATE':
+        return { name: 'العقارات والاستثمار', icon: <Building className="w-3.5 h-3.5" />, color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' };
       case 'INVENTORY':
         return { name: 'التجارة والمخزن المركزي', icon: <Boxes className="w-3.5 h-3.5" />, color: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' };
       case 'FLEET':
-        return { name: 'أسطول النقل اللوجستي', icon: <Truck className="w-3.5 h-3.5" />, color: 'bg-sky-500/20 text-sky-300 border-sky-500/30' };
+      case 'TRANSPORT_LOGISTICS':
+        return { name: 'أسطول النقل واللوجستيات', icon: <Truck className="w-3.5 h-3.5" />, color: 'bg-sky-500/20 text-sky-300 border-sky-500/30' };
       case 'HR':
+      case 'HR_PAYROLL':
         return { name: 'الموارد البشرية والرواتب', icon: <Users className="w-3.5 h-3.5" />, color: 'bg-rose-500/20 text-rose-300 border-rose-500/30' };
+      case 'AUTH':
+      case 'USERS':
+        return { name: 'إدارة المستخدمين والأمان', icon: <ShieldCheck className="w-3.5 h-3.5" />, color: 'bg-sky-500/20 text-sky-300 border-sky-500/30' };
       default:
-        return { name: 'الإدارة العامة والمركزية', icon: <Building2 className="w-3.5 h-3.5" />, color: 'bg-slate-800 text-slate-300 border-slate-700' };
+        return { name: 'الإدارة المركزية العامة', icon: <Building2 className="w-3.5 h-3.5" />, color: 'bg-slate-800 text-slate-300 border-slate-700' };
     }
   };
 
@@ -754,7 +759,7 @@ export default function DashboardPage() {
             {/* الشعار واسم الشركة */}
             <div className="flex items-center gap-3.5">
               <div 
-                className="w-11 h-11 relative rounded-2xl overflow-hidden bg-slate-950 p-1.5 border flex items-center justify-center shrink-0 shadow-lg"
+                className="w-10 h-10 md:w-11 md:h-11 relative rounded-2xl overflow-hidden bg-slate-950 p-1.5 border flex items-center justify-center shrink-0 shadow-lg"
                 style={{ borderColor: `${primaryCol}50`, boxShadow: `0 10px 25px -5px ${primaryCol}30` }}
               >
                 {hasLogo ? (
@@ -765,27 +770,28 @@ export default function DashboardPage() {
                 )}
               </div>
               <div>
-                <h1 className="text-base font-black text-white leading-tight tracking-wide">{companySettings.company_name}</h1>
+                <h1 className="text-sm md:text-base font-black text-white leading-tight tracking-wide">{companySettings.company_name}</h1>
                 <p className="text-[10px] font-mono font-bold" style={{ color: primaryCol }}>Enterprise ERP • النجف الأشرف</p>
               </div>
             </div>
 
-            {/* القوائم المنسدلة للتنقل السريع */}
-            <div className="hidden lg:flex items-center gap-2">
+            {/* أدوات الوصول وقوائم التنقل (تظهر في كل الشاشات) */}
+            <div className="flex items-center gap-2">
               
               {/* قائمة القطاعات المنسدلة */}
               <div className="relative">
                 <button
-                  onClick={() => { setShowModulesMenu(!showModulesMenu); setShowAdminMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-bold transition shadow-sm cursor-pointer"
+                  onClick={() => { setShowModulesMenu(!showModulesMenu); setShowAdminMenu(false); setShowNotifMenu(false); }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-700/60 text-slate-200 text-xs font-bold transition shadow-sm cursor-pointer"
                 >
                   <LayoutGrid className="w-4 h-4" style={{ color: primaryCol }} />
-                  <span>قطاعات المنظومة</span>
+                  <span className="hidden sm:inline">قطاعات المنظومة</span>
+                  <span className="sm:hidden">القطاعات</span>
                   <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform ${showModulesMenu ? 'rotate-180' : ''}`} />
                 </button>
 
                 {showModulesMenu && (
-                  <div className="absolute right-0 mt-3 w-80 bg-[#0c1220] border border-slate-700/80 rounded-3xl p-3 shadow-2xl grid grid-cols-1 gap-1.5 z-50 text-right animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute right-0 mt-3 w-72 sm:w-80 bg-[#0c1220] border border-slate-700/80 rounded-3xl p-3 shadow-2xl grid grid-cols-1 gap-1.5 z-50 text-right animate-in fade-in slide-in-from-top-2">
                     {canViewAdminDocs && (
                       <Link href="/admin/documents" onClick={() => setShowModulesMenu(false)} className="flex items-center gap-3 p-2.5 hover:bg-slate-800/80 rounded-xl transition text-xs font-semibold text-slate-300 hover:text-white">
                         <FileText className="w-4 h-4 text-amber-400" /> الإدارة والكتب الرسمية
@@ -839,11 +845,12 @@ export default function DashboardPage() {
               {isSuperAdmin && (
                 <div className="relative">
                   <button
-                    onClick={() => { setShowAdminMenu(!showAdminMenu); setShowModulesMenu(false); }}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition shadow-sm cursor-pointer"
+                    onClick={() => { setShowAdminMenu(!showAdminMenu); setShowModulesMenu(false); setShowNotifMenu(false); }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 md:px-4 md:py-2 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 text-xs font-bold transition shadow-sm cursor-pointer"
                   >
                     <ShieldCheck className="w-4 h-4" />
-                    <span>أدوات الإدارة العليا</span>
+                    <span className="hidden sm:inline">أدوات الإدارة العليا</span>
+                    <span className="sm:hidden">الإدارة</span>
                     <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showAdminMenu ? 'rotate-180' : ''}`} />
                   </button>
 
@@ -868,30 +875,41 @@ export default function DashboardPage() {
                   )}
                 </div>
               )}
-            </div>
 
-            {/* أدوات المستخدم والإشعارات */}
-            <div className="flex items-center gap-3">
-              
               {/* زر الإشعارات المنسدلة */}
               <div className="relative">
                 <button
-                  onClick={() => setShowNotifMenu(!showNotifMenu)}
-                  className="relative p-2.5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-white rounded-2xl transition shadow-inner cursor-pointer"
+                  onClick={() => { 
+                    const nextState = !showNotifMenu;
+                    setShowNotifMenu(nextState); 
+                    setShowModulesMenu(false); 
+                    setShowAdminMenu(false);
+                    if (nextState) fetchNotifications();
+                  }}
+                  className="relative p-2 md:p-2.5 bg-slate-900 border border-slate-800 hover:border-amber-500/40 text-slate-300 hover:text-white rounded-2xl transition shadow-inner cursor-pointer"
                   title="الإشعارات"
                 >
-                  <Bell className="w-5 h-5" />
+                  <Bell className="w-4 h-4 md:w-5 md:h-5" />
                   {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white font-mono font-bold text-[10px] rounded-full flex items-center justify-center animate-pulse shadow-md shadow-rose-500/40">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 md:w-5 md:h-5 bg-rose-500 text-white font-mono font-bold text-[9px] md:text-[10px] rounded-full flex items-center justify-center animate-pulse shadow-md shadow-rose-500/40">
                       {unreadCount}
                     </span>
                   )}
                 </button>
 
                 {showNotifMenu && (
-                  <div className="absolute left-0 mt-3 w-80 sm:w-96 bg-[#0e1424] border border-slate-800 backdrop-blur-2xl rounded-3xl p-4 shadow-2xl space-y-3 z-50 text-right">
+                  <div className="absolute left-0 mt-3 w-72 sm:w-96 bg-[#0e1424] border border-slate-800 backdrop-blur-2xl rounded-3xl p-4 shadow-2xl space-y-3 z-50 text-right">
                     <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
-                      <span className="text-xs font-black text-white">سجل إشعارات المنظومة</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black text-white">سجل إشعارات المنظومة</span>
+                        <button 
+                          onClick={fetchNotifications} 
+                          title="تحديث الإشعارات" 
+                          className="text-slate-400 hover:text-white p-1 rounded-lg transition"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
+                      </div>
                       {unreadCount > 0 ? (
                         <button onClick={markAllNotificationsAsRead} className="text-[10px] text-sky-400 hover:underline flex items-center gap-1 font-bold cursor-pointer">
                           <Check className="w-3 h-3" /> تم القراءة
@@ -912,7 +930,7 @@ export default function DashboardPage() {
                                 {badge.icon} {badge.name}
                               </span>
                               <p className="text-xs font-bold text-white mt-1">{n.title}</p>
-                              <p className="text-[11px] text-slate-400 mt-0.5">{n.message}</p>
+                              <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed">{n.message}</p>
                             </Link>
                           );
                         })
@@ -923,16 +941,16 @@ export default function DashboardPage() {
               </div>
 
               {/* بطاقة المستخدم وتسجيل الخروج */}
-              <div className="flex items-center gap-2.5 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-2xl shadow-inner">
-                <div className="w-8 h-8 rounded-xl bg-slate-900 border flex items-center justify-center" style={{ borderColor: `${primaryCol}40`, color: primaryCol }}>
-                  <User className="w-4 h-4" />
+              <div className="flex items-center gap-2 bg-slate-950 border border-slate-800 px-2.5 py-1.5 md:px-3 rounded-2xl shadow-inner">
+                <div className="w-7 h-7 md:w-8 md:h-8 rounded-xl bg-slate-900 border flex items-center justify-center" style={{ borderColor: `${primaryCol}40`, color: primaryCol }}>
+                  <User className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </div>
                 <div className="hidden sm:block text-right">
                   <p className="text-xs font-bold text-white leading-tight">{currentUser.full_name}</p>
                   <span className="text-[9px] font-bold" style={{ color: primaryCol }}>{roleTitle}</span>
                 </div>
-                <button onClick={handleLogout} className="text-slate-400 hover:text-rose-400 p-1.5 rounded-xl transition cursor-pointer" title="تسجيل الخروج">
-                  <LogOut className="w-4 h-4" />
+                <button onClick={handleLogout} className="text-slate-400 hover:text-rose-400 p-1 rounded-xl transition cursor-pointer" title="تسجيل الخروج">
+                  <LogOut className="w-3.5 h-3.5 md:w-4 md:h-4" />
                 </button>
               </div>
 
@@ -946,7 +964,7 @@ export default function DashboardPage() {
           
           {/* كرت معلومات الشركة المدمج مع الساعة التناظرية الفاخرة والرقمية */}
           <section 
-            className="border rounded-3xl p-6 md:p-8 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6 relative overflow-hidden"
+            className="border rounded-3xl p-5 md:p-8 shadow-2xl flex flex-col lg:flex-row items-center justify-between gap-6 relative overflow-hidden"
             style={{ 
               background: `linear-gradient(135deg, #0d1322, #10182b, #0d1322)`,
               borderColor: `${primaryCol}40`
@@ -955,46 +973,120 @@ export default function DashboardPage() {
             <div className="absolute top-0 right-0 w-80 h-80 rounded-full blur-3xl pointer-events-none" style={{ backgroundColor: `${primaryCol}10` }}></div>
 
             {/* تفاصيل الشركة الرسمية */}
-            <div className="flex items-center gap-5 text-right w-full lg:w-auto relative z-10">
+            <div className="flex items-center gap-4 md:gap-5 text-right w-full lg:w-auto relative z-10">
               <div 
-                className="w-16 h-16 rounded-2xl border flex items-center justify-center shrink-0 shadow-xl"
+                className="w-13 h-13 md:w-16 md:h-16 rounded-2xl border flex items-center justify-center shrink-0 shadow-xl"
                 style={{ backgroundColor: `${primaryCol}15`, borderColor: `${primaryCol}30`, color: primaryCol }}
               >
-                <MapPin className="w-8 h-8" />
+                <MapPin className="w-6 h-6 md:w-8 md:h-8" />
               </div>
               <div className="space-y-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="px-3 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold">
+                  <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[9px] md:text-[10px] font-bold">
                     سحابي مباشر متصل
                   </span>
-                  <p className="text-base md:text-lg font-black text-white">{companySettings.address}</p>
+                  <p className="text-sm md:text-lg font-black text-white">{companySettings.address}</p>
                 </div>
-                <h2 className="text-sm md:text-base font-bold" style={{ color: primaryCol }}>{companySettings.company_name} - {companySettings.tagline}</h2>
-                <p className="text-xs text-slate-400 font-medium">لوحة المراقبة المركزية الموحدة • نظام Enterprise ERP 2026</p>
+                <h2 className="text-xs md:text-base font-bold" style={{ color: primaryCol }}>{companySettings.company_name} - {companySettings.tagline}</h2>
+                <p className="text-[11px] md:text-xs text-slate-400 font-medium">لوحة المراقبة المركزية الموحدة • نظام Enterprise ERP 2026</p>
               </div>
             </div>
 
             {/* قسم الساعة التناظرية والرقمية الفاخر */}
-            <div className="flex items-center justify-between lg:justify-end gap-5 w-full lg:w-auto bg-slate-950/90 px-6 py-4 rounded-3xl border border-slate-800 shadow-2xl relative z-10">
+            <div className="flex items-center justify-between lg:justify-end gap-4 md:gap-5 w-full lg:w-auto bg-slate-950/90 px-4 py-3 md:px-6 md:py-4 rounded-3xl border border-slate-800 shadow-2xl relative z-10">
               
               {/* الساعة التناظرية الحية */}
               <AnalogClock />
 
               {/* الوقت الرقمي والتاريخ */}
-              <div className="flex flex-col text-right font-mono space-y-1.5 pl-2">
-                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">التوقيت الحي (العراق):</span>
-                <div className="flex items-center gap-2 text-xl md:text-2xl font-black tracking-wider" style={{ color: primaryCol }}>
-                  <Clock className="w-5 h-5 animate-pulse" style={{ color: primaryCol }} />
+              <div className="flex flex-col text-right font-mono space-y-1 pl-1 md:pl-2">
+                <span className="text-[9px] md:text-[10px] text-slate-500 font-bold uppercase tracking-wider">التوقيت الحي (العراق):</span>
+                <div className="flex items-center gap-1.5 md:gap-2 text-lg sm:text-xl md:text-2xl font-black tracking-wider" style={{ color: primaryCol }}>
+                  <Clock className="w-4 h-4 md:w-5 md:h-5 animate-pulse" style={{ color: primaryCol }} />
                   <span>{currentTime || '00:00:00'}</span>
                 </div>
-                <div className="flex items-center gap-1.5 text-sky-400 text-xs font-bold font-sans">
-                  <Calendar className="w-4 h-4 text-sky-400" />
-                  <span>{currentDate || 'جاري المزامنة...'}</span>
+                <div className="flex items-center gap-1 text-sky-400 text-[10px] md:text-xs font-bold font-sans">
+                  <Calendar className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                  <span className="truncate">{currentDate || 'جاري المزامنة...'}</span>
                 </div>
               </div>
 
             </div>
           </section>
+
+          {/* قسم أدوات الإدارة العليا والسيادية المباشر (ظاهر ومتاح دائماً على الموبايل واللابتوب) */}
+          {isSuperAdmin && (
+            <section className="bg-[#0b101d] border border-amber-500/30 rounded-3xl p-4 md:p-5 shadow-2xl space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                <h3 className="text-xs md:text-sm font-black text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-amber-400" />
+                  أدوات الإدارة العليا والسيادية (Executive Control)
+                </h3>
+                <span className="text-[10px] md:text-[11px] text-amber-400/80 font-bold font-mono">لوحة المدير المفوض</span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 md:gap-3">
+                
+                <Link
+                  href="/admin/settings"
+                  className="p-3 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition group"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <Settings className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white group-hover:text-amber-400">إعدادات الشركة والترويسة</span>
+                  <span className="text-[9px] text-slate-500">الهوية والسحابية</span>
+                </Link>
+
+                <Link
+                  href="/admin/users"
+                  className="p-3 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-purple-500/50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition group"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <ShieldCheck className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white group-hover:text-purple-400">إدارة الصلاحيات</span>
+                  <span className="text-[9px] text-slate-500">المستخدمين والأدوار</span>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={handleOpenManageModal}
+                  className="p-3 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-amber-500/50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white group-hover:text-amber-400">قائمة الحسابات السريعة</span>
+                  <span className="text-[9px] text-slate-500">تعديل وإضافة مستخدم</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleOpenGovernanceModal}
+                  className="p-3 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-sky-500/50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-sky-500/10 text-sky-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <Activity className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white group-hover:text-sky-400">مركز الرقابة والأرشفة</span>
+                  <span className="text-[9px] text-slate-500">إقفال الفترات والنسخ</span>
+                </button>
+
+                <Link
+                  href="/finance/reports"
+                  className="col-span-2 sm:col-span-1 p-3 bg-slate-900 hover:bg-slate-855 border border-slate-800 hover:border-emerald-500/50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition group"
+                >
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition">
+                    <PieChart className="w-4 h-4" />
+                  </div>
+                  <span className="text-xs font-bold text-white group-hover:text-emerald-400">التقارير وقائمة الدخل</span>
+                  <span className="text-[9px] text-slate-500">مؤشرات الأرباح العامة</span>
+                </Link>
+
+              </div>
+            </section>
+          )}
 
           {/* التنبيهات الإدارية العاجلة */}
           {systemAlerts.length > 0 && (
@@ -1029,83 +1121,83 @@ export default function DashboardPage() {
           {/* المؤشرات المالية الأربعة الرئيسية */}
           {(isSuperAdmin || canViewFinancials) && (
             <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 md:gap-4">
-              <div className="bg-[#0c1220] border border-slate-800 p-5 rounded-3xl relative overflow-hidden shadow-xl">
-                <span className="text-xs text-slate-400 font-semibold block">إجمالي المصروفات والنفقات</span>
-                <div className="text-xl md:text-2xl font-black font-mono text-amber-400 mt-2 truncate">
-                  {formatNum(financialSummary.payments)} <span className="text-xs font-sans text-slate-500">د.ع</span>
+              <div className="bg-[#0c1220] border border-slate-800 p-4 sm:p-5 rounded-3xl relative overflow-hidden shadow-xl">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block">إجمالي المصروفات والنفقات</span>
+                <div className="text-lg sm:text-xl md:text-2xl font-black font-mono text-amber-400 mt-2 truncate">
+                  {formatNum(financialSummary.payments)} <span className="text-[10px] sm:text-xs font-sans text-slate-500">د.ع</span>
                 </div>
-                <span className="text-[10px] text-slate-500 block mt-1">كافة الحركات المسجلة</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 block mt-1">كافة الحركات المسجلة</span>
               </div>
 
-              <div className="bg-[#0c1220] border border-slate-800 p-5 rounded-3xl relative overflow-hidden shadow-xl">
-                <span className="text-xs text-slate-400 font-semibold block">إجمالي المقبوضات المحصلة</span>
-                <div className="text-xl md:text-2xl font-black font-mono text-emerald-400 mt-2 truncate">
-                  {formatNum(financialSummary.receipts)} <span className="text-xs font-sans text-slate-500">د.ع</span>
+              <div className="bg-[#0c1220] border border-slate-800 p-4 sm:p-5 rounded-3xl relative overflow-hidden shadow-xl">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block">إجمالي المقبوضات المحصلة</span>
+                <div className="text-lg sm:text-xl md:text-2xl font-black font-mono text-emerald-400 mt-2 truncate">
+                  {formatNum(financialSummary.receipts)} <span className="text-[10px] sm:text-xs font-sans text-slate-500">د.ع</span>
                 </div>
-                <span className="text-[10px] text-slate-500 block mt-1">المشاريع والاستثمارات</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 block mt-1">المشاريع والاستثمارات</span>
               </div>
 
-              <div className="bg-[#0c1220] border border-slate-800 p-5 rounded-3xl relative overflow-hidden shadow-xl">
-                <span className="text-xs text-slate-400 font-semibold block">كتلة الرواتب الثابتة</span>
-                <div className="text-xl md:text-2xl font-black font-mono text-rose-400 mt-2 truncate">
-                  {formatNum(financialSummary.totalMonthlySalaries)} <span className="text-xs font-sans text-slate-500">د.ع</span>
+              <div className="bg-[#0c1220] border border-slate-800 p-4 sm:p-5 rounded-3xl relative overflow-hidden shadow-xl">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block">كتلة الرواتب الثابتة</span>
+                <div className="text-lg sm:text-xl md:text-2xl font-black font-mono text-rose-400 mt-2 truncate">
+                  {formatNum(financialSummary.totalMonthlySalaries)} <span className="text-[10px] sm:text-xs font-sans text-slate-500">د.ع</span>
                 </div>
-                <span className="text-[10px] text-slate-500 block mt-1">الكوادر النشطة بالمنظومة</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 block mt-1">الكوادر النشطة بالمنظومة</span>
               </div>
 
-              <div className="bg-[#0c1220] border border-slate-800 p-5 rounded-3xl relative overflow-hidden shadow-xl">
-                <span className="text-xs text-slate-400 font-semibold block">صافي السيولة النقدية (الصندوق)</span>
-                <div className={`text-xl md:text-2xl font-black font-mono mt-2 truncate ${financialSummary.netCash >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                  {formatNum(financialSummary.netCash)} <span className="text-xs font-sans text-slate-500">د.ع</span>
+              <div className="bg-[#0c1220] border border-slate-800 p-4 sm:p-5 rounded-3xl relative overflow-hidden shadow-xl">
+                <span className="text-[11px] sm:text-xs text-slate-400 font-semibold block">صافي السيولة النقدية (الصندوق)</span>
+                <div className={`text-lg sm:text-xl md:text-2xl font-black font-mono mt-2 truncate ${financialSummary.netCash >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {formatNum(financialSummary.netCash)} <span className="text-[10px] sm:text-xs font-sans text-slate-500">د.ع</span>
                 </div>
-                <span className="text-[10px] text-slate-500 block mt-1">الرصيد الفعلي الحالي</span>
+                <span className="text-[9px] sm:text-[10px] text-slate-500 block mt-1">الرصيد الفعلي الحالي</span>
               </div>
             </section>
           )}
 
           {/* مركز الإجراءات السريعة (Quick Actions) */}
-          <section className="bg-[#0c1220] border border-slate-800 rounded-3xl p-5 shadow-xl">
+          <section className="bg-[#0c1220] border border-slate-800 rounded-3xl p-4 sm:p-5 shadow-xl">
             <div className="flex items-center justify-between mb-3.5">
               <h3 className="text-xs md:text-sm font-bold text-white flex items-center gap-2">
                 <Sparkles className="w-4 h-4" style={{ color: primaryCol }} />
                 مركز الإجراءات والقيود السريعة
               </h3>
-              <span className="text-[11px] text-slate-400">إجراءات مخصصة وفق أذونات حسابك</span>
+              <span className="text-[10px] md:text-[11px] text-slate-400">إجراءات مخصصة وفق أذونات حسابك</span>
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs text-center font-bold">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 sm:gap-3 text-xs text-center font-bold">
               {canAddVouchers && (
-                <Link href="/vouchers" className="bg-[#080d1a] hover:bg-[#131b2e] border border-purple-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-purple-300">
+                <Link href="/vouchers" className="bg-[#080d1a] hover:bg-[#131b2e] border border-purple-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-purple-300">
                   <Wallet className="w-5 h-5 text-purple-400" />
                   <span>تسجيل سند مالي</span>
                 </Link>
               )}
               {canAddAdminDocs && (
-                <Link href="/admin/documents" className="bg-[#080d1a] hover:bg-[#131b2e] border border-amber-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-amber-300">
+                <Link href="/admin/documents" className="bg-[#080d1a] hover:bg-[#131b2e] border border-amber-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-amber-300">
                   <FileText className="w-5 h-5 text-amber-400" />
                   <span>كتاب رسمي (A4)</span>
                 </Link>
               )}
               {canAddContracts && (
-                <Link href="/real-estate/contracts" className="bg-[#080d1a] hover:bg-[#131b2e] border border-indigo-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-indigo-300">
+                <Link href="/real-estate/contracts" className="bg-[#080d1a] hover:bg-[#131b2e] border border-indigo-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-indigo-300">
                   <FileCheck className="w-5 h-5 text-indigo-400" />
                   <span>عقد بيع معتمد</span>
                 </Link>
               )}
               {canAddInstallments && (
-                <Link href="/inventory/installments" className="bg-[#080d1a] hover:bg-[#131b2e] border border-emerald-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-emerald-300">
+                <Link href="/inventory/installments" className="bg-[#080d1a] hover:bg-[#131b2e] border border-emerald-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-emerald-300">
                   <CreditCard className="w-5 h-5 text-emerald-400" />
                   <span>عقد تقسيط مدمج</span>
                 </Link>
               )}
               {canAddHR && (
-                <Link href="/hr" className="bg-[#080d1a] hover:bg-[#131b2e] border border-rose-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-rose-300">
+                <Link href="/hr" className="bg-[#080d1a] hover:bg-[#131b2e] border border-rose-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-rose-300">
                   <Coins className="w-5 h-5 text-rose-400" />
                   <span>قيد سلفة موظف</span>
                 </Link>
               )}
               {canAddProjects && (
-                <Link href="/projects" className="bg-[#080d1a] hover:bg-[#131b2e] border border-sky-500/20 p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-sky-300">
+                <Link href="/projects" className="bg-[#080d1a] hover:bg-[#131b2e] border border-sky-500/20 p-3 sm:p-3.5 rounded-2xl flex flex-col items-center justify-center gap-1.5 transition text-sky-300">
                   <HardHat className="w-5 h-5 text-sky-400" />
                   <span>إضافة مشروع إعمار</span>
                 </Link>
@@ -1123,165 +1215,165 @@ export default function DashboardPage() {
               <span className="text-xs text-slate-500">متابعة كافة أنشطة وفروع {companySettings.company_name}</span>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 md:gap-4">
               
               {canViewAdminDocs && (
-                <Link href="/admin/documents" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/admin/documents" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">ديوان الشركة</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">الإدارة والكتب الرسمية</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">الإدارة والكتب الرسمية</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition">
                       <Building2 className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-amber-400">{officialDocsCount} <span className="text-[11px] font-normal text-slate-400">وثيقة</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-amber-400">{officialDocsCount} <span className="text-[11px] font-normal text-slate-400">وثيقة</span></span>
                     <span className="text-slate-400 group-hover:text-amber-400 flex items-center gap-1 font-semibold text-[11px]">فتح السجل <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewContracts && (
-                <Link href="/real-estate/contracts" className="bg-[#0a0f1d] border border-slate-800 hover:border-indigo-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/real-estate/contracts" className="bg-[#0a0f1d] border border-slate-800 hover:border-indigo-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">العقود الرسمية</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-indigo-300 transition">العقود الإلكترونية المعتمدة</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-indigo-300 transition">العقود الإلكترونية المعتمدة</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 group-hover:scale-110 transition">
                       <FileCheck className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-indigo-400">{electronicContractsCount} <span className="text-[11px] font-normal text-slate-400">عقد معتمد</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-indigo-400">{electronicContractsCount} <span className="text-[11px] font-normal text-slate-400">عقد معتمد</span></span>
                     <span className="text-slate-400 group-hover:text-indigo-400 flex items-center gap-1 font-semibold text-[11px]">إدارة العقود <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewInstallments && (
-                <Link href="/inventory/installments" className="bg-[#0a0f1d] border border-slate-800 hover:border-emerald-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/inventory/installments" className="bg-[#0a0f1d] border border-slate-800 hover:border-emerald-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">البيع الآجل</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-emerald-300 transition">المبيعات بالأقساط المدمجة</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-emerald-300 transition">المبيعات بالأقساط المدمجة</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 group-hover:scale-110 transition">
                       <CreditCard className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-emerald-400">{installmentsCount} <span className="text-[11px] font-normal text-slate-400">جدول تقسيط</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-emerald-400">{installmentsCount} <span className="text-[11px] font-normal text-slate-400">جدول تقسيط</span></span>
                     <span className="text-slate-400 group-hover:text-emerald-400 flex items-center gap-1 font-semibold text-[11px]">متابعة الأقساط <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewProjects && (
-                <Link href="/projects" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/projects" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">قطاع الإعمار</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">المقاولات والمشاريع الحية</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">المقاولات والمشاريع الحية</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition">
                       <HardHat className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-amber-400">{ongoingProjects.length} <span className="text-[11px] font-normal text-slate-400">مشروع جاري</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-amber-400">{ongoingProjects.length} <span className="text-[11px] font-normal text-slate-400">مشروع جاري</span></span>
                     <span className="text-slate-400 group-hover:text-amber-400 flex items-center gap-1 font-semibold text-[11px]">نسب الإنجاز <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewFleet && (
-                <Link href="/fleet" className="bg-[#0a0f1d] border border-slate-800 hover:border-sky-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/fleet" className="bg-[#0a0f1d] border border-slate-800 hover:border-sky-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">النقل واللوجستيات</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-sky-300 transition">أسطول الآليات والشاحنات</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-sky-300 transition">أسطول الآليات والشاحنات</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 group-hover:scale-110 transition">
                       <Truck className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-sky-400">{dashboardData.counts.vehicles} <span className="text-[11px] font-normal text-slate-400">مركبة نشطة</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-sky-400">{dashboardData.counts.vehicles} <span className="text-[11px] font-normal text-slate-400">مركبة نشطة</span></span>
                     <span className="text-slate-400 group-hover:text-sky-400 flex items-center gap-1 font-semibold text-[11px]">الرحلات والصيانة <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewInventory && (
-                <Link href="/inventory" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/inventory" className="bg-[#0a0f1d] border border-slate-800 hover:border-amber-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">المخازن والتوريد</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">التجارة العامة والمخزن المركزي</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-amber-300 transition">التجارة العامة والمخزن المركزي</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-400 border border-amber-500/20 group-hover:scale-110 transition">
                       <Boxes className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-amber-400">{dashboardData.counts.items} <span className="text-[11px] font-normal text-slate-400">صنف مسجل</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-amber-400">{dashboardData.counts.items} <span className="text-[11px] font-normal text-slate-400">صنف مسجل</span></span>
                     <span className="text-slate-400 group-hover:text-amber-400 flex items-center gap-1 font-semibold text-[11px]">جرد البضائع <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewRealEstate && (
-                <Link href="/real-estate" className="bg-[#0a0f1d] border border-slate-800 hover:border-purple-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/real-estate" className="bg-[#0a0f1d] border border-slate-800 hover:border-purple-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">التطوير العقاري</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-purple-300 transition">العقارات والوحدات الاستثمارية</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-purple-300 transition">العقارات والوحدات الاستثمارية</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 group-hover:scale-110 transition">
                       <Building className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-purple-400">{dashboardData.counts.units} <span className="text-[11px] font-normal text-slate-400">وحدة استثمارية</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-purple-400">{dashboardData.counts.units} <span className="text-[11px] font-normal text-slate-400">وحدة استثمارية</span></span>
                     <span className="text-slate-400 group-hover:text-purple-400 flex items-center gap-1 font-semibold text-[11px]">سجل الوحدات <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewHR && (
-                <Link href="/hr" className="bg-[#0a0f1d] border border-slate-800 hover:border-rose-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/hr" className="bg-[#0a0f1d] border border-slate-800 hover:border-rose-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">الكادر الوظيفي</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-rose-300 transition">الموارد البشرية والرواتب</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-rose-300 transition">الموارد البشرية والرواتب</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 group-hover:scale-110 transition">
                       <Users className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-rose-400">{dashboardData.counts.employees} <span className="text-[11px] font-normal text-slate-400">موظف معتمد</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-rose-400">{dashboardData.counts.employees} <span className="text-[11px] font-normal text-slate-400">موظف معتمد</span></span>
                     <span className="text-slate-400 group-hover:text-rose-400 flex items-center gap-1 font-semibold text-[11px]">مسير الرواتب <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
               )}
 
               {canViewBranches && (
-                <Link href="/branches" className="bg-[#0a0f1d] border border-slate-800 hover:border-sky-500/40 p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
+                <Link href="/branches" className="bg-[#0a0f1d] border border-slate-800 hover:border-sky-500/40 p-4 sm:p-5 rounded-3xl transition group shadow-xl flex flex-col justify-between">
                   <div className="flex items-start justify-between">
                     <div>
                       <span className="text-xs text-slate-400 font-semibold block">المقرات والشبكة</span>
-                      <h4 className="text-base font-bold text-white mt-1 group-hover:text-sky-300 transition">الفروع والقطاعات التشغيلية</h4>
+                      <h4 className="text-sm sm:text-base font-bold text-white mt-1 group-hover:text-sky-300 transition">الفروع والقطاعات التشغيلية</h4>
                     </div>
                     <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-400 border border-sky-500/20 group-hover:scale-110 transition">
                       <Building2 className="w-5 h-5" />
                     </div>
                   </div>
                   <div className="mt-4 pt-3 border-t border-slate-800 flex items-center justify-between text-xs">
-                    <span className="font-mono text-lg font-black text-sky-400">{dashboardData.branches.length} <span className="text-[11px] font-normal text-slate-400">فرع متصل</span></span>
+                    <span className="font-mono text-base sm:text-lg font-black text-sky-400">{dashboardData.branches.length} <span className="text-[11px] font-normal text-slate-400">فرع متصل</span></span>
                     <span className="text-slate-400 group-hover:text-sky-400 flex items-center gap-1 font-semibold text-[11px]">خريطة الفروع <ChevronLeft className="w-3.5 h-3.5" /></span>
                   </div>
                 </Link>
@@ -1292,15 +1384,15 @@ export default function DashboardPage() {
 
           {/* جدول فروع الشركة المربوطة سحابياً */}
           {canViewBranches && (
-            <section id="branches" className="bg-[#0c1220] border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl">
+            <section id="branches" className="bg-[#0c1220] border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl">
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2.5">
                   <div className="p-2.5 rounded-2xl border" style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}20` }}>
                     <Building2 className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-white">فروع ومقرات الشركة المربوطة سحابياً (Neon Cloud Sync)</h3>
-                    <p className="text-[11px] text-slate-400">حالة الفروع ومقرات الأنشطة التجارية لـ {companySettings.company_name}</p>
+                    <h3 className="text-xs sm:text-sm font-bold text-white">فروع ومقرات الشركة المربوطة سحابياً (Neon Cloud Sync)</h3>
+                    <p className="text-[10px] sm:text-[11px] text-slate-400">حالة الفروع ومقرات الأنشطة التجارية لـ {companySettings.company_name}</p>
                   </div>
                 </div>
                 <Link href="/branches" className="text-xs hover:underline flex items-center gap-1 font-semibold" style={{ color: primaryCol }}>
@@ -1309,7 +1401,7 @@ export default function DashboardPage() {
               </div>
 
               <div className="overflow-x-auto rounded-2xl border border-slate-800/80">
-                <table className="w-full text-xs text-right">
+                <table className="w-full text-xs text-right whitespace-nowrap">
                   <thead className="bg-[#10182b] text-slate-400 border-b border-slate-800 text-[11px]">
                     <tr>
                       <th className="p-3.5">رمز الفرع</th>
@@ -1341,11 +1433,11 @@ export default function DashboardPage() {
 
           {/* تحليل موقف المشاريع الإنشائية قيد التنفيذ */}
           {ongoingProjects.length > 0 && canViewProjects && (
-            <section className="bg-[#0c1220] border border-slate-800 rounded-3xl p-5 md:p-6 shadow-2xl space-y-4">
+            <section className="bg-[#0c1220] border border-slate-800 rounded-3xl p-4 sm:p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4" style={{ color: primaryCol }} />
-                  <h3 className="text-sm font-bold text-white">الموقف المالي للمشاريع الإنشائية قيد التنفيذ</h3>
+                  <h3 className="text-xs sm:text-sm font-bold text-white">الموقف المالي للمشاريع الإنشائية قيد التنفيذ</h3>
                 </div>
                 <Link href="/projects" className="text-xs hover:underline font-bold flex items-center gap-1" style={{ color: primaryCol }}>
                   تفاصيل المشاريع <ChevronLeft className="w-3.5 h-3.5" />
@@ -1390,7 +1482,7 @@ export default function DashboardPage() {
                     <ShieldCheck className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">مركز الرقابة والتدقيق والحفظ الاحتياطي السحابي</h3>
+                    <h3 className="text-base sm:text-lg font-bold text-white">مركز الرقابة والتدقيق والحفظ الاحتياطي السحابي</h3>
                     <p className="text-xs text-slate-400">حفظ وتنزيل قواعد البيانات، رفع النسخ، وإقفال الفترات</p>
                   </div>
                 </div>
@@ -1488,7 +1580,7 @@ export default function DashboardPage() {
               <div className="flex items-center justify-between border-b border-slate-800 pb-4">
                 <div className="flex items-center gap-2">
                   <Users className="w-6 h-6" style={{ color: primaryCol }} />
-                  <h3 className="text-lg font-bold text-white">إدارة الحسابات وصلاحيات الموظفين</h3>
+                  <h3 className="text-base sm:text-lg font-bold text-white">إدارة الحسابات وصلاحيات الموظفين</h3>
                 </div>
                 <button onClick={() => setShowManageModal(false)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
                   <X className="w-5 h-5" />

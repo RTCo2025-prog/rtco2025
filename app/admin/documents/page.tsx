@@ -105,7 +105,7 @@ async function compressImage(file: File, maxWidth = 900, quality = 0.55): Promis
   });
 }
 
-// إرسال الإشعار المركزي الموحد
+// إرسال الإشعار المركزي المباشر إلى الخادم وقاعدة البيانات السحابية
 async function pushSystemNotification(title: string, message: string, sector: string, link: string, actionType: string = 'ADD') {
   try {
     await fetch('/api/notifications', {
@@ -121,7 +121,7 @@ async function pushSystemNotification(title: string, message: string, sector: st
       })
     });
   } catch (e) {
-    console.error(e);
+    console.error('Failed to dispatch notification to API', e);
   }
 }
 

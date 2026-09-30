@@ -87,17 +87,17 @@ type ContractCategory =
   | 'REALESTATE_SALE' 
   | 'REALESTATE_RENT';
 
-// دالة إرسال الإشعار المركزي للمنظومة
+// دالة إرسال الإشعار المركزي للمنظومة لضمان ظهوره الفوري في الصفحة الرئيسية
 async function pushSystemNotification(title: string, message: string, sector: string, link: string) {
   try {
     await fetch('/api/notifications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'ADD_NOTIFICATION',
+        sector: sector || 'CONTRACTS',
+        action_type: 'ADD',
         title,
         message,
-        sector,
         link
       })
     });
@@ -619,9 +619,10 @@ export default function ElectronicContractsPage() {
     };
     await syncContractToCloud(cloudPayload);
 
+    // إرسال الإشعار المركزي المباشر للسيرفر وقاعدة البيانات
     await pushSystemNotification(
-      `عقد جديد: ${newContractData.title}`,
-      `تم إصدار ${newContractData.title} رقم (${newContractData.contractNo}) بين الطرفين (${newContractData.sellerName}) و (${newContractData.buyerName}) بقيمة ${formatNum(newContractData.totalAmount)} د.ع`,
+      `إصدار ${newContractData.title}: ${newContractData.contractNo}`,
+      `تم توثيق ${newContractData.title} ذي الرقم (${newContractData.contractNo}) بين الطرفين (${newContractData.sellerName}) و (${newContractData.buyerName}) بقيمة ${formatNum(newContractData.totalAmount)} د.ع`,
       'CONTRACTS',
       '/real-estate/contracts'
     );
@@ -662,8 +663,8 @@ export default function ElectronicContractsPage() {
     } catch {}
 
     await pushSystemNotification(
-      `حذف عقد: ${targetContract.contractNo}`,
-      `تم حذف ${targetContract.title} ذي الرقم (${targetContract.contractNo}) الخاص بالطرفين (${targetContract.sellerName}) و (${targetContract.buyerName}) من الأرشيف`,
+      `حذف عقد من الأرشيف: ${targetContract.contractNo}`,
+      `تم حذف ${targetContract.title} رقم (${targetContract.contractNo}) الخاص بالطرفين (${targetContract.sellerName}) و (${targetContract.buyerName})`,
       'CONTRACTS',
       '/real-estate/contracts'
     );

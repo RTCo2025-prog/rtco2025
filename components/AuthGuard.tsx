@@ -13,6 +13,7 @@ interface AuthGuardProps {
 
 /**
  * دالة التحقق من الصلاحيات بناءً على النظام الحديث (system_users و JSONB)
+ * مع دعم المرونة للأنماط النصية المباشرة
  */
 export function hasPermission(
   user: any,
@@ -22,17 +23,34 @@ export function hasPermission(
   if (!user) return false;
   
   // المدير المفوض أو الحساب الشامل يمتلك كافة الصلاحيات تلقائياً
-  if (user.is_super_admin || user.username === 'admin' || user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+  if (
+    user.is_super_admin || 
+    user.username === 'admin' || 
+    user.role === 'ADMIN' || 
+    user.role === 'SUPER_ADMIN' ||
+    user.role === 'admin'
+  ) {
     return true;
   }
   
   if (!moduleName) return true;
 
   const perms = user.permissions || {};
+
+  // التحقق من الصلاحيات إذا كانت مخزنة في صيغة مصفوفة أذونات نصية
+  if (Array.isArray(perms)) {
+    return perms.includes('all') || perms.includes(moduleName) || perms.includes(`${moduleName}:${action}`);
+  }
+
+  // التحقق من الصلاحية الشاملة أو الخاصة بالقسم بناء على هيكل الكائن (JSONB Object)
+  if (perms.all && (perms.all === true || perms.all[action])) return true;
   
-  // التحقق من الصلاحية الشاملة أو الصلاحية الخاصة بالقسم المجدول
-  if (perms.all && perms.all[action]) return true;
-  return !!(perms[moduleName] && perms[moduleName][action]);
+  if (perms[moduleName]) {
+    if (typeof perms[moduleName] === 'boolean') return perms[moduleName];
+    if (typeof perms[moduleName] === 'object') return !!perms[moduleName][action];
+  }
+
+  return false;
 }
 
 export default function AuthGuard({ children, moduleName, requiredAction = 'view' }: AuthGuardProps) {
@@ -42,12 +60,12 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
   useEffect(() => {
     let isMounted = true;
 
-    const checkAuthAndSession = async () => {
+    const checkAuthAndSession = () => {
       const raw = localStorage.getItem('erp_user');
       if (!raw) {
         if (isMounted) {
           setAuthorized(false);
-          router.push('/login');
+          router.replace('/login');
         }
         return;
       }
@@ -56,17 +74,17 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
         const user = JSON.parse(raw);
         
         // التحقق من حالة الحساب (نشط أو موقوف)
-        if (user.status && user.status !== 'ACTIVE') {
+        if (user.status && user.status !== 'ACTIVE' && user.status !== 'active') {
           localStorage.removeItem('erp_user');
           if (isMounted) {
             setAuthorized(false);
-            router.push('/login');
+            router.replace('/login');
           }
           return;
         }
 
         if (isMounted) {
-          // التحقق من الصلاحية وفقاً للنظام الحديث
+          // التحقق من الصلاحية وفقاً للنظام
           if (hasPermission(user, moduleName, requiredAction)) {
             setAuthorized(true);
           } else {
@@ -77,12 +95,25 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
         localStorage.removeItem('erp_user');
         if (isMounted) {
           setAuthorized(false);
-          router.push('/login');
+          router.replace('/login');
         }
       }
     };
 
     checkAuthAndSession();
+
+    // الاستماع للتغيرات في الجلسات من تبويبات أخرى
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'erp_user') {
+        checkAuthAndSession();
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [router, moduleName, requiredAction]);
 
   if (authorized === null) {

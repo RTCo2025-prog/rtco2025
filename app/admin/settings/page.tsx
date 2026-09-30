@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   Building2, 
   Save, 
@@ -13,18 +14,18 @@ import {
   Mail, 
   Upload, 
   Image as ImageIcon,
-  Printer,
-  Palette,
-  Sparkles,
-  Database,
-  Code2,
-  Copy,
-  CheckCheck,
-  X,
-  AlertTriangle,
-  Server,
-  HelpCircle,
-  Wand2
+  Printer, 
+  Palette, 
+  Database, 
+  Code2, 
+  Copy, 
+  CheckCheck, 
+  X, 
+  AlertTriangle, 
+  Server, 
+  HelpCircle, 
+  Wand2,
+  ShieldAlert
 } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 
@@ -50,11 +51,30 @@ CREATE TABLE IF NOT EXISTS system_users (
     full_name VARCHAR(255) NOT NULL,
     job_title VARCHAR(255),
     is_super_admin BOOLEAN DEFAULT FALSE,
-    permissions JSONB,
+    permissions JSONB DEFAULT '{}'::jsonb,
     status VARCHAR(50) DEFAULT 'ACTIVE',
     session_token VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+-- زرع وتحديث حساب pro (المبرمج للنظام) وحساب admin (المدير التنفيذي للشركة) بالصلاحيات الدقيقة
+INSERT INTO system_users (user_id, username, password_hash, full_name, job_title, is_super_admin, permissions, status)
+VALUES 
+    -- حساب برو: المبرمج للنظام - صلاحيات سيادية مطلقة وشاملة لشاشة السيرفر
+    ('user_pro_01', 'pro', 'Nawresnrshh@1986', 'المبرمج للنظام', 'المبرمج للنظام', TRUE, 
+     '{"all": true, "server_settings": true}'::jsonb, 'ACTIVE'),
+
+    -- حساب أدمن: المدير التنفيذي للشركة - كافة صلاحيات الشاشات والقطاعات ما عدا شاشة السيرفر
+    ('user_admin_01', 'admin', 'admin123', 'المدير التنفيذي للشركة', 'المدير التنفيذي للشركة', FALSE, 
+     '{"projects": true, "vouchers": true, "hr": true, "inventory": true, "real_estate": true, "fleet": true, "reports": true, "server_settings": false}'::jsonb, 'ACTIVE')
+
+ON CONFLICT (username) DO UPDATE 
+SET password_hash = EXCLUDED.password_hash,
+    full_name = EXCLUDED.full_name,
+    job_title = EXCLUDED.job_title,
+    is_super_admin = EXCLUDED.is_super_admin,
+    permissions = EXCLUDED.permissions,
+    status = EXCLUDED.status;
 
 -- 3. جدول المشاريع والمقاولات
 CREATE TABLE IF NOT EXISTS projects (
@@ -68,12 +88,12 @@ CREATE TABLE IF NOT EXISTS projects (
     expected_end_date DATE,
     completion_rate NUMERIC(5, 2) DEFAULT 0,
     status VARCHAR(50) DEFAULT 'IN_PROGRESS',
-    subcontractors JSONB,
-    operating_expenses JSONB,
-    materials JSONB,
-    payment_terms JSONB,
-    milestones JSONB,
-    site_logs JSONB,
+    subcontractors JSONB DEFAULT '[]'::jsonb,
+    operating_expenses JSONB DEFAULT '[]'::jsonb,
+    materials JSONB DEFAULT '[]'::jsonb,
+    payment_terms JSONB DEFAULT '[]'::jsonb,
+    milestones JSONB DEFAULT '[]'::jsonb,
+    site_logs JSONB DEFAULT '[]'::jsonb,
     notes TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -125,7 +145,7 @@ CREATE TABLE IF NOT EXISTS hr_employees (
     status VARCHAR(50) DEFAULT 'ACTIVE',
     bank_account VARCHAR(100),
     notes TEXT,
-    cv_data JSONB DEFAULT '{}',
+    cv_data JSONB DEFAULT '{}'::jsonb,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -362,7 +382,7 @@ CREATE TABLE IF NOT EXISTS closed_financial_periods (
     closed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- 22. فك القيود المرتبطة بالموظفين وتغيير المعرف إلى VARCHAR(50)
+-- 22. فك القيود وتحديث الحقول المترابطة
 ALTER TABLE hr_adjustments DROP CONSTRAINT IF EXISTS hr_adjustments_employee_id_fkey;
 ALTER TABLE hr_leaves DROP CONSTRAINT IF EXISTS hr_leaves_employee_id_fkey;
 ALTER TABLE hr_payroll_runs DROP CONSTRAINT IF EXISTS hr_payroll_runs_employee_id_fkey;
@@ -378,7 +398,7 @@ ALTER TABLE hr_payroll_runs ALTER COLUMN run_id TYPE VARCHAR(50);
 ALTER TABLE hr_penalties_appraisals ALTER COLUMN employee_id TYPE VARCHAR(50);
 ALTER TABLE hr_penalties_appraisals ALTER COLUMN record_id TYPE VARCHAR(50);
 
--- 23. إضافة وتأكيد الحقول الإلزامية الخاصة بالمخزن والموارد البشرية
+-- 23. التأكد من توفر الأعمدة الثانوية
 ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS notes TEXT;
 ALTER TABLE hr_leaves ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'APPROVED';
@@ -389,6 +409,9 @@ ALTER TABLE hr_adjustments ADD COLUMN IF NOT EXISTS installments_count INT DEFAU
 ALTER TABLE hr_adjustments ADD COLUMN IF NOT EXISTS monthly_installment NUMERIC DEFAULT 0;`;
 
 export default function CompanySettingsPage() {
+  const router = useRouter();
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [formData, setFormData] = useState({
@@ -415,6 +438,25 @@ export default function CompanySettingsPage() {
 
   const [copiedSql, setCopiedSql] = useState(false);
   const [dbSaving, setDbSaving] = useState(false);
+
+  // التحقق الصارم: يسمح فقط لحساب "pro" بالدخول
+  useEffect(() => {
+    const raw = localStorage.getItem('erp_user');
+    if (!raw) {
+      router.push('/login');
+      return;
+    }
+    try {
+      const u = JSON.parse(raw);
+      if (u.username?.trim().toLowerCase() === 'pro') {
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(false);
+      }
+    } catch {
+      setIsAuthorized(false);
+    }
+  }, [router]);
 
   const colorPresets = [
     { name: 'الذهبي والبرتقالي الملكي (الافتراضي)', primary: '#d97706', secondary: '#ea580c' },
@@ -445,15 +487,19 @@ export default function CompanySettingsPage() {
   };
 
   useEffect(() => {
-    fetchSettings();
-  }, []);
+    if (isAuthorized) {
+      fetchSettings();
+    }
+  }, [isAuthorized]);
 
-  // دالة المعالجة التلقائية للرابط وحذف الجزء الزائد
+  // دالة المعالجة التلقائية للرابط وحذف التعارضات التي تسبب الخطأ
   const handleRawUrlChange = (val: string) => {
     setRawNeonUrl(val);
     let processed = val.trim();
-    // إزالة &channel_binding=require تلقائياً
-    processed = processed.replace('&channel_binding=require', '').replace('?channel_binding=require', '');
+    processed = processed.replace(/&channel_binding=[^&]*/g, '').replace(/\?channel_binding=[^&]*/g, '');
+    if (processed.endsWith('?')) {
+      processed = processed.slice(0, -1);
+    }
     setCleanNeonUrl(processed);
   };
 
@@ -487,7 +533,7 @@ export default function CompanySettingsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        setSuccessMsg('تم حفظ وتحديث بيانات وألوان هوية الشركة بنجاح! تم تعميم اللونين على النظام والكتب الرسمية.');
+        setSuccessMsg('تم حفظ وتحديث بيانات وألوان هوية الشركة بنجاح!');
         fetchSettings();
       } else {
         alert(data.error || 'حدث خطأ أثناء الحفظ');
@@ -501,11 +547,10 @@ export default function CompanySettingsPage() {
 
   const handleSaveDatabaseUrl = async (e: React.FormEvent) => {
     e.preventDefault();
-    // الاعتماد حصراً على الرابط الثاني (cleanNeonUrl) المعالج تلقائياً
     const targetUrl = cleanNeonUrl.trim();
 
-    if (!targetUrl.startsWith('postgres')) {
-      alert('يرجى التأكد من كتابة رابط اتصال صحيح يبدأ بـ postgresql://');
+    if (!targetUrl.startsWith('postgres://') && !targetUrl.startsWith('postgresql://')) {
+      alert('يرجى التأكد من كتابة رابط اتصال صحيح يبدأ بـ postgresql:// أو postgres://');
       return;
     }
     if (!confirm('تنبيه أمني: سيتم اختبار الاتصال بقاعدة البيانات الجديدة وتفعيلها فوراً. هل تريد المتابعة؟')) {
@@ -521,11 +566,11 @@ export default function CompanySettingsPage() {
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        alert('تم فحص الاتصال وتعيين قاعدة البيانات الجديدة بنجاح! سيتم تحديث الصفحة الآن.');
+        alert('تم فحص الاتصال وتعين قاعدة البيانات الجديدة بنجاح! سيتم إعادة تحميل الصفحة.');
         setShowDbModal(false);
         window.location.reload();
       } else {
-        alert('فشل التحويل: ' + (data.error || 'خطأ في الاتصال بالرابط الجديد'));
+        alert('فشل الاتصال بقاعدة البيانات: ' + (data.error || 'يرجى التأكد من الكود المنسوخ والصلاحيات'));
       }
     } catch (err: any) {
       alert('خطأ أثناء حفظ الرابط: ' + err.message);
@@ -540,27 +585,53 @@ export default function CompanySettingsPage() {
     setTimeout(() => setCopiedSql(false), 2500);
   };
 
+  if (isAuthorized === null) return null;
+
+  if (isAuthorized === false) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-[#06080e] text-slate-100 flex items-center justify-center p-4 font-cairo">
+        <div className="bg-[#0b101d] border border-rose-500/40 p-8 rounded-3xl text-center max-w-md space-y-4 shadow-2xl">
+          <div className="w-16 h-16 bg-rose-500/10 border border-rose-500/30 rounded-2xl flex items-center justify-center text-rose-500 mx-auto">
+            <ShieldAlert className="w-8 h-8" />
+          </div>
+          <h2 className="text-lg font-black text-white">صفحة مقيدة ومشفرة سيادياً</h2>
+          <p className="text-xs text-slate-400 leading-relaxed">
+            هذه الصفحة مخصصة وحصرية لحساب المستخدم <strong className="text-amber-400 font-mono">pro</strong> فقط. ليس لديك الصلاحية للدخول أو التعديل على إعدادات وهوية النظام الأساسية.
+          </p>
+          <Link href="/" className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 text-white rounded-xl text-xs font-bold transition">
+            <ArrowLeft className="w-4 h-4" /> العودة للرئيسية
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <AuthGuard>
       <div dir="rtl" className="min-h-screen bg-[#06080e] text-slate-100 p-4 md:p-8 font-cairo">
         
         {/* الترويسة العلوية */}
-        <div className="max-w-5xl mx-auto flex items-center justify-between pb-6 border-b border-slate-800">
+        <div className="max-w-5xl mx-auto flex items-center justify-between pb-6 border-b border-slate-800 gap-3">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center text-amber-400 shadow-lg">
+            <div className="w-12 h-12 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex items-center justify-center text-amber-400 shadow-lg shrink-0">
               <Building2 className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-xl font-black text-white">إعدادات الهوية والألوان وترويسة الطباعة الرسمية</h1>
-              <p className="text-xs text-slate-400 mt-0.5">خاصة بالمدير المفوض: التحكم باسم الشركة، العناوين، الهواتف، الشعار، واللونين المعتمدين في النظام</p>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg md:text-xl font-black text-white">إعدادات الهوية والألوان وترويسة الطباعة الرسمية</h1>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                  PRO ONLY
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">لوحة التحكم السيادية الخاصة بالحساب (PRO) لتحديد هوية الشركة وقواعد البيانات</p>
             </div>
           </div>
-          <Link href="/" className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2.5 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5 text-xs font-bold transition">
+          <Link href="/" className="bg-slate-900 border border-slate-800 hover:bg-slate-800 px-4 py-2.5 rounded-xl text-slate-300 hover:text-white flex items-center gap-1.5 text-xs font-bold transition shrink-0">
             <ArrowLeft className="w-4 h-4" /> العودة للرئيسية
           </Link>
         </div>
 
-        <div className="max-w-5xl mx-auto mt-8 bg-[#0b101d] border border-slate-800/90 rounded-3xl p-6 md:p-8 shadow-2xl space-y-6">
+        <div className="max-w-5xl mx-auto mt-8 bg-[#0b101d] border border-slate-800/90 rounded-3xl p-5 md:p-8 shadow-2xl space-y-6">
           
           {successMsg && (
             <div className="bg-emerald-500/10 border border-emerald-500/30 p-4 rounded-2xl flex items-center gap-2 text-emerald-400 text-xs font-bold shadow-lg">
@@ -570,14 +641,14 @@ export default function CompanySettingsPage() {
           )}
 
           {/* قسم إدارة البنية التحتية والربط السحابي لقاعدة البيانات */}
-          <div className="bg-[#0b132b] border border-cyan-500/30 rounded-2xl p-5 shadow-xl space-y-4">
+          <div className="bg-[#0b132b] border border-cyan-500/30 rounded-2xl p-4 sm:p-5 shadow-xl space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-cyan-500/20 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+                <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0">
                   <Database className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
                     إدارة البنية التحتية والربط السحابي لقاعدة البيانات
                     <span className="text-[10px] bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
                       Neon / PostgreSQL Live
@@ -609,14 +680,14 @@ export default function CompanySettingsPage() {
             </div>
 
             <p className="text-[11px] text-slate-400 leading-relaxed">
-              يمكنك بكل سهولة إنشاء قاعدة بيانات سحابية جديدة على <strong className="text-white">Neon.tech</strong> أو أي سيرفر PostgreSQL، ثم نسخ كود الـ SQL الجاهز الذي يحتوي على كافة الجداول والأعمدة للمنظومة، وإدخال رابط الاتصال الجديد ليتم الانتقال إليها فوراً.
+              يمكنك بكل سهولة إنشاء قاعدة بيانات سحابية جديدة على <strong className="text-white">Neon.tech</strong> أو أي سيرفر PostgreSQL، ثم نسخ كود الـ SQL الجاهز الذي يحتوي على كافة الجداول والأعمدة وحسابات النظام، وإدخال رابط الاتصال الجديد ليتم الانتقال إليها فوراً.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6 text-xs">
             
-            {/* 1. قسم اختيار واعتماد اللونين الرسميين للنظام والمطبوعات */}
-            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800/90 space-y-5 shadow-inner">
+            {/* 1. قسم ألوان الهوية */}
+            <div className="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800/90 space-y-5 shadow-inner">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-900 pb-3 gap-2">
                 <span className="font-bold text-amber-400 text-sm flex items-center gap-2">
                   <Palette className="w-4 h-4 text-amber-400" />
@@ -625,11 +696,11 @@ export default function CompanySettingsPage() {
                 <span className="text-[11px] text-slate-500">تعتمد في كافة الكتب الرسمية، الترويسات، الأزرار، والواجهات</span>
               </div>
 
-              {/* بطاقة المعاينة الحية للونين */}
+              {/* بطاقة المعاينة الحية */}
               <div className="p-4 rounded-2xl border border-slate-800 bg-[#070b14] flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <div 
-                    className="w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center font-bold text-white text-xs border border-white/20"
+                    className="w-14 h-14 rounded-2xl shadow-xl flex items-center justify-center font-bold text-white text-xs border border-white/20 shrink-0"
                     style={{ background: `linear-gradient(135deg, ${formData.primary_color}, ${formData.secondary_color})` }}
                   >
                     RTCO
@@ -671,7 +742,6 @@ export default function CompanySettingsPage() {
                       className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono outline-none focus:border-amber-500 uppercase"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">يستخدم للعناوين الرئيسية، الشارات، اسم الشركة، وحدود الجداول.</p>
                 </div>
 
                 <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3">
@@ -694,11 +764,10 @@ export default function CompanySettingsPage() {
                       className="flex-1 bg-slate-950 border border-slate-800 rounded-xl p-3 text-white font-mono outline-none focus:border-amber-500 uppercase"
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500">يستخدم للخطوط التزيينية، التدرجات الخلفية، أزرار التفاعل، والزخارف.</p>
                 </div>
               </div>
 
-              {/* نماذج سريعة جاهزة */}
+              {/* نماذج سريعة */}
               <div className="pt-2">
                 <span className="text-[11px] text-slate-400 font-semibold block mb-2">أو اختر أحد النماذج الموصى بها مسبقاً:</span>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
@@ -721,7 +790,7 @@ export default function CompanySettingsPage() {
             </div>
 
             {/* 2. قسم ترويسة الطباعة الرسمية والشعار */}
-            <div className="bg-slate-950 p-6 rounded-2xl border border-slate-800/80 space-y-5">
+            <div className="bg-slate-950 p-5 sm:p-6 rounded-2xl border border-slate-800/80 space-y-5">
               <div className="flex items-center justify-between border-b border-slate-900 pb-3">
                 <span className="font-bold text-amber-400 text-sm flex items-center gap-2">
                   <Printer className="w-4 h-4" />
@@ -890,7 +959,7 @@ export default function CompanySettingsPage() {
         {/* نافذة تعديل رابط قاعدة البيانات السحابية (Switch DB Modal) */}
         {showDbModal && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-[#0b132b] border border-cyan-500/40 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right space-y-4">
+            <div className="bg-[#0b132b] border border-cyan-500/40 w-full max-w-xl rounded-3xl p-5 sm:p-6 shadow-2xl text-right space-y-4">
               <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3">
                 <div className="flex items-center gap-2 text-cyan-400">
                   <Server className="w-5 h-5" />
@@ -905,16 +974,15 @@ export default function CompanySettingsPage() {
                 <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-300 space-y-1.5">
                   <span className="font-bold flex items-center gap-1.5 text-xs">
                     <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-                    تعليمات مهمة جداً قبل التحويل:
+                    تعليمات مهمة قبل الربط:
                   </span>
                   <p className="text-[11px] text-slate-300 leading-relaxed">
-                    1. الصق رابط Neon الخام في المربع الأول أدناه.
+                    1. الصق رابط Neon الخام في المربع الأول.
                     <br />
-                    2. سيقوم النظام بمعالجته تلقائياً في المربع الثاني (حذف `&channel_binding=require`) لضمان نجاح الاتصال وعدم انتهاء المهلة (Timeout).
+                    2. يتم تفكيك ومعالجة المعاملات تلقائياً لضمان استقرار الاتصال.
                   </p>
                 </div>
 
-                {/* التكست الأول: إدخال الرابط الخام من نيون */}
                 <div>
                   <label className="block text-slate-300 mb-1.5 font-bold">
                     (1) الصق الرابط المنسوخ من Neon هنا:
@@ -922,18 +990,17 @@ export default function CompanySettingsPage() {
                   <textarea
                     rows={2}
                     dir="ltr"
-                    placeholder="postgresql://user:pass@host/dbname?sslmode=require&channel_binding=require"
+                    placeholder="postgresql://user:pass@host/dbname?sslmode=require"
                     value={rawNeonUrl}
                     onChange={(e) => handleRawUrlChange(e.target.value)}
                     className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-slate-300 font-mono text-xs outline-none focus:border-cyan-400 leading-relaxed resize-none"
                   />
                 </div>
 
-                {/* التكست الثاني: الرابط المعالج تلقائياً والذي يتم الاعتماد عليه عند الضغط */}
                 <div>
                   <label className="block text-cyan-300 mb-1.5 font-bold flex items-center gap-1">
                     <Wand2 className="w-3.5 h-3.5 text-cyan-400" />
-                    (2) الرابط النظيف والمعالج تلقائياً (الذي سيتم الاعتماد عليه):
+                    (2) الرابط المعالج والمفعل:
                   </label>
                   <textarea
                     required
@@ -943,9 +1010,6 @@ export default function CompanySettingsPage() {
                     onChange={(e) => setCleanNeonUrl(e.target.value)}
                     className="w-full bg-slate-950 border border-cyan-500/60 rounded-xl p-2.5 text-cyan-300 font-mono text-xs outline-none focus:border-cyan-400 leading-relaxed resize-none bg-cyan-950/20"
                   />
-                  <span className="text-[10px] text-cyan-400/80 block mt-1">
-                    * يتم اعتماد هذا الرابط حصراً عند الضغط على زر الحفظ والتفعيل.
-                  </span>
                 </div>
 
                 <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
@@ -961,7 +1025,7 @@ export default function CompanySettingsPage() {
                     disabled={dbSaving}
                     className="px-6 py-2 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white rounded-xl font-black shadow-lg shadow-cyan-500/20 transition cursor-pointer"
                   >
-                    {dbSaving ? 'جاري الفحص والتفعيل...' : 'تأكيد وحفظ الرابط المعالج'}
+                    {dbSaving ? 'جاري الاختيار والفحص...' : 'تأكيد وحفظ الاتصال'}
                   </button>
                 </div>
               </form>
@@ -969,10 +1033,10 @@ export default function CompanySettingsPage() {
           </div>
         )}
 
-        {/* نافذة دليل إنشاء الداتابيس وكودات الـ SQL (SQL Guide Modal) */}
+        {/* نافذة دليل إنشاء الداتابيس */}
         {showSqlGuideModal && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-[#0b132b] border border-cyan-500/40 w-full max-w-4xl max-h-[90vh] rounded-3xl p-6 shadow-2xl text-right flex flex-col space-y-4">
+            <div className="bg-[#0b132b] border border-cyan-500/40 w-full max-w-4xl max-h-[90vh] rounded-3xl p-5 sm:p-6 shadow-2xl text-right flex flex-col space-y-4">
               <div className="flex items-center justify-between border-b border-cyan-500/20 pb-3 shrink-0">
                 <div className="flex items-center gap-2 text-cyan-400">
                   <Code2 className="w-5 h-5" />
@@ -991,11 +1055,9 @@ export default function CompanySettingsPage() {
                   </span>
                   <ol className="list-decimal list-inside space-y-1.5 text-slate-300 text-[11px] leading-relaxed">
                     <li>قم بزيارة موقع <strong>Neon.tech</strong> واضغط على <strong>Create Project</strong>.</li>
-                    <li>اختر اسم المشروع وسيرفر التخزين الأقرب (مثال: Frankfurt أو Ohio).</li>
-                    <li>بعد إنشاء المشروع، انسخ رابط <strong>Connection String</strong> من لوحة Neon الرئيسية.</li>
-                    <li>ادخل إلى تبويب <strong>SQL Editor</strong> في لوحة تحكم Neon.</li>
-                    <li>انسخ كود الـ SQL الموضح أدناه والصقه كاملاً في المحرر، ثم اضغط <strong>Run</strong>.</li>
-                    <li>ارجع إلى هذه الصفحة واضغط زر <strong>تعديل رابط قاعدة البيانات</strong> والصق الرابط الجديد!</li>
+                    <li>اختر اسم المشروع وسيرفر التخزين الأقرب.</li>
+                    <li>من تبويب <strong>SQL Editor</strong> في Neon، انسخ كود الـ SQL الأدناه واضغط <strong>Run</strong>.</li>
+                    <li>انسخ رابط الاتصال من لوحة نيون ثم اضغط على زر <strong>تعديل رابط قاعدة البيانات</strong> وقم بتأكيده!</li>
                   </ol>
                 </div>
 
@@ -1003,7 +1065,7 @@ export default function CompanySettingsPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                       <Database className="w-4 h-4 text-cyan-400" />
-                      أكواد SQL لإنشاء وتهيئة الجداول بالكامل:
+                      أكواد SQL لإنشاء الجداول والحسابات المعتمدة:
                     </span>
                     <button
                       type="button"

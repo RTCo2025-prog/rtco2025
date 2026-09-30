@@ -1,17 +1,13 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
-// إجبار Next.js على جلب الإشعارات ديناميكياً بدون تخزين مؤقت على خوادم الاستضافة
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 async function initNotificationsTable() {
   try {
     await query(`
       CREATE TABLE IF NOT EXISTS system_notifications (
-        notification_id VARCHAR(50) PRIMARY KEY,
-        sector VARCHAR(50) NOT NULL,
-        action_type VARCHAR(50) NOT NULL DEFAULT 'ADD',
+        notification_id VARCHAR(50) PRIMARY KEY DEFAULT CONCAT('NOTIF-', FLOOR(RANDOM() * 1000000)),
+        sector VARCHAR(100) NOT NULL,
+        action_type VARCHAR(50) DEFAULT 'ADD',
         title VARCHAR(255) NOT NULL,
         message TEXT NOT NULL,
         link VARCHAR(255) DEFAULT '/',
@@ -28,95 +24,60 @@ export async function GET() {
   try {
     await initNotificationsTable();
     const res = await query(`
-      SELECT DISTINCT ON (title, message) notification_id::text AS notification_id, sector, action_type, title, message, link, is_read, created_at 
+      SELECT 
+        notification_id, 
+        sector, 
+        action_type, 
+        title, 
+        message, 
+        link, 
+        is_read, 
+        created_at 
       FROM system_notifications 
-      ORDER BY title, message, created_at DESC
+      ORDER BY created_at DESC 
       LIMIT 100
     `);
-    
-    const notifications = (res.rows || []).sort(
-      (a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-    
-    const unreadCount = notifications.filter((n: any) => !n.is_read).length;
-
-    return NextResponse.json({
-      success: true,
-      notifications,
-      unreadCount
-    }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
-      }
-    });
+    return NextResponse.json({ success: true, notifications: res.rows || [] });
   } catch (err: any) {
-    console.error("Notifications GET Error:", err);
-    return NextResponse.json({ success: false, error: err.message, notifications: [], unreadCount: 0 }, { status: 500 });
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
 
 export async function POST(req: Request) {
   try {
     await initNotificationsTable();
-    const body = await req.json().catch(() => ({}));
-    const { action } = body;
+    const body = await req.json();
+    const { action, action_type, sector, title, message, link } = body;
+
+    // دعم كافة أشكال طلبات إرسال الإشعارات القادمة من الـ APIs أو الواجهات
+    if (action === 'ADD_NOTIFICATION' || title || message) {
+      const notifId = `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const res = await query(`
+        INSERT INTO system_notifications (
+          notification_id, sector, action_type, title, message, link, is_read, created_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, FALSE, CURRENT_TIMESTAMP)
+        RETURNING *
+      `, [
+        notifId,
+        sector || 'GENERAL',
+        action_type || body.action_type || 'ADD',
+        title || 'تنبيه نظام',
+        message || '',
+        link || '/'
+      ]);
+
+      return NextResponse.json({ success: true, notification: res.rows[0] });
+    }
 
     if (action === 'MARK_AS_READ') {
-      const { notification_id } = body;
-      if (notification_id) {
-        await query(
-          `UPDATE system_notifications SET is_read = TRUE WHERE notification_id::text = $1::text`,
-          [String(notification_id)]
-        );
-      } else {
-        await query(`UPDATE system_notifications SET is_read = TRUE`);
-      }
+      await query(`UPDATE system_notifications SET is_read = TRUE WHERE is_read = FALSE`);
       return NextResponse.json({ success: true });
     }
 
-    const finalNotifId = String(body.notification_id || `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
-    const title = String(body.title || 'إشعار إداري').slice(0, 255);
-    const message = String(body.message || '');
-    const sector = String(body.sector || 'ADMIN_DOCS').slice(0, 50);
-    const action_type = String(body.action_type || 'ADD').slice(0, 50);
-    const link = String(body.link || '/').slice(0, 255);
-
-    // حماية ضد التكرار خلال 30 ثانية
-    const duplicateCheck = await query(`
-      SELECT notification_id FROM system_notifications 
-      WHERE title = $1 AND message = $2 AND created_at > NOW() - INTERVAL '30 seconds'
-    `, [title, message]);
-
-    if (duplicateCheck.rows && duplicateCheck.rows.length > 0) {
-      return NextResponse.json({ success: true, duplicated: true });
-    }
-
-    const res = await query(`
-      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING notification_id::text AS notification_id, sector, action_type, title, message, link, is_read, created_at
-    `, [finalNotifId, sector, action_type, title, message, link]);
-
-    return NextResponse.json({ success: true, notification: res.rows ? res.rows[0] : null });
+    return NextResponse.json({ error: 'إجراء غير صالح' }, { status: 400 });
   } catch (err: any) {
-    console.error("Notifications API Error:", err);
-    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
-  }
-}
-
-export async function DELETE(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const secretKey = searchParams.get('key');
-    
-    // منع الحذف إلا برمز سري محمي
-    if (secretKey !== 'rtco_admin_purge_secured') {
-      return NextResponse.json({ success: false, error: 'غير مصرح لك بمسح سجل الإشعارات' }, { status: 403 });
-    }
-
-    await query(`DELETE FROM system_notifications`);
-    return NextResponse.json({ success: true, message: 'تم تطهير سجل الإشعارات بنجاح' });
-  } catch (err: any) {
+    console.error("Save Notification Error:", err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }

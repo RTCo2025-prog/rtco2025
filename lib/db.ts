@@ -9,6 +9,7 @@ const CONFIG_FILE = path.join(process.cwd(), '.active_db.json');
 
 // تنظيف الرابط من المعايير التي تسبب تجمد أو فشل الاتصال في Node.js
 function sanitizeUrl(rawUrl: string): string {
+  if (!rawUrl) return '';
   let cleaned = rawUrl.trim();
   // إزالة channel_binding=require إن وجدت
   cleaned = cleaned.replace(/[?&]channel_binding=[^&]+/g, '');
@@ -31,7 +32,7 @@ export function getActiveConnectionString(): string {
       }
     }
   } catch {
-    // تجاهل خطأ قراءة الملف
+    // تجاهل خطأ قراءة الملف في البيئات المعزولة أو السحابية
   }
 
   currentDbUrl = sanitizeUrl(process.env.DATABASE_URL || '');
@@ -56,7 +57,7 @@ export function getPool(overrideUrl?: string): Pool {
     },
     max: 10,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 30000, // مهلة كافية لسيرفرات Neon للاستيقاظ
+    connectionTimeoutMillis: 30000, // مهلة كافية لسيرفرات Neon/Supabase للاستيقاظ
   });
 
   pool.on('error', (err) => {
@@ -73,7 +74,7 @@ export function getPool(overrideUrl?: string): Pool {
 export async function switchDatabase(newConnectionString: string): Promise<boolean> {
   const cleanUrl = sanitizeUrl(newConnectionString);
 
-  // إعطاء مهلة 30 ثانية لتستيقظ قاعدة بيانات Neon من حالة السكون
+  // إعطاء مهلة 30 ثانية لتستيقظ قاعدة البيانات من حالة السكون
   const testPool = new Pool({
     connectionString: cleanUrl,
     ssl: { rejectUnauthorized: false },
@@ -87,13 +88,16 @@ export async function switchDatabase(newConnectionString: string): Promise<boole
     await testPool.end();
 
     if (activePool) {
-      await activePool.end().catch(() => {});
+      await activePool.end().catch((err) => {
+        console.warn('Error closing active pool during switch:', err);
+      });
+      activePool = null;
     }
 
     try {
       fs.writeFileSync(CONFIG_FILE, JSON.stringify({ database_url: cleanUrl }), 'utf8');
     } catch (e) {
-      console.warn('Could not write to local config file:', e);
+      console.warn('Could not write to local config file (possibly read-only filesystem):', e);
     }
 
     currentDbUrl = cleanUrl;
@@ -101,7 +105,12 @@ export async function switchDatabase(newConnectionString: string): Promise<boole
       connectionString: cleanUrl,
       ssl: { rejectUnauthorized: false },
       max: 10,
+      idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 30000
+    });
+
+    activePool.on('error', (err) => {
+      console.error('Unexpected database client error in new active pool:', err);
     });
 
     return true;

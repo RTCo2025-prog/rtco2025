@@ -1,21 +1,42 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { switchDatabase, query } from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
-    const { new_database_url } = await req.json();
-
-    if (!new_database_url || !new_database_url.startsWith('postgres')) {
+    // 1. التحقق من أمان وحماية الطلب (صلاحيات المسؤول)
+    const cookieStore = await cookies();
+    const userRole = cookieStore.get('user_role')?.value || req.headers.get('x-user-role');
+    
+    // يرجى تعديل الشرط إذا كانت تسمية الدور لديك مختلفة مثل 'admin' أو 'SUPER_ADMIN'
+    if (!userRole || (userRole !== 'admin' && userRole !== 'SUPER_ADMIN')) {
       return NextResponse.json({ 
         success: false, 
-        error: 'يرجى إدخال رابط اتصال صالح يبدأ بـ postgresql://' 
+        error: 'غير مصرح لك ببدء هذه العملية. هذه الصلاحية للمسؤولين فقط.' 
+      }, { status: 403 });
+    }
+
+    const body = await req.json();
+    const { new_database_url } = body;
+
+    // 2. التحقق من صيغة رابط قاعدة البيانات
+    if (
+      !new_database_url || 
+      typeof new_database_url !== 'string' ||
+      (!new_database_url.trim().startsWith('postgres://') && !new_database_url.trim().startsWith('postgresql://'))
+    ) {
+      return NextResponse.json({ 
+        success: false, 
+        error: 'يرجى إدخال رابط اتصال صالح يبدأ بـ postgresql:// أو postgres://' 
       }, { status: 400 });
     }
 
-    // تنفيذ التبديل وفحص الاتصال
-    await switchDatabase(new_database_url.trim());
+    const sanitizedUrl = new_database_url.trim();
 
-    // تهيئة جدول الإعدادات في القاعدة الجديدة لحفظ الرابط
+    // 3. تنفيذ التبديل وفحص الاتصال بالقاعدة الجديدة
+    await switchDatabase(sanitizedUrl);
+
+    // 4. تهيئة جدول الإعدادات في القاعدة الجديدة لحفظ الرابط
     try {
       await query(`
         CREATE TABLE IF NOT EXISTS company_settings (
@@ -35,11 +56,12 @@ export async function POST(req: Request) {
           updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
+
       await query(`
         INSERT INTO company_settings (id, database_url)
         VALUES (1, $1)
         ON CONFLICT (id) DO UPDATE SET database_url = $1, updated_at = CURRENT_TIMESTAMP
-      `, [new_database_url.trim()]);
+      `, [sanitizedUrl]);
     } catch (e) {
       console.error('Note: could not update company_settings in new db, but connection switched:', e);
     }

@@ -14,6 +14,9 @@ async function logNotification(sector: string, action_type: string, title: strin
 
 async function initTables() {
   try {
+    // التأكد من دعم توليد UUID
+    await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
     await query(`
       CREATE TABLE IF NOT EXISTS projects (
         project_id VARCHAR(50) PRIMARY KEY,
@@ -329,6 +332,13 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action } = body;
 
+    // فحص ما إذا كان معرّف المشروع UUID أم VARCHAR في جدول projects
+    const colCheck = await query(`
+      SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'projects' AND column_name = 'project_id'
+    `).catch(() => ({ rows: [] }));
+    const isProjectUuid = colCheck.rows[0]?.data_type === 'uuid';
+
     if (action === 'ADD_MILESTONE') {
       const { project_id, name, weight } = body;
       const mId = `MLS-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
@@ -469,28 +479,49 @@ export async function POST(req: Request) {
       notes 
     } = body;
 
-    const finalProjectId = String(project_id || id || `PRJ-${Date.now()}`);
-    const validStartDate = start_date && String(start_date).trim() !== '' ? start_date : new Date().toISOString().substring(0, 10);
-    const validEndDate = expected_end_date && String(expected_end_date).trim() !== '' ? expected_end_date : null;
+    const validStartDate = start_date && String(start_date).trim() !== '' ? String(start_date).trim() : null;
+    const validEndDate = expected_end_date && String(expected_end_date).trim() !== '' ? String(expected_end_date).trim() : null;
 
-    const res = await query(`
-      INSERT INTO projects (
-        project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
-      )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-      RETURNING *
-    `, [
-      finalProjectId,
-      project_name || 'مشروع جديد',
-      client_name || 'جهة غير محددة',
-      location || 'النجف الأشرف',
-      Number(contract_value) || 0,
-      currency,
-      validStartDate,
-      validEndDate,
-      Number(completion_rate) || 0,
-      notes || ''
-    ]);
+    let res;
+    if (isProjectUuid) {
+      res = await query(`
+        INSERT INTO projects (
+          project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
+        )
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7::date, $8, $9)
+        RETURNING *
+      `, [
+        project_name || 'مشروع جديد',
+        client_name || 'جهة غير محددة',
+        location || 'النجف الأشرف',
+        Number(contract_value) || 0,
+        currency || 'IQD',
+        validStartDate,
+        validEndDate,
+        Number(completion_rate) || 0,
+        notes || ''
+      ]);
+    } else {
+      const finalProjectId = String(project_id || id || `PRJ-${Date.now()}`);
+      res = await query(`
+        INSERT INTO projects (
+          project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8::date, $9, $10)
+        RETURNING *
+      `, [
+        finalProjectId,
+        project_name || 'مشروع جديد',
+        client_name || 'جهة غير محددة',
+        location || 'النجف الأشرف',
+        Number(contract_value) || 0,
+        currency || 'IQD',
+        validStartDate,
+        validEndDate,
+        Number(completion_rate) || 0,
+        notes || ''
+      ]);
+    }
 
     await logNotification(
       'PROJECTS',
@@ -518,7 +549,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true, project: createdProject });
   } catch (error: any) {
     console.error("Project API Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'فشل تسجيل المشروع' }, { status: 500 });
   }
 }
 

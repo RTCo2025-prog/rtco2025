@@ -1,6 +1,17 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
+  try {
+    await query(`
+      INSERT INTO system_notifications (sector, action_type, title, message, link)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [sector, action_type, title, message, link]);
+  } catch (e) {
+    console.error("Log Notification Error:", e);
+  }
+}
+
 async function initRealEstateTables() {
   // 1. إنشاء جدول الوحدات إذا لم يكن موجوداً
   await query(`
@@ -171,6 +182,14 @@ export async function POST(req: Request) {
         notes || ''
       ]);
 
+      await logNotification(
+        'REAL_ESTATE',
+        'ADD',
+        `إدراج وحدة عقارية: ${unitTitle}`,
+        `تم إضافة وحدة عقارية (${unitTitle} - ${selectedType}) برمز (${code}) بمساحة ${numArea} م² وسعر ${numPrice.toLocaleString('en-US')} د.ع في (${location || city || 'النجف'})`,
+        '/real-estate'
+      );
+
       return NextResponse.json({ success: true, unit: res.rows[0] });
     }
 
@@ -238,6 +257,17 @@ export async function POST(req: Request) {
         `, [instId, String(unit_id), `القسط الشهري رقم (${i})`, instAmount, dueDateStr]);
       }
 
+      const unitInfo = await query(`SELECT title, unit_name, unit_code FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unit_id)]);
+      const uName = unitInfo.rows[0]?.title || unitInfo.rows[0]?.unit_name || unitInfo.rows[0]?.unit_code || 'وحدة عقارية';
+
+      await logNotification(
+        'REAL_ESTATE',
+        'UPDATE',
+        `تثبيت بيع وحدة: ${uName}`,
+        `تم تثبيت بيع (${uName}) للمشتري (${buyer_name}) بمبلغ إجمالي ${tPrice.toLocaleString('en-US')} د.ع (مقدمة: ${downPay.toLocaleString('en-US')} د.ع مقسطة على ${count} أشهر)`,
+        '/real-estate'
+      );
+
       return NextResponse.json({ success: true, message: 'تم تثبيت البيع وجدولة الأقساط بنجاح' });
     }
 
@@ -280,6 +310,14 @@ export async function POST(req: Request) {
         console.error('Voucher creation notice:', vErr);
       }
 
+      await logNotification(
+        'REAL_ESTATE',
+        'UPDATE',
+        `تسديد قسط عقاري: ${installment_title || 'قسط'}`,
+        `تم تحصيل وتسديد (${installment_title || 'قسط عقاري'}) بمبلغ ${Number(amount || 0).toLocaleString('en-US')} د.ع من (${buyer_name || 'المشتري'}) وتوليد وصل قبض في الصندوق`,
+        '/real-estate'
+      );
+
       return NextResponse.json({ success: true, message: 'تم تسديد القسط بنجاح' });
     }
 
@@ -299,8 +337,20 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'معرف الوحدة مطلوب' }, { status: 400 });
     }
 
+    const unitInfo = await query(`SELECT title, unit_name, unit_code FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unitId)]);
+    const uName = unitInfo.rows[0]?.title || unitInfo.rows[0]?.unit_name || unitInfo.rows[0]?.unit_code || 'وحدة عقارية';
+
     await query(`DELETE FROM real_estate_installments WHERE unit_id::text = $1::text`, [String(unitId)]);
     await query(`DELETE FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unitId)]);
+
+    await logNotification(
+      'REAL_ESTATE',
+      'DELETE',
+      `حذف وحدة عقارية: ${uName}`,
+      `تم حذف الوحدة العقارية (${uName}) وكافة جداول أقساطها من سجلات الاستثمار العقاري`,
+      '/real-estate'
+    );
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

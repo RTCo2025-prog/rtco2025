@@ -93,38 +93,18 @@ interface ItemLine {
   total: number;
 }
 
-// دالة إرسال الإشعار المركزي المزدوجة (Hybrid Dispatcher)
+// دالة إرسال الإشعار المركزي المباشرة إلى الخادم وقاعدة البيانات السحابية
 async function pushSystemNotification(title: string, message: string, sector: string, link: string, actionType: string = 'ADD') {
-  const newNotif = {
-    notification_id: `NOTIF-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-    title,
-    message,
-    sector: sector || 'INSTALLMENTS',
-    action_type: actionType,
-    link: link || '/inventory/installments',
-    is_read: false,
-    created_at: new Date().toISOString()
-  };
-
-  try {
-    const localRaw = localStorage.getItem('rtco_system_notifications');
-    const local = localRaw ? JSON.parse(localRaw) : [];
-    localStorage.setItem('rtco_system_notifications', JSON.stringify([newNotif, ...local]));
-  } catch (err) {
-    console.error(err);
-  }
-
   try {
     await fetch('/api/notifications', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'ADD_NOTIFICATION',
+        sector: sector || 'INSTALLMENTS',
         action_type: actionType,
         title,
         message,
-        sector,
-        link
+        link: link || '/inventory/installments'
       })
     });
   } catch (e) {
