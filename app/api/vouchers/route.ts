@@ -3,62 +3,148 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch {}
   }
 }
 
-// جلب قائمة السندات مع اسم المشروع وحساب المبالغ بمرونة
-export async function GET() {
+// خريطة مسميات الفروع الرسمية المعتمدة
+const BRANCH_NAMES_MAP: Record<string, string> = {
+  'BR-HQ-01': 'المقر الرئيسي (النجف الأشرف)',
+  'BR-CONST-02': 'فرع المقاولات والمشاريع الهندسية',
+  'BR-TRADE-03': 'فرع التجارة العامة والمخازن',
+  'BR-TRANS-04': 'فرع النقل العام واللوجستيات',
+  'BR-RE-05': 'فرع الاستثمارات والتطوير العقاري',
+  'ALL': 'كافة الفروع (عرض المنظومة الموحدة)'
+};
+
+async function initVoucherTables() {
   try {
+    await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
+    // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+    await query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        branch_id VARCHAR(50) PRIMARY KEY,
+        branch_code VARCHAR(50),
+        name_ar VARCHAR(255) NOT NULL,
+        branch_type VARCHAR(100),
+        manager_name VARCHAR(150),
+        phone VARCHAR(50),
+        city VARCHAR(100) DEFAULT 'النجف الأشرف',
+        address VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
     await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id VARCHAR(50);`).catch(() => {});
     await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS amount NUMERIC DEFAULT 0;`).catch(() => {});
     await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;`).catch(() => {});
+    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS created_by VARCHAR(100);`).catch(() => {});
+    await query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50);`).catch(() => {});
+  } catch (e) {
+    console.error('Voucher Tables Init Error:', e);
+  }
+}
 
-    const res = await query(`
+// جلب قائمة السندات مع اسم المشروع والفرع مع دعم الفلترة المستقلة والعرض الموحد
+export async function GET(req: Request) {
+  try {
+    await initVoucherTables();
+
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let sql = `
       SELECT 
         v.voucher_id::text AS voucher_id, 
         v.voucher_number, 
         v.voucher_type, 
-        v.issue_date, 
-        COALESCE(v.currency, 'IQD') as currency, 
-        v.status, 
-        v.notes, 
-        v.project_id::text AS project_id,
-        COALESCE(b.name_ar, 'قطاع النقل العام واللوجستيات') as branch_name,
-        COALESCE(p.project_name, cp.project_name) as project_name,
-        CASE 
-          WHEN COALESCE(SUM(jl.debit), 0) > 0 THEN SUM(jl.debit)
-          WHEN COALESCE(v.total_amount, 0) > 0 THEN v.total_amount
-          ELSE COALESCE(v.amount, 0)
-        END as total_amount
+        to_char(v.issue_date, 'YYYY-MM-DD') AS issue_date, 
+        COALESCE(v.currency, 'IQD') AS currency, 
+        COALESCE(v.status, 'POSTED') AS status, 
+        COALESCE(v.notes, '') AS notes, 
+        COALESCE(v.project_id::text, '') AS project_id,
+        v.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name,
+        COALESCE(p.project_name, '') AS project_name,
+        COALESCE(v.total_amount, v.amount, 0) AS total_amount,
+        COALESCE(v.amount, v.total_amount, 0) AS amount
       FROM vouchers v
-      LEFT JOIN branches b ON v.branch_id::text = b.branch_id::text
-      LEFT JOIN projects p ON v.project_id::text = p.project_id::text
-      LEFT JOIN contracting_projects cp ON v.project_id::text = cp.project_id::text
-      LEFT JOIN journal_lines jl ON v.voucher_id::text = jl.voucher_id::text
-      GROUP BY v.voucher_id, b.name_ar, p.project_name, cp.project_name, v.total_amount, v.amount, v.voucher_number, v.voucher_type, v.issue_date, v.currency, v.status, v.notes, v.project_id, v.created_at
-      ORDER BY v.created_at DESC
-      LIMIT 200
-    `);
+      LEFT JOIN branches b ON TRIM(v.branch_id::text) = TRIM(b.branch_id::text)
+      LEFT JOIN projects p ON TRIM(v.project_id::text) = TRIM(p.project_id::text)
+    `;
 
-    return NextResponse.json({ vouchers: res.rows || [] });
+    const params: any[] = [];
+    if (isSpecificBranch) {
+      sql += ` WHERE TRIM(v.branch_id::text) = TRIM($1)`;
+      params.push(String(branchFilter));
+    }
+
+    sql += ` ORDER BY v.created_at DESC LIMIT 300`;
+
+    const res = await query(sql, params).catch(async () => {
+      let fallbackSql = `
+        SELECT 
+          voucher_id::text AS voucher_id,
+          voucher_number,
+          voucher_type,
+          to_char(issue_date, 'YYYY-MM-DD') AS issue_date,
+          COALESCE(currency, 'IQD') AS currency,
+          COALESCE(status, 'POSTED') AS status,
+          COALESCE(notes, '') AS notes,
+          COALESCE(project_id::text, '') AS project_id,
+          branch_id::text AS branch_id,
+          COALESCE(total_amount, amount, 0) AS total_amount,
+          COALESCE(amount, 0) AS amount
+        FROM vouchers
+      `;
+      const fallbackParams: any[] = [];
+      if (isSpecificBranch) {
+        fallbackSql += ` WHERE TRIM(branch_id::text) = TRIM($1)`;
+        fallbackParams.push(String(branchFilter));
+      }
+      fallbackSql += ` ORDER BY created_at DESC LIMIT 300`;
+      return await query(fallbackSql, fallbackParams);
+    });
+
+    const enriched = (res.rows || []).map((v: any) => {
+      const mapped = v.branch_name || BRANCH_NAMES_MAP[v.branch_id];
+      return {
+        ...v,
+        branch_name: mapped || 'فرع الشركة'
+      };
+    });
+
+    return NextResponse.json({ vouchers: enriched });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('GET Vouchers Error:', error);
+    return NextResponse.json({ vouchers: [] });
   }
 }
 
-// إنشاء سند جديد وربطه بالمشروع أو قطاع النقل مع التحقق من إقفال الفترة
+// إنشاء سند جديد وربطه بالفرع والمشروع مع التحقق من إقفال الفترة
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { branch_id, project_id, voucher_type, amount, currency, notes } = body;
+    await initVoucherTables();
 
-    // فحص ما إذا كان شهر الإصدار مقفلاً
+    const body = await req.json();
+    const { branch_id, project_id, voucher_type, amount, currency, notes, created_by } = body;
+
     const issueMonth = new Date().toISOString().slice(0, 7);
     const lockCheck = await query(
       `SELECT * FROM closed_financial_periods WHERE period_month = $1`,
@@ -91,6 +177,12 @@ export async function POST(req: Request) {
     } catch {}
 
     const numAmount = parseFloat(amount) || 0;
+    const finalCreatedBy = created_by ? String(created_by) : (userId ? String(userId) : 'مدير النظام');
+    
+    // التحقق من تعيين الفرع وفق مدخل المستخدم
+    const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+      ? String(branch_id).trim() 
+      : null;
 
     const vRes = await query(`
       INSERT INTO vouchers (
@@ -111,14 +203,14 @@ export async function POST(req: Request) {
       RETURNING voucher_id::text AS voucher_id
     `, [
       finalVoucherId,
-      branch_id ? String(branch_id) : null, 
+      finalBranchId, 
       project_id ? String(project_id) : null, 
       vNum, 
       voucher_type, 
       numAmount, 
       currency || 'IQD', 
       notes || '', 
-      userId ? String(userId) : null
+      finalCreatedBy
     ]);
 
     const voucherId = vRes.rows[0]?.voucher_id || finalVoucherId;
@@ -141,7 +233,6 @@ export async function POST(req: Request) {
       }
     }
 
-    // استخراج اسم الطرف والبيان للإشعار
     let partyTitle = 'غير محدد';
     let reasonTitle = '';
     try {
@@ -152,14 +243,15 @@ export async function POST(req: Request) {
       if (notes) reasonTitle = ` - ${notes}`;
     }
 
+    const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+    const branchNameStr = bRes.rows[0]?.name_ar || 'فرع الشركة';
     const typeTitle = voucher_type === 'RECEIPT' ? 'وصل قبض مالي' : 'سند صرف مالي';
 
-    // تسجيل إشعار فوري للحركة المالية
     await logNotification(
       'FINANCE',
       'ADD',
-      `${typeTitle}: ${vNum}`,
-      `تم قيد ${typeTitle} بمبلغ ${numAmount.toLocaleString('en-US')} ${currency || 'IQD'} لصالح (${partyTitle})${reasonTitle}`,
+      `${typeTitle}: ${vNum} (${branchNameStr})`,
+      `تم قيد ${typeTitle} بمبلغ ${numAmount.toLocaleString('en-US')} ${currency || 'IQD'} لصالح (${partyTitle}) في (${branchNameStr})${reasonTitle}`,
       '/vouchers'
     );
 
@@ -179,7 +271,6 @@ export async function PATCH(req: Request) {
       return NextResponse.json({ error: 'معرّف السند مطلوب' }, { status: 400 });
     }
 
-    // فحص قفل الفترة المالية عند طلب الإلغاء
     if (cancel_reason) {
       const vDateRes = await query('SELECT issue_date FROM vouchers WHERE voucher_id::text = $1::text', [String(voucher_id)]);
       const vMonth = String(vDateRes.rows[0]?.issue_date || '').slice(0, 7);
@@ -260,7 +351,6 @@ export async function PATCH(req: Request) {
     const vNum = currentVoucher.voucher_number || 'سند';
     const vAmt = Number(currentVoucher.total_amount || currentVoucher.amount || 0);
 
-    // تسجيل إشعار فوري بالإلغاء
     await logNotification(
       'FINANCE',
       'DELETE',

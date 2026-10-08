@@ -52,6 +52,7 @@ import {
   Line
 } from 'recharts';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -66,6 +67,7 @@ function generateYearMonths(year: string = '2026') {
 }
 
 export default function FinancialReportsPage() {
+  const { selectedBranchId, branches } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
@@ -102,6 +104,56 @@ export default function FinancialReportsPage() {
   });
   const [isAllTime, setIsAllTime] = useState(true);
 
+  // فحص تقييد الموظف بفرع محدد
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
+  const resolveBranchName = (bId?: string): string => {
+    if (!bId || bId === 'ALL' || bId === 'BR-HQ-01') {
+      return 'المقر الرئيسي (عرض المنظومة الموحدة)';
+    }
+    const cleanId = String(bId).trim().toUpperCase();
+    if (cleanId === 'TRD-01' || cleanId === 'BR-TRADE-03' || cleanId.includes('TRD') || cleanId.includes('TRADE')) {
+      return 'فرع التجارة العامة';
+    }
+    if (cleanId === 'CNT-01' || cleanId === 'BR-CONST-02' || cleanId.includes('CNT') || cleanId.includes('CONST')) {
+      return 'فرع المقاولات العامة';
+    }
+    if (cleanId === 'FLT-01' || cleanId === 'BR-TRANS-04' || cleanId.includes('FLT') || cleanId.includes('TRANS')) {
+      return 'فرع النقل العام';
+    }
+    if (cleanId === 'EST-01' || cleanId === 'BR-RE-05' || cleanId.includes('EST') || cleanId.includes('RE')) {
+      return 'فرع الاستثمارات العقارية';
+    }
+    if (cleanId === 'STR-01' || cleanId.includes('STR') || cleanId.includes('WAREHOUSE')) {
+      return 'فرع المخازن';
+    }
+    if (cleanId === 'HQ-01' || cleanId === 'BR-HQ-01') {
+      return 'المقر الرئيسي';
+    }
+
+    const found = (branches || []).find((b: any) => 
+      String(b.branch_id).trim().toUpperCase() === cleanId || 
+      String(b.branch_code).trim().toUpperCase() === cleanId
+    );
+    return found?.name_ar || `فرع ${bId}`;
+  };
+
+  const currentBranchLabel = useMemo(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      return resolveBranchName(currentUser.assigned_branch_id);
+    }
+    return resolveBranchName(selectedBranchId);
+  }, [selectedBranchId, branches, isRestrictedBranch, currentUser]);
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -116,16 +168,23 @@ export default function FinancialReportsPage() {
     }
   };
 
-  const loadAllData = async () => {
+  const loadAllData = async (branchFilterId?: string) => {
     setLoading(true);
     try {
+      let activeBranch = branchFilterId !== undefined ? branchFilterId : selectedBranchId;
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        activeBranch = currentUser.assigned_branch_id;
+      }
+
+      const bParam = activeBranch && activeBranch !== 'ALL' ? `?branch_id=${encodeURIComponent(activeBranch)}` : '';
+
       const [resP, resV, resF, resI, resH, resRE] = await Promise.all([
-        fetch('/api/projects', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ projects: [] })),
-        fetch('/api/vouchers', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ vouchers: [] })),
-        fetch('/api/fleet', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ trips: [], maintenance: [] })),
-        fetch('/api/inventory', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ items: [], transactions: [] })),
-        fetch('/api/hr', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ employees: [], payrollRuns: [] })),
-        fetch('/api/real-estate', { cache: 'no-store' }).then(r => r.json()).catch(() => ({ units: [] }))
+        fetch(`/api/projects${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ projects: [] })),
+        fetch(`/api/vouchers${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ vouchers: [] })),
+        fetch(`/api/fleet${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ trips: [], maintenance: [] })),
+        fetch(`/api/inventory${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ items: [], transactions: [] })),
+        fetch(`/api/hr${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ employees: [], payrollRuns: [] })),
+        fetch(`/api/real-estate${bParam}`, { cache: 'no-store' }).then(r => r.json()).catch(() => ({ units: [] }))
       ]);
 
       if (resP.projects) setProjectsRaw(resP.projects);
@@ -153,8 +212,11 @@ export default function FinancialReportsPage() {
         setCurrentUser(JSON.parse(raw));
       } catch {}
     }
-    loadAllData();
   }, []);
+
+  useEffect(() => {
+    loadAllData(selectedBranchId);
+  }, [selectedBranchId, isRestrictedBranch]);
 
   const setQuickRange = (type: 'THIS_MONTH' | 'THIS_YEAR' | 'ALL') => {
     const now = new Date();
@@ -536,7 +598,7 @@ export default function FinancialReportsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  {companySettings.company_name} • المركز المالي، التحليل الزمني، الرسوم البيانية، واستقلالية القطاعات
+                  {companySettings.company_name} • نطاق العرض: <strong className="text-amber-400">{currentBranchLabel}</strong>
                 </p>
               </div>
             </div>
@@ -544,7 +606,7 @@ export default function FinancialReportsPage() {
             {/* الطرف الأيسر: شريط الإجراءات وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <button 
-                onClick={loadAllData} 
+                onClick={() => loadAllData(selectedBranchId)} 
                 className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer active:scale-95 shadow-sm"
                 title="تحديث ومزامنة البيانات اللحظية"
               >
@@ -1114,10 +1176,11 @@ export default function FinancialReportsPage() {
         {/* ------------------------------------------------------------- */}
         {/* التقرير المالي الرسمي للطباعة A4 المخصص للإدارة العليا */}
         {/* ------------------------------------------------------------- */}
-        <div className="w-full max-w-5xl mx-auto bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl mt-14 print:border-none print:shadow-none print:p-0 print:m-0 space-y-6">
+        <div className="w-full max-w-5xl mx-auto bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl mt-14 print:border-none print:shadow-none print:p-0 print:m-0 space-y-4">
           
+          {/* 1. الترويسة الرسمية للشركة دون المساس بها */}
           {hasLetterhead ? (
-            <div className="w-full border-b pb-4 mb-4">
+            <div className="w-full border-b pb-3 mb-2">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
             </div>
@@ -1145,11 +1208,36 @@ export default function FinancialReportsPage() {
                 >
                   التقرير المالي التنفيذي الموحد
                 </div>
-                <p className="text-[11px] font-mono mt-2 text-slate-600">تاريخ الطباعة: <span className="font-bold text-slate-950">{new Date().toISOString().split('T')[0]}</span></p>
-                <p className="text-[10px] font-mono text-slate-500 mt-0.5">الفترة: {startDate || 'منذ التأسيس'} إلى {endDate || 'اليوم'}</p>
+                <p className="text-[11px] font-mono mt-2 text-slate-600">الفترة: {startDate || 'منذ التأسيس'} إلى {endDate || 'اليوم'}</p>
               </div>
             </div>
           )}
+
+          {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع فقط مأطر، اليسار التاريخ */}
+          <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+            {/* اليمين: العدد ورقم التقرير */}
+            <div className="flex items-center gap-1.5" dir="rtl">
+              <span className="text-slate-500 font-bold">العدد :</span>
+              <span className="font-mono text-slate-950 text-sm tracking-wide">
+                م/ 2026
+              </span>
+            </div>
+
+            {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
+            <div className="flex items-center justify-center">
+              <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                {currentBranchLabel}
+              </span>
+            </div>
+
+            {/* اليسار: التاريخ */}
+            <div className="flex items-center gap-1.5" dir="rtl">
+              <span className="text-slate-500 font-bold">التاريخ :</span>
+              <span className="font-mono text-slate-950 text-sm tracking-wider">
+                {new Date().toISOString().split('T')[0]}
+              </span>
+            </div>
+          </div>
 
           <div className="grid grid-cols-3 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs font-mono text-center">
             <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-sm">

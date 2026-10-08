@@ -3,21 +3,59 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
   }
 }
 
+// خريطة مسميات الفروع المعتمدة الحصرية
+const BRANCH_NAMES_MAP: Record<string, string> = {
+  'BR-HQ-01': 'المقر الرئيسي (النجف الأشرف)',
+  'BR-CONST-02': 'فرع المقاولات والمشاريع الهندسية',
+  'BR-TRADE-03': 'فرع التجارة العامة والمخازن',
+  'BR-TRANS-04': 'فرع النقل العام واللوجستيات',
+  'BR-RE-05': 'فرع الاستثمارات والتطوير العقاري',
+  'ALL': 'كافة الفروع (عرض المنظومة الموحدة)'
+};
+
 async function initInventoryTables() {
   try {
+    await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
+    // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+    await query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        branch_id VARCHAR(50) PRIMARY KEY,
+        branch_code VARCHAR(50),
+        name_ar VARCHAR(255) NOT NULL,
+        branch_type VARCHAR(100),
+        manager_name VARCHAR(150),
+        phone VARCHAR(50),
+        city VARCHAR(100) DEFAULT 'النجف الأشرف',
+        address VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
     // 1. جدول الأصناف والمواد بالمخزن المركزي
     await query(`
       CREATE TABLE IF NOT EXISTS inventory_items (
         item_id VARCHAR(50) PRIMARY KEY,
+        branch_id VARCHAR(50) DEFAULT 'BR-TRADE-03',
         item_code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(255),
         item_name VARCHAR(255),
@@ -36,6 +74,7 @@ async function initInventoryTables() {
       );
     `);
 
+    await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-TRADE-03';`).catch(() => {});
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS name VARCHAR(255);`).catch(() => {});
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS item_name VARCHAR(255);`).catch(() => {});
     await query(`ALTER TABLE inventory_items ADD COLUMN IF NOT EXISTS quantity_on_hand NUMERIC DEFAULT 0;`).catch(() => {});
@@ -51,6 +90,7 @@ async function initInventoryTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS inventory_transactions (
         trans_id VARCHAR(50) PRIMARY KEY,
+        branch_id VARCHAR(50) DEFAULT 'BR-TRADE-03',
         trans_code VARCHAR(50),
         item_id VARCHAR(50),
         trans_type VARCHAR(20) NOT NULL,
@@ -66,6 +106,7 @@ async function initInventoryTables() {
       );
     `);
 
+    await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-TRADE-03';`).catch(() => {});
     await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS trans_code VARCHAR(50);`).catch(() => {});
     await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS purpose VARCHAR(50) DEFAULT 'PURCHASE';`).catch(() => {});
     await query(`ALTER TABLE inventory_transactions ADD COLUMN IF NOT EXISTS notes TEXT;`).catch(() => {});
@@ -75,59 +116,85 @@ async function initInventoryTables() {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initInventoryTables();
 
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let itemsSql = `
+      SELECT 
+        i.item_id::text,
+        i.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name,
+        i.item_code,
+        COALESCE(NULLIF(i.name, ''), i.item_name, 'صنف') AS name,
+        COALESCE(NULLIF(i.item_name, ''), i.name, 'صنف') AS item_name,
+        i.category,
+        i.unit,
+        COALESCE(i.quantity_on_hand, i.current_qty, 0) AS quantity_on_hand,
+        COALESCE(i.current_qty, i.quantity_on_hand, 0) AS current_qty,
+        COALESCE(i.unit_cost, 0) AS unit_cost,
+        COALESCE(i.selling_price, 0) AS selling_price,
+        COALESCE(i.min_reorder_level, i.min_qty, 5) AS min_reorder_level,
+        COALESCE(i.min_qty, i.min_reorder_level, 5) AS min_reorder_level,
+        COALESCE(i.location, i.warehouse_location, 'المخزن الرئيسي') AS location,
+        i.notes,
+        i.created_at
+      FROM inventory_items i
+      LEFT JOIN branches b ON TRIM(i.branch_id::text) = TRIM(b.branch_id::text)
+    `;
+    const itemsParams: any[] = [];
+    if (isSpecificBranch) {
+      itemsSql += ` WHERE TRIM(i.branch_id::text) = TRIM($1)`;
+      itemsParams.push(String(branchFilter));
+    }
+    itemsSql += ` ORDER BY i.created_at DESC`;
+
+    let transSql = `
+      SELECT 
+        t.trans_id::text,
+        t.branch_id::text AS branch_id,
+        t.trans_code,
+        t.item_id::text,
+        t.trans_type,
+        t.purpose,
+        t.quantity,
+        t.unit_price,
+        t.total_amount,
+        t.project_id::text,
+        t.project_name,
+        t.supplier_or_recipient,
+        t.notes,
+        t.created_at,
+        COALESCE(t.trans_code, CONCAT('TR-', SUBSTRING(t.trans_id::text, 1, 8))) AS trans_code,
+        COALESCE(NULLIF(i.name, ''), i.item_name, 'صنف') as item_name, 
+        i.item_code, 
+        i.unit
+      FROM inventory_transactions t
+      JOIN inventory_items i ON TRIM(t.item_id::text) = TRIM(i.item_id::text)
+    `;
+    const transParams: any[] = [];
+    if (isSpecificBranch) {
+      transSql += ` WHERE (TRIM(t.branch_id::text) = TRIM($1) OR TRIM(i.branch_id::text) = TRIM($1))`;
+      transParams.push(String(branchFilter));
+    }
+    transSql += ` ORDER BY t.created_at DESC LIMIT 300`;
+
     const [itemsRes, transRes, projectsRes] = await Promise.all([
-      query(`
-        SELECT 
-          item_id::text,
-          item_code,
-          COALESCE(NULLIF(name, ''), item_name, 'صنف') AS name,
-          COALESCE(NULLIF(item_name, ''), name, 'صنف') AS item_name,
-          category,
-          unit,
-          COALESCE(quantity_on_hand, current_qty, 0) AS quantity_on_hand,
-          COALESCE(current_qty, quantity_on_hand, 0) AS current_qty,
-          COALESCE(unit_cost, 0) AS unit_cost,
-          COALESCE(selling_price, 0) AS selling_price,
-          COALESCE(min_reorder_level, min_qty, 5) AS min_reorder_level,
-          COALESCE(min_qty, min_reorder_level, 5) AS min_qty,
-          COALESCE(location, warehouse_location, 'المخزن الرئيسي') AS location,
-          notes,
-          created_at
-        FROM inventory_items 
-        ORDER BY created_at DESC
-      `),
-      query(`
-        SELECT 
-          t.trans_id::text,
-          t.trans_code,
-          t.item_id::text,
-          t.trans_type,
-          t.purpose,
-          t.quantity,
-          t.unit_price,
-          t.total_amount,
-          t.project_id::text,
-          t.project_name,
-          t.supplier_or_recipient,
-          t.notes,
-          t.created_at,
-          COALESCE(t.trans_code, CONCAT('TR-', SUBSTRING(t.trans_id::text, 1, 8))) AS trans_code,
-          COALESCE(NULLIF(i.name, ''), i.item_name, 'صنف') as item_name, 
-          i.item_code, 
-          i.unit
-        FROM inventory_transactions t
-        JOIN inventory_items i ON t.item_id::text = i.item_id::text
-        ORDER BY t.created_at DESC
-        LIMIT 300
-      `),
+      query(itemsSql, itemsParams),
+      query(transSql, transParams),
       query(`SELECT project_id::text, project_name FROM projects ORDER BY project_name ASC`).catch(() => ({ rows: [] }))
     ]);
 
-    const items = itemsRes.rows || [];
+    const rawItems = itemsRes.rows || [];
+    const items = rawItems.map((it: any) => ({
+      ...it,
+      branch_name: it.branch_name || BRANCH_NAMES_MAP[it.branch_id] || 'فرع الشركة'
+    }));
+
     const transactions = transRes.rows || [];
     const projects = projectsRes.rows || [];
 
@@ -171,6 +238,10 @@ export async function POST(req: Request) {
     // 1. إضافة صنف جديد
     if (action === 'ADD_ITEM' || action === 'CREATE_ITEM') {
       const finalItemId = String(body.item_id || body.id || `ITM-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+      const finalBranchId = body.branch_id && String(body.branch_id).trim() !== '' && String(body.branch_id).trim() !== 'ALL'
+        ? String(body.branch_id).trim()
+        : null;
+
       const code = String(body.item_code || `ITM-${Date.now().toString().slice(-4)}`).trim().toUpperCase();
       const finalName = body.name || body.item_name || 'مادة جديدة';
       const finalCategory = body.category || 'مواد إنشائية وبناء';
@@ -179,19 +250,20 @@ export async function POST(req: Request) {
       const finalCost = Number(body.unit_cost) || 0;
       const finalSellingPrice = Number(body.selling_price) || 0;
       const finalMin = Number(body.min_reorder_level ?? body.min_qty ?? 5);
-      const finalLocation = body.location || body.warehouse_location || 'المخزن المركزي الرئيسي - النجف';
+      const finalLocation = body.location || body.warehouse_location || 'المخزن الرئيسي';
       const finalNotes = body.notes || '';
 
       const res = await query(`
         INSERT INTO inventory_items (
-          item_id, item_code, name, item_name, category, unit, 
+          item_id, branch_id, item_code, name, item_name, category, unit, 
           quantity_on_hand, current_qty, unit_cost, selling_price, 
           min_reorder_level, min_qty, location, warehouse_location, notes
         )
-        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, $7, $8, $9, $9, $10, $10, $11)
+        VALUES ($1, $2, $3, $4, $4, $5, $6, $7, $7, $8, $9, $10, $10, $11, $11, $12)
         RETURNING *
       `, [
         finalItemId,
+        finalBranchId,
         code,
         finalName,
         finalCategory,
@@ -204,15 +276,18 @@ export async function POST(req: Request) {
         finalNotes
       ]);
 
+      const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+      const bName = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
       await logNotification(
         'INVENTORY',
         'ADD',
-        'تعريف صنف جديد بالمخزن',
-        `تم تعريف المادة (${finalName}) برمز (${code}) برصيد افتتاحي ${finalQty} ${finalUnit}`,
+        `تعريف صنف جديد بالمخزن (${bName})`,
+        `تم تعريف المادة (${finalName}) برمز (${code}) في فرع (${bName}) برصيد افتتاحي ${finalQty} ${finalUnit}`,
         '/inventory'
       );
 
-      return NextResponse.json({ success: true, item: res.rows[0] });
+      return NextResponse.json({ success: true, item: { ...res.rows[0], branch_name: bName } });
     }
 
     // 2. تسجيل حركة مخزنية
@@ -220,6 +295,7 @@ export async function POST(req: Request) {
       const { 
         trans_id,
         id,
+        branch_id,
         item_id, 
         trans_type, 
         purpose, 
@@ -242,6 +318,10 @@ export async function POST(req: Request) {
       }
 
       const currentItem = itemRes.rows[0];
+      const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+        ? String(branch_id).trim()
+        : (currentItem.branch_id || null);
+
       const matName = currentItem.name || currentItem.item_name || 'صنف';
       const currentQty = Number(currentItem.quantity_on_hand ?? currentItem.current_qty ?? 0);
       const currentCost = Number(currentItem.unit_cost) || 0;
@@ -264,12 +344,13 @@ export async function POST(req: Request) {
 
       const transRes = await query(`
         INSERT INTO inventory_transactions (
-          trans_id, trans_code, item_id, trans_type, purpose, quantity, unit_price, total_amount, project_id, project_name, supplier_or_recipient, notes
+          trans_id, branch_id, trans_code, item_id, trans_type, purpose, quantity, unit_price, total_amount, project_id, project_name, supplier_or_recipient, notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
         RETURNING *
       `, [
         finalTransId,
+        finalBranchId,
         transCode,
         String(item_id),
         trans_type,
@@ -312,7 +393,7 @@ export async function POST(req: Request) {
         `, [matId, String(project_id), matName, currentItem.unit, numQty, numPrice]).catch(() => {});
       }
 
-      // قيد السندات المالية بالصندوق تلقائياً
+      // قيد السندات المالية بالصندوق تلقائياً مرتبطة بنفس الفرع
       if (trans_type === 'IN' && finalPurpose === 'PURCHASE' && totalAmount > 0) {
         const vId = `VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const vNum = `V-INV-IN-${Date.now().toString().slice(-5)}`;
@@ -324,9 +405,9 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, totalAmount, vNotes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+          VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', CURRENT_DATE)
+        `, [vId, finalBranchId, vNum, totalAmount, vNotes]).catch(() => {});
       } else if (trans_type === 'OUT' && finalPurpose === 'COMMERCIAL_SALE' && totalAmount > 0) {
         const vId = `VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         const vNum = `V-INV-OUT-${Date.now().toString().slice(-5)}`;
@@ -338,25 +419,27 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, totalAmount, vNotes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+          VALUES ($1, $2, $3, 'RECEIPT', $4, $4, $5, 'POSTED', CURRENT_DATE)
+        `, [vId, finalBranchId, vNum, totalAmount, vNotes]).catch(() => {});
       }
 
-      // تسجيل الإشعار الفوري بحسب نوع الحركة
+      const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+      const bName = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
       if (trans_type === 'IN') {
         await logNotification(
           'INVENTORY',
           'ADD',
-          `توريد واستلام بضاعة (${matName})`,
-          `تم استلام وتوريد كمية ${numQty} ${currentItem.unit} من (${matName}) للمخزن بمبلغ ${totalAmount.toLocaleString('en-US')} د.ع - المورد: ${supplier_or_recipient || 'مجهز عام'}`,
+          `توريد واستلام بضاعة (${matName}) - (${bName})`,
+          `تم استلام وتوريد كمية ${numQty} ${currentItem.unit} من (${matName}) في (${bName}) بمبلغ ${totalAmount.toLocaleString('en-US')} د.ع - المورد: ${supplier_or_recipient || 'مجهز عام'}`,
           '/inventory'
         );
       } else if (finalPurpose === 'PROJECT_ISSUE') {
         await logNotification(
           'INVENTORY',
           'UPDATE',
-          `صرف مواد لمشروع مقاولة`,
+          `صرف مواد لمشروع مقاولة من (${bName})`,
           `تم صرف ${numQty} ${currentItem.unit} من (${matName}) إلى مشروع (${project_name || 'مشروع بالشركة'}) بمبلغ ${totalAmount.toLocaleString('en-US')} د.ع`,
           '/inventory'
         );
@@ -364,7 +447,7 @@ export async function POST(req: Request) {
         await logNotification(
           'INVENTORY',
           'UPDATE',
-          `بيع تجاري خارجي`,
+          `بيع تجاري خارجي - (${bName})`,
           `تم بيع ${numQty} ${currentItem.unit} من (${matName}) إلى (${supplier_or_recipient || 'عميل تجاري'}) بمبلغ ${totalAmount.toLocaleString('en-US')} د.ع`,
           '/inventory'
         );
@@ -429,7 +512,7 @@ export async function DELETE(req: Request) {
         'INVENTORY',
         'DELETE',
         'حذف صنف من المخزن',
-        `تم حذف الصنف (${iName}) وكافة سجلاته وحركاته من المخزن المركزي`,
+        `تم حذف الصنف (${iName}) وكافة سجلاته وحركاته من المخزن`,
         '/inventory'
       );
 

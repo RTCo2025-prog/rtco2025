@@ -1,12 +1,10 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Lock, User, LogIn, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,7 +16,6 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // الاعتماد الكلي على مسار نظام المستخدمين الحديث system_users
       const res = await fetch('/api/auth/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -31,9 +28,30 @@ export default function LoginPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        // حفظ بيانات المستخدم وصلاحياته الحديثة في الـ localStorage
-        localStorage.setItem('erp_user', JSON.stringify(data.user));
-        router.push('/');
+        const user = data.user;
+
+        // تنظيف الذاكرة القديمة
+        localStorage.clear();
+
+        // حفظ بيانات المستخدم للواجهة البصرية (الأمان الحقيقي أصبح محمي عبر Cookies في السيرفر)
+        localStorage.setItem('erp_user', JSON.stringify(user));
+
+        // ضبط الفرع المخصص فوراً
+        const assignedBranch = user.assigned_branch_id || 'ALL';
+        const isSuperAdmin = Boolean(user.is_super_admin || user.role === 'ADMIN' || user.username === 'admin');
+
+        if (!isSuperAdmin && assignedBranch !== 'ALL') {
+          localStorage.setItem('rtco_selected_branch_id', assignedBranch);
+          localStorage.setItem('active_branch_id', assignedBranch);
+          document.cookie = `rtco_selected_branch_id=${encodeURIComponent(assignedBranch)}; path=/; max-age=31536000; SameSite=Lax`;
+        } else {
+          localStorage.setItem('rtco_selected_branch_id', 'ALL');
+          localStorage.setItem('active_branch_id', 'ALL');
+          document.cookie = `rtco_selected_branch_id=ALL; path=/; max-age=31536000; SameSite=Lax`;
+        }
+
+        // تحويل فوري مع تحديث كامل لبيانات الجلسة
+        window.location.href = '/';
       } else {
         setErrorMsg(data.error || 'اسم المستخدم أو كلمة المرور غير صحيحة');
       }
@@ -96,7 +114,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
             {loading ? 'جاري التحقق...' : 'تسجيل الدخول'}
@@ -104,7 +122,7 @@ export default function LoginPage() {
         </form>
 
         <p className="text-[11px] text-slate-500 text-center leading-relaxed">
-          إشاء الحسابات وإدارة الصلاحيات تتم حصراً عبر لوحة المدير المفوض.
+          إنشاء الحسابات وإدارة الصلاحيات تتم حصراً عبر لوحة المدير المفوض.
         </p>
       </div>
     </div>

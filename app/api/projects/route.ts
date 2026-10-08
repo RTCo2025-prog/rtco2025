@@ -3,12 +3,20 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
   }
 }
 
@@ -17,9 +25,27 @@ async function initTables() {
     // التأكد من دعم توليد UUID
     await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
 
+    // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+    await query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        branch_id VARCHAR(50) PRIMARY KEY,
+        branch_code VARCHAR(50),
+        name_ar VARCHAR(255) NOT NULL,
+        branch_type VARCHAR(100),
+        manager_name VARCHAR(150),
+        phone VARCHAR(50),
+        city VARCHAR(100) DEFAULT 'النجف الأشرف',
+        address VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
     await query(`
       CREATE TABLE IF NOT EXISTS projects (
         project_id VARCHAR(50) PRIMARY KEY,
+        branch_id VARCHAR(50),
         project_name VARCHAR(255) NOT NULL,
         client_name VARCHAR(255) NOT NULL,
         location VARCHAR(255),
@@ -106,6 +132,7 @@ async function initTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      ALTER TABLE projects ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50);
       ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS project_id VARCHAR(50);
       ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS paid_amount NUMERIC(15, 2) DEFAULT 0;
       ALTER TABLE project_subcontractors ADD COLUMN IF NOT EXISTS notes TEXT;
@@ -116,12 +143,40 @@ async function initTables() {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initTables();
 
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let projectsSql = `
+      SELECT 
+        p.*, 
+        p.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name
+      FROM projects p
+      LEFT JOIN branches b ON TRIM(p.branch_id::text) = TRIM(b.branch_id::text)
+    `;
+    const projectsParams: any[] = [];
+    if (isSpecificBranch) {
+      projectsSql += ` WHERE TRIM(p.branch_id::text) = TRIM($1)`;
+      projectsParams.push(String(branchFilter));
+    }
+    projectsSql += ` ORDER BY p.created_at DESC`;
+
     const [resP, mRes, sRes, dRes, matRes, logRes, termRes, expRes, vRes] = await Promise.all([
-      query(`SELECT * FROM projects ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
+      query(projectsSql, projectsParams).catch(async () => {
+        let fallbackSql = `SELECT *, branch_id::text AS branch_id FROM projects`;
+        const fallbackParams: any[] = [];
+        if (isSpecificBranch) {
+          fallbackSql += ` WHERE TRIM(branch_id::text) = TRIM($1)`;
+          fallbackParams.push(String(branchFilter));
+        }
+        fallbackSql += ` ORDER BY created_at DESC`;
+        return await query(fallbackSql, fallbackParams);
+      }),
       query(`SELECT * FROM project_milestones ORDER BY created_at ASC`).catch(() => ({ rows: [] })),
       query(`SELECT * FROM project_subcontractors ORDER BY created_at ASC`).catch(() => ({ rows: [] })),
       query(`SELECT * FROM project_documents ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
@@ -161,6 +216,7 @@ export async function GET() {
     const enriched = projectsList.map((p) => {
       const pId = String(p.project_id || '');
       const pName = clean(p.project_name);
+      const mappedBranchName = p.branch_name || 'فرع الشركة';
 
       const projMilestones = milestones
         .filter((m) => String(m.project_id) === pId)
@@ -188,10 +244,7 @@ export async function GET() {
             }
           }
 
-          return {
-            ...m,
-            actual_paid: milestoneActualPaid
-          };
+          return { ...m, actual_paid: milestoneActualPaid };
         });
 
       let totalWeightedProgress = 0;
@@ -305,6 +358,7 @@ export async function GET() {
 
       return {
         ...p,
+        branch_name: mappedBranchName,
         completion_rate: calculatedOverallRate,
         total_received: totalReceived,
         total_expenses: totalExpenses,
@@ -332,7 +386,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { action } = body;
 
-    // فحص ما إذا كان معرّف المشروع UUID أم VARCHAR في جدول projects
     const colCheck = await query(`
       SELECT data_type FROM information_schema.columns 
       WHERE table_name = 'projects' AND column_name = 'project_id'
@@ -468,6 +521,7 @@ export async function POST(req: Request) {
     const { 
       project_id, 
       id, 
+      branch_id,
       project_name, 
       client_name, 
       location, 
@@ -482,15 +536,21 @@ export async function POST(req: Request) {
     const validStartDate = start_date && String(start_date).trim() !== '' ? String(start_date).trim() : null;
     const validEndDate = expected_end_date && String(expected_end_date).trim() !== '' ? String(expected_end_date).trim() : null;
 
+    // اعتماد معرف الفرع كما تم اختياره من المستخدم
+    const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+      ? String(branch_id).trim()
+      : null;
+
     let res;
     if (isProjectUuid) {
       res = await query(`
         INSERT INTO projects (
-          project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
+          project_id, branch_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
         )
-        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, COALESCE($6::date, CURRENT_DATE), $7::date, $8, $9)
+        VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8::date, $9, $10)
         RETURNING *
       `, [
+        finalBranchId,
         project_name || 'مشروع جديد',
         client_name || 'جهة غير محددة',
         location || 'النجف الأشرف',
@@ -505,12 +565,13 @@ export async function POST(req: Request) {
       const finalProjectId = String(project_id || id || `PRJ-${Date.now()}`);
       res = await query(`
         INSERT INTO projects (
-          project_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
+          project_id, branch_id, project_name, client_name, location, contract_value, currency, start_date, expected_end_date, completion_rate, notes
         )
-        VALUES ($1, $2, $3, $4, $5, $6, COALESCE($7::date, CURRENT_DATE), $8::date, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, COALESCE($8::date, CURRENT_DATE), $9::date, $10, $11)
         RETURNING *
       `, [
         finalProjectId,
+        finalBranchId,
         project_name || 'مشروع جديد',
         client_name || 'جهة غير محددة',
         location || 'النجف الأشرف',
@@ -523,16 +584,20 @@ export async function POST(req: Request) {
       ]);
     }
 
+    const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+    const branchNameStr = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
     await logNotification(
       'PROJECTS',
       'ADD',
-      `مشروع مقاولة جديد: ${project_name}`,
-      `تم تسجيل مشروع (${project_name}) للعميل (${client_name}) بقيمة عقد ${Number(contract_value).toLocaleString('en-US')} ${currency}`,
+      `مشروع مقاولة جديد: ${project_name} (${branchNameStr})`,
+      `تم تسجيل مشروع (${project_name}) للعميل (${client_name}) في فرع (${branchNameStr}) بقيمة عقد ${Number(contract_value).toLocaleString('en-US')} ${currency}`,
       '/projects'
     );
 
     const createdProject = {
       ...res.rows[0],
+      branch_name: branchNameStr,
       milestones: [],
       subcontractors: [],
       operating_expenses: [],

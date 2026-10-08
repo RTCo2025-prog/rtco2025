@@ -15,7 +15,8 @@ import {
   RefreshCw, 
   Home, 
   CheckCircle2, 
-  KeyRound 
+  KeyRound,
+  Building2
 } from 'lucide-react';
 import AuthGuard from '@/components/AuthGuard';
 
@@ -38,6 +39,7 @@ export default function UsersManagementPage() {
     secondary_color: '#ea580c'
   });
   const [users, setUsers] = useState<any[]>([]);
+  const [branches, setBranches] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
@@ -47,6 +49,7 @@ export default function UsersManagementPage() {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [jobTitle, setJobTitle] = useState('');
+  const [assignedBranchId, setAssignedBranchId] = useState('ALL');
   const [status, setStatus] = useState('ACTIVE');
   const [permissions, setPermissions] = useState<Record<string, { view: boolean; add: boolean; edit: boolean; delete: boolean }>>({});
 
@@ -61,6 +64,18 @@ export default function UsersManagementPage() {
       }
     } catch (e) {
       console.error(e);
+    }
+  };
+
+  const loadBranches = async () => {
+    try {
+      const res = await fetch('/api/branches', { cache: 'no-store' });
+      const data = await res.json();
+      if (data && (data.success || data.branches)) {
+        setBranches(data.branches || []);
+      }
+    } catch (e) {
+      console.error('Failed to load branches:', e);
     }
   };
 
@@ -80,8 +95,23 @@ export default function UsersManagementPage() {
 
   useEffect(() => {
     loadSettings();
+    loadBranches();
     loadUsers();
   }, []);
+
+  const branchesListOptions = [
+    { branch_id: 'ALL', name: '🌐 المقر الرئيسي (عرض المنظومة الموحدة)' },
+    ...branches.map(b => ({
+      branch_id: b.branch_id,
+      name: `📍 ${b.name_ar}`
+    }))
+  ];
+
+  const getBranchDisplayName = (bId: string) => {
+    if (!bId || bId === 'ALL') return 'المقر الرئيسي (عرض المنظومة الموحدة)';
+    const found = branches.find(b => b.branch_id === bId);
+    return found?.name_ar || bId;
+  };
 
   const openNewUserModal = () => {
     setEditingUserId(null);
@@ -89,6 +119,7 @@ export default function UsersManagementPage() {
     setPassword('');
     setFullName('');
     setJobTitle('');
+    setAssignedBranchId(branches.length > 0 ? branches[0].branch_id : 'BR-HQ-01');
     setStatus('ACTIVE');
 
     const defaultPerms: any = {};
@@ -105,6 +136,7 @@ export default function UsersManagementPage() {
     setPassword('');
     setFullName(u.full_name);
     setJobTitle(u.job_title || 'موظف');
+    setAssignedBranchId(u.assigned_branch_id || 'ALL');
     setStatus(u.status || 'ACTIVE');
 
     const isFullAdmin = u.username === 'admin' || u.is_super_admin;
@@ -167,6 +199,7 @@ export default function UsersManagementPage() {
         username: username.trim(),
         full_name: fullName.trim(),
         job_title: jobTitle.trim(),
+        assigned_branch_id: isFullAdmin ? 'ALL' : assignedBranchId,
         status,
         permissions: finalPermissions
       };
@@ -184,7 +217,7 @@ export default function UsersManagementPage() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        alert('تم حفظ وتحديث البيانات والصلاحيات بنجاح!');
+        alert('تم حفظ وتحديث البيانات والصلاحيات ونطاق الفرع بنجاح!');
         setShowModal(false);
         await loadUsers();
       } else {
@@ -232,8 +265,8 @@ export default function UsersManagementPage() {
               <ShieldCheck className="w-6 h-6 text-slate-950" />
             </div>
             <div>
-              <h1 className="text-lg md:text-xl font-black text-white">إدارة الحسابات وصلاحيات الأقسام</h1>
-              <p className="text-slate-400 mt-0.5">لوحة تحكم المدير المفوض لإنشاء حسابات موظفي {companySettings.company_name} وتخصيص صلاحيات الأقسام بدقة</p>
+              <h1 className="text-lg md:text-xl font-black text-white">إدارة الحسابات وتخصيص الفروع والصلاحيات</h1>
+              <p className="text-slate-400 mt-0.5">لوحة تحكم المدير المفوض لإنشاء حسابات موظفي {companySettings.company_name} وحصر فروعهم وتخصيص صلاحيات الأقسام بدقة</p>
             </div>
           </div>
 
@@ -241,6 +274,7 @@ export default function UsersManagementPage() {
             <button
               onClick={() => {
                 loadSettings();
+                loadBranches();
                 loadUsers();
               }}
               className="p-2.5 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer"
@@ -276,6 +310,7 @@ export default function UsersManagementPage() {
                   <th className="p-3.5">اسم الموظف</th>
                   <th className="p-3.5">اسم الدخول</th>
                   <th className="p-3.5">المسمى الوظيفي</th>
+                  <th className="p-3.5">نطاق الفرع المخصص</th>
                   <th className="p-3.5">نوع الحساب</th>
                   <th className="p-3.5">الأقسام المصرح له بها</th>
                   <th className="p-3.5 text-center">الحالة</th>
@@ -287,12 +322,24 @@ export default function UsersManagementPage() {
                   const isAdm = u.username === 'admin' || u.is_super_admin;
                   const perms = u.permissions || {};
                   const allowedModules = MODULES.filter(m => perms[m.key]?.view);
+                  const branchDisplayName = getBranchDisplayName(u.assigned_branch_id);
 
                   return (
                     <tr key={u.user_id} className="hover:bg-slate-800/30 transition">
                       <td className="p-3.5 font-bold text-white">{u.full_name}</td>
                       <td className="p-3.5 font-mono text-slate-300 font-bold">{u.username}</td>
                       <td className="p-3.5 text-slate-400">{u.job_title}</td>
+                      <td className="p-3.5">
+                        {isAdm || u.assigned_branch_id === 'ALL' || !u.assigned_branch_id ? (
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold inline-flex items-center gap-1">
+                            🌐 كافة الفروع
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold inline-flex items-center gap-1">
+                            📍 {branchDisplayName}
+                          </span>
+                        )}
+                      </td>
                       <td className="p-3.5">
                         {isAdm ? (
                           <span 
@@ -341,7 +388,7 @@ export default function UsersManagementPage() {
                             onClick={() => openEditUserModal(u)}
                             className="p-1.5 bg-slate-900 hover:bg-slate-800 border border-slate-700 rounded-lg transition cursor-pointer"
                             style={{ color: primaryCol }}
-                            title="تعديل الصلاحيات"
+                            title="تعديل الصلاحيات والفرع"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
@@ -364,14 +411,14 @@ export default function UsersManagementPage() {
           </div>
         </div>
 
-        {/* نافذة تخصيص حساب الموظف والصلاحيات */}
+        {/* نافذة تخصيص حساب الموظف والفرع والصلاحيات */}
         {showModal && (
           <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-50 flex items-center justify-center p-4">
             <div className="bg-[#0b101d] border border-slate-700 w-full max-w-2xl rounded-3xl p-5 md:p-6 shadow-2xl text-right space-y-4 max-h-[92vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <UserCheck className="w-4 h-4" style={{ color: primaryCol }} />
-                  {editingUserId ? 'تعديل الصلاحيات والحساب' : 'إنشاء حساب موظف جديد وتحديد صلاحياته'}
+                  {editingUserId ? 'تعديل الصلاحيات وحصر الفرع للحساب' : 'إنشاء حساب موظف جديد وتحديد فرعه وصلاحياته'}
                 </h3>
                 <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white cursor-pointer p-1">
                   <X className="w-5 h-5" />
@@ -430,6 +477,28 @@ export default function UsersManagementPage() {
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
                     />
                   </div>
+                </div>
+
+                {/* تحديد وحصر الفرع من قاعدة البيانات ديناميكياً */}
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800">
+                  <label className="block text-amber-400 mb-1.5 font-bold flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4" /> الفرع المخصص للعمل (حصر نطاق البيانات):
+                  </label>
+                  <select
+                    value={assignedBranchId}
+                    onChange={(e) => setAssignedBranchId(e.target.value)}
+                    disabled={username.trim().toLowerCase() === 'admin'}
+                    className="w-full bg-slate-900 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-bold outline-none cursor-pointer"
+                  >
+                    {branchesListOptions.map(b => (
+                      <option key={b.branch_id} value={b.branch_id} className="bg-[#0b101d] text-white">
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    * عند اختيار فرع محدد، سيتم قفل المنظومة تلقائياً للموظف على هذا الفرع ولن يتمكن من رؤية أو التبديل لباقي الأفرع.
+                  </p>
                 </div>
 
                 {/* تحديد الأقسام والصلاحيات */}

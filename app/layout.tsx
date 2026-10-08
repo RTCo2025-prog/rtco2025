@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Cairo } from "next/font/google";
 import "./globals.css";
+import { BranchProvider } from "@/context/BranchContext";
+import TopNavbarClient from "@/components/TopNavbarClient";
 
 const cairo = Cairo({
   subsets: ["arabic", "latin"],
@@ -17,7 +19,14 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ar" dir="rtl" className={`${cairo.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col font-cairo text-[14px] bg-slate-950 text-slate-100">{children}</body>
+      <body className="min-h-full flex flex-col font-cairo text-[14px] bg-slate-950 text-slate-100">
+        <BranchProvider>
+          {/* الشريط العلوي العام */}
+          <TopNavbarClient />
+
+          <main className="flex-1">{children}</main>
+        </BranchProvider>
+      </body>
     </html>
   );
 }

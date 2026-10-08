@@ -3,19 +3,57 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
   }
 }
 
+// خريطة مسميات الفروع المعتمدة الحصرية
+const BRANCH_NAMES_MAP: Record<string, string> = {
+  'BR-HQ-01': 'المقر الرئيسي (النجف الأشرف)',
+  'BR-CONST-02': 'فرع المقاولات والمشاريع الهندسية',
+  'BR-TRADE-03': 'فرع التجارة العامة والمخازن',
+  'BR-TRANS-04': 'فرع النقل العام واللوجستيات',
+  'BR-RE-05': 'فرع الاستثمارات والتطوير العقاري',
+  'ALL': 'كافة الفروع (عرض المنظومة الموحدة)'
+};
+
 async function initFleetTables() {
+  await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
+  // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+  await query(`
+    CREATE TABLE IF NOT EXISTS branches (
+      branch_id VARCHAR(50) PRIMARY KEY,
+      branch_code VARCHAR(50),
+      name_ar VARCHAR(255) NOT NULL,
+      branch_type VARCHAR(100),
+      manager_name VARCHAR(150),
+      phone VARCHAR(50),
+      city VARCHAR(100) DEFAULT 'النجف الأشرف',
+      address VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
   await query(`
     CREATE TABLE IF NOT EXISTS fleet_vehicles (
       vehicle_id VARCHAR(50) PRIMARY KEY,
+      branch_id VARCHAR(50) DEFAULT 'BR-TRANS-04',
       vehicle_name VARCHAR(150) NOT NULL,
       plate_number VARCHAR(50) UNIQUE NOT NULL,
       vehicle_type VARCHAR(100) DEFAULT 'شاحنة نقل ثقيل',
@@ -35,6 +73,7 @@ async function initFleetTables() {
   `);
 
   await query(`
+    ALTER TABLE fleet_vehicles ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-TRANS-04';
     ALTER TABLE fleet_vehicles ADD COLUMN IF NOT EXISTS vehicle_name VARCHAR(150);
     ALTER TABLE fleet_vehicles ADD COLUMN IF NOT EXISTS plate_number VARCHAR(50);
     ALTER TABLE fleet_vehicles ADD COLUMN IF NOT EXISTS vehicle_type VARCHAR(100) DEFAULT 'شاحنة نقل ثقيل';
@@ -60,6 +99,7 @@ async function initFleetTables() {
   await query(`
     CREATE TABLE IF NOT EXISTS fleet_trips (
       trip_id VARCHAR(50) PRIMARY KEY,
+      branch_id VARCHAR(50) DEFAULT 'BR-TRANS-04',
       vehicle_id VARCHAR(50),
       truck_source_type VARCHAR(50) DEFAULT 'INTERNAL',
       external_truck_info VARCHAR(200),
@@ -82,6 +122,7 @@ async function initFleetTables() {
   `);
 
   await query(`
+    ALTER TABLE fleet_trips ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-TRANS-04';
     ALTER TABLE fleet_trips ADD COLUMN IF NOT EXISTS truck_source_type VARCHAR(50) DEFAULT 'INTERNAL';
     ALTER TABLE fleet_trips ADD COLUMN IF NOT EXISTS external_truck_info VARCHAR(200);
     ALTER TABLE fleet_trips ADD COLUMN IF NOT EXISTS external_driver_name VARCHAR(150);
@@ -119,79 +160,113 @@ async function initFleetTables() {
   `);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initFleetTables();
 
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let vehiclesSql = `
+      SELECT 
+        v.vehicle_id::text,
+        v.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name,
+        COALESCE(v.vehicle_name, 'شاحنة أسطول') AS vehicle_name,
+        COALESCE(v.plate_number, 'بدون رقم') AS plate_number,
+        COALESCE(v.vehicle_type, 'شاحنة نقل مواد') AS vehicle_type,
+        COALESCE(v.ownership_type, 'COMPANY') AS ownership_type,
+        UPPER(COALESCE(v.status, 'AVAILABLE')) AS status,
+        COALESCE(v.assigned_driver, 'غير محدد') AS assigned_driver,
+        COALESCE(v.driver_phone, '') AS driver_phone,
+        COALESCE(v.current_location, 'النجف الأشرف') AS current_location,
+        COALESCE(v.current_mileage, 0) AS current_mileage,
+        COALESCE(v.current_fuel_pct, 100) AS current_fuel_pct,
+        COALESCE(v.last_oil_change_mileage, 0) AS last_oil_change_mileage,
+        COALESCE(v.oil_change_interval_km, 5000) AS oil_change_interval_km,
+        v.created_at
+      FROM fleet_vehicles v
+      LEFT JOIN branches b ON TRIM(v.branch_id::text) = TRIM(b.branch_id::text)
+    `;
+    const vehiclesParams: any[] = [];
+    if (isSpecificBranch) {
+      vehiclesSql += ` WHERE TRIM(v.branch_id::text) = TRIM($1)`;
+      vehiclesParams.push(String(branchFilter));
+    }
+    vehiclesSql += ` ORDER BY v.created_at DESC`;
+
+    let tripsSql = `
+      SELECT 
+        t.trip_id::text,
+        t.branch_id::text AS branch_id,
+        t.vehicle_id::text,
+        t.truck_source_type,
+        t.external_truck_info,
+        t.external_driver_name,
+        t.external_driver_phone,
+        t.external_rental_cost,
+        t.cargo_description,
+        t.origin,
+        t.destination,
+        t.cargo_weight_tons,
+        t.captain_name,
+        t.trip_status,
+        t.estimated_hours,
+        t.manifest_doc_url,
+        t.trip_cost,
+        t.departure_time,
+        t.arrival_time,
+        t.created_at,
+        COALESCE(v.vehicle_name, t.external_truck_info, 'شاحنة') AS vehicle_name,
+        COALESCE(v.plate_number, t.external_truck_info, '') AS plate_number
+      FROM fleet_trips t
+      LEFT JOIN fleet_vehicles v ON TRIM(t.vehicle_id::text) = TRIM(v.vehicle_id::text)
+    `;
+    const tripsParams: any[] = [];
+    if (isSpecificBranch) {
+      tripsSql += ` WHERE (TRIM(t.branch_id::text) = TRIM($1) OR TRIM(v.branch_id::text) = TRIM($1))`;
+      tripsParams.push(String(branchFilter));
+    }
+    tripsSql += ` ORDER BY t.departure_time DESC LIMIT 150`;
+
+    let maintSql = `
+      SELECT 
+        m.log_id::text,
+        m.vehicle_id::text,
+        m.log_type,
+        m.description,
+        m.cost,
+        m.mileage_at_service,
+        m.service_date,
+        m.performed_by,
+        m.created_at,
+        v.vehicle_name,
+        v.plate_number
+      FROM fleet_maintenance_logs m
+      LEFT JOIN fleet_vehicles v ON TRIM(m.vehicle_id::text) = TRIM(v.vehicle_id::text)
+    `;
+    const maintParams: any[] = [];
+    if (isSpecificBranch) {
+      maintSql += ` WHERE TRIM(v.branch_id::text) = TRIM($1)`;
+      maintParams.push(String(branchFilter));
+    }
+    maintSql += ` ORDER BY m.service_date DESC LIMIT 100`;
+
     const [vehiclesRes, tripsRes, maintenanceRes] = await Promise.all([
-      query(`
-        SELECT 
-          vehicle_id::text,
-          COALESCE(vehicle_name, 'شاحنة أسطول') AS vehicle_name,
-          COALESCE(plate_number, 'بدون رقم') AS plate_number,
-          COALESCE(vehicle_type, 'شاحنة نقل مواد') AS vehicle_type,
-          COALESCE(ownership_type, 'COMPANY') AS ownership_type,
-          UPPER(COALESCE(status, 'AVAILABLE')) AS status,
-          COALESCE(assigned_driver, 'غير محدد') AS assigned_driver,
-          COALESCE(driver_phone, '') AS driver_phone,
-          COALESCE(current_location, 'النجف الأشرف') AS current_location,
-          COALESCE(current_mileage, 0) AS current_mileage,
-          COALESCE(current_fuel_pct, 100) AS current_fuel_pct,
-          COALESCE(last_oil_change_mileage, 0) AS last_oil_change_mileage,
-          COALESCE(oil_change_interval_km, 5000) AS oil_change_interval_km,
-          created_at
-        FROM fleet_vehicles 
-        ORDER BY created_at DESC
-      `),
-      query(`
-        SELECT 
-          t.trip_id::text,
-          t.vehicle_id::text,
-          t.truck_source_type,
-          t.external_truck_info,
-          t.external_driver_name,
-          t.external_driver_phone,
-          t.external_rental_cost,
-          t.cargo_description,
-          t.origin,
-          t.destination,
-          t.cargo_weight_tons,
-          t.captain_name,
-          t.trip_status,
-          t.estimated_hours,
-          t.manifest_doc_url,
-          t.trip_cost,
-          t.departure_time,
-          t.arrival_time,
-          t.created_at,
-          COALESCE(v.vehicle_name, t.external_truck_info, 'شاحنة') AS vehicle_name,
-          COALESCE(v.plate_number, t.external_truck_info, '') AS plate_number
-        FROM fleet_trips t
-        LEFT JOIN fleet_vehicles v ON t.vehicle_id::text = v.vehicle_id::text
-        ORDER BY t.departure_time DESC LIMIT 150
-      `),
-      query(`
-        SELECT 
-          m.log_id::text,
-          m.vehicle_id::text,
-          m.log_type,
-          m.description,
-          m.cost,
-          m.mileage_at_service,
-          m.service_date,
-          m.performed_by,
-          m.created_at,
-          v.vehicle_name,
-          v.plate_number
-        FROM fleet_maintenance_logs m
-        LEFT JOIN fleet_vehicles v ON m.vehicle_id::text = v.vehicle_id::text
-        ORDER BY m.service_date DESC LIMIT 100
-      `)
+      query(vehiclesSql, vehiclesParams).catch(() => ({ rows: [] })),
+      query(tripsSql, tripsParams).catch(() => ({ rows: [] })),
+      query(maintSql, maintParams).catch(() => ({ rows: [] }))
     ]);
+
+    const vehicles = (vehiclesRes.rows || []).map((v: any) => ({
+      ...v,
+      branch_name: v.branch_name || BRANCH_NAMES_MAP[v.branch_id] || 'فرع الشركة'
+    }));
 
     return NextResponse.json({
       success: true,
-      vehicles: vehiclesRes.rows || [],
+      vehicles,
       trips: tripsRes.rows || [],
       maintenance: maintenanceRes.rows || []
     });
@@ -208,7 +283,20 @@ export async function POST(req: Request) {
 
     // 1. إضافة آلية جديدة
     if (action === 'ADD_VEHICLE') {
-      const { vehicle_id, id, vehicle_name, plate_number, vehicle_type, assigned_driver, driver_phone, current_location, current_mileage, oil_change_interval_km, ownership_type } = body;
+      const { 
+        vehicle_id, 
+        id, 
+        branch_id,
+        vehicle_name, 
+        plate_number, 
+        vehicle_type, 
+        assigned_driver, 
+        driver_phone, 
+        current_location, 
+        current_mileage, 
+        oil_change_interval_km, 
+        ownership_type 
+      } = body;
       const cleanPlate = String(plate_number || '').trim();
 
       if (!cleanPlate) {
@@ -227,10 +315,15 @@ export async function POST(req: Request) {
 
       const initialMileage = Number(current_mileage) || 0;
       const finalVehicleId = String(vehicle_id || id || `VHC-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+      
+      const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+        ? String(branch_id).trim()
+        : null;
 
       const res = await query(`
         INSERT INTO fleet_vehicles (
           vehicle_id,
+          branch_id,
           vehicle_name, 
           plate_number, 
           vehicle_type, 
@@ -244,10 +337,11 @@ export async function POST(req: Request) {
           last_oil_change_mileage, 
           oil_change_interval_km
         )
-        VALUES ($1, $2, $3, $4, $5, 'AVAILABLE', $6, $7, $8, $9, 100, $9, $10)
+        VALUES ($1, $2, $3, $4, $5, $6, 'AVAILABLE', $7, $8, $9, $10, 100, $10, $11)
         RETURNING *
       `, [
         finalVehicleId,
+        finalBranchId,
         vehicle_name || 'شاحنة نقل',
         cleanPlate,
         vehicle_type || 'شاحنة نقل مواد',
@@ -259,15 +353,18 @@ export async function POST(req: Request) {
         Number(oil_change_interval_km) || 5000
       ]);
 
+      const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+      const bName = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
       await logNotification(
         'FLEET',
         'ADD',
-        `إضافة آلية للأسطول: ${vehicle_name || cleanPlate}`,
-        `تم تسجيل الآلية (${vehicle_name || 'شاحنة'}) برقم لوحة (${cleanPlate}) وسائق مسؤول (${assigned_driver || 'غير محدد'})`,
+        `إضافة آلية للأسطول: ${vehicle_name || cleanPlate} (${bName})`,
+        `تم تسجيل الآلية (${vehicle_name || 'شاحنة'}) في (${bName}) برقم لوحة (${cleanPlate})`,
         '/fleet'
       );
 
-      return NextResponse.json({ success: true, vehicle: res.rows[0] });
+      return NextResponse.json({ success: true, vehicle: { ...res.rows[0], branch_name: bName } });
     }
 
     // 2. إطلاق مهمة نقل
@@ -275,6 +372,7 @@ export async function POST(req: Request) {
       const { 
         trip_id,
         id,
+        branch_id,
         vehicle_id, 
         truck_source_type,
         external_truck_info,
@@ -294,10 +392,20 @@ export async function POST(req: Request) {
 
       const isExternal = truck_source_type === 'EXTERNAL';
       const finalTripId = String(trip_id || id || `TRP-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+      
+      let finalBranchId = branch_id;
+      if (!finalBranchId && vehicle_id) {
+        const vBranch = await query(`SELECT branch_id FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicle_id)]).catch(() => ({ rows: [] }));
+        finalBranchId = vBranch.rows[0]?.branch_id;
+      }
+      finalBranchId = finalBranchId && String(finalBranchId).trim() !== '' && String(finalBranchId).trim() !== 'ALL'
+        ? String(finalBranchId).trim()
+        : null;
 
       const tripRes = await query(`
         INSERT INTO fleet_trips (
           trip_id,
+          branch_id,
           vehicle_id, 
           truck_source_type,
           external_truck_info,
@@ -314,10 +422,11 @@ export async function POST(req: Request) {
           manifest_doc_url, 
           trip_cost
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14::timestamp, CURRENT_TIMESTAMP), $15, $16)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, COALESCE($15::timestamp, CURRENT_TIMESTAMP), $16, $17)
         RETURNING *
       `, [
         finalTripId,
+        finalBranchId,
         isExternal ? null : (vehicle_id ? String(vehicle_id) : null),
         truck_source_type || 'INTERNAL',
         external_truck_info || null,
@@ -343,7 +452,7 @@ export async function POST(req: Request) {
         `, [`في الطريق إلى: ${destination}`, String(vehicle_id)]);
       }
 
-      // قيد إيراد النقل المستقل
+      // قيد إيراد النقل المستقل مرتبطة بالفرع الصحيح
       if (Number(trip_cost) > 0) {
         try {
           const voucherNumber = `V-FLT-${Date.now().toString().slice(-6)}`;
@@ -356,15 +465,15 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, voucherNumber, Number(trip_cost), voucherNotes]);
+            INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, $3, 'RECEIPT', $4, $4, $5, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, finalBranchId, voucherNumber, Number(trip_cost), voucherNotes]);
         } catch (vErr) {
           console.error('Auto Fleet Voucher Error:', vErr);
         }
       }
 
-      // قيد كلفة استئجار الشاحنة الخارجية كمصروف
+      // قيد كلفة استئجار الشاحنة الخارجية كمصروف مرتبطة بالفرع
       if (isExternal && Number(external_rental_cost) > 0) {
         try {
           const vExpNumber = `V-RENT-${Date.now().toString().slice(-6)}`;
@@ -377,9 +486,9 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, vExpNumber, Number(external_rental_cost), vExpNotes]);
+            INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, finalBranchId, vExpNumber, Number(external_rental_cost), vExpNotes]);
         } catch (rErr) {
           console.error('Fleet Rental Expense Voucher Error:', rErr);
         }
@@ -439,6 +548,10 @@ export async function POST(req: Request) {
         `, [String(vehicle_id)]);
       }
 
+      const vData = await query(`SELECT vehicle_name, plate_number, branch_id FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicle_id)]);
+      const vName = vData.rows[0]?.vehicle_name || 'الشاحنة';
+      const vBranchId = vData.rows[0]?.branch_id || null;
+
       const typeName = log_type === 'OIL_CHANGE' ? 'تبديل دهن وفلاتر' : log_type === 'FUEL' ? 'وقود' : 'صيانة وقطع غيار';
 
       if (Number(cost) > 0) {
@@ -453,16 +566,13 @@ export async function POST(req: Request) {
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, voucherNumber, Number(cost), voucherNotes]);
+            INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
+            VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', CURRENT_DATE)
+          `, [`VOUCH-${Date.now()}-${Math.floor(Math.random() * 1000)}`, vBranchId, voucherNumber, Number(cost), voucherNotes]);
         } catch (e) {
           console.error(e);
         }
       }
-
-      const vData = await query(`SELECT vehicle_name, plate_number FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicle_id)]);
-      const vName = vData.rows[0]?.vehicle_name || 'الشاحنة';
 
       await logNotification(
         'FLEET',
@@ -503,6 +613,17 @@ export async function PATCH(req: Request) {
         current_fuel_pct !== undefined && current_fuel_pct !== '' ? Number(current_fuel_pct) : null, 
         String(vehicle_id)
       ]);
+
+      const vData = await query(`SELECT vehicle_name, plate_number FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicle_id)]);
+      const vName = vData.rows[0]?.vehicle_name || 'الآلية';
+
+      await logNotification(
+        'FLEET',
+        'UPDATE',
+        `تحديث حالة الآلية: ${vName}`,
+        `تم تحديث حالة الآلية (${vName}) إلى (${status || 'محدث'}) في الموقع (${current_location || 'المقر'})`,
+        '/fleet'
+      );
 
       return NextResponse.json({ success: true });
     }
@@ -551,12 +672,37 @@ export async function DELETE(req: Request) {
     const vehicleId = searchParams.get('id');
 
     if (tripId) {
+      const tripData = await query(`SELECT cargo_description FROM fleet_trips WHERE trip_id::text = $1::text`, [String(tripId)]);
+      const cargo = tripData.rows[0]?.cargo_description || 'رحلة نقل';
+
       await query(`DELETE FROM fleet_trips WHERE trip_id::text = $1::text`, [String(tripId)]);
+
+      await logNotification(
+        'FLEET',
+        'DELETE',
+        `إلغاء وحذف رحلة نقل: ${cargo}`,
+        `تم حذف سجل رحلة النقل (${cargo}) من جدول تشغيل الأسطول`,
+        '/fleet'
+      );
+
       return NextResponse.json({ success: true, message: 'تم حذف الرحلة بنجاح' });
     }
 
     if (vehicleId) {
+      const vData = await query(`SELECT vehicle_name, plate_number FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicleId)]);
+      const vName = vData.rows[0]?.vehicle_name || 'آلية';
+      const plate = vData.rows[0]?.plate_number || '';
+
       await query(`DELETE FROM fleet_vehicles WHERE vehicle_id::text = $1::text`, [String(vehicleId)]);
+
+      await logNotification(
+        'FLEET',
+        'DELETE',
+        `حذف مركبة من الأسطول: ${vName}`,
+        `تم حذف الآلية (${vName} - لوحة ${plate}) نهائياً من سجلات الأسطول`,
+        '/fleet'
+      );
+
       return NextResponse.json({ success: true, message: 'تم حذف الشاحنة بنجاح' });
     }
 

@@ -34,6 +34,7 @@ async function initSystemGovernanceTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS official_documents (
         id VARCHAR(100) PRIMARY KEY,
+        branch_id VARCHAR(50),
         type VARCHAR(50) NOT NULL,
         priority VARCHAR(50) DEFAULT 'NORMAL',
         status VARCHAR(50) DEFAULT 'COMPLETED',
@@ -54,11 +55,13 @@ async function initSystemGovernanceTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await query(`ALTER TABLE official_documents ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50);`).catch(() => {});
 
     // 4. جدول العقود الإلكترونية
     await query(`
       CREATE TABLE IF NOT EXISTS electronic_contracts (
         id VARCHAR(100) PRIMARY KEY,
+        branch_id VARCHAR(50),
         contract_type VARCHAR(50) NOT NULL,
         contract_number VARCHAR(100) NOT NULL,
         contract_date DATE NOT NULL,
@@ -72,11 +75,13 @@ async function initSystemGovernanceTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await query(`ALTER TABLE electronic_contracts ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50);`).catch(() => {});
 
     // 5. جدول المبيعات بالأقساط المدمجة
     await query(`
       CREATE TABLE IF NOT EXISTS installment_contracts (
         id VARCHAR(100) PRIMARY KEY,
+        branch_id VARCHAR(50),
         customer_type VARCHAR(50) DEFAULT 'INDIVIDUAL',
         customer_name VARCHAR(255) NOT NULL,
         customer_phone VARCHAR(50),
@@ -100,6 +105,7 @@ async function initSystemGovernanceTables() {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
     `);
+    await query(`ALTER TABLE installment_contracts ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50);`).catch(() => {});
   } catch (e) {
     console.error("Init System Governance Tables Error:", e);
   }
@@ -123,6 +129,8 @@ export async function GET(req: Request) {
         const details = typeof row.details === 'object' && row.details !== null ? row.details : {};
         return {
           id: row.id,
+          branch_id: row.branch_id || details.branch_id || details.branchId || '',
+          branchId: row.branch_id || details.branch_id || details.branchId || '',
           contractNo: row.contract_number,
           contractDate: row.contract_date ? new Date(row.contract_date).toISOString().substring(0, 10) : '',
           category: row.contract_type,
@@ -169,6 +177,8 @@ export async function GET(req: Request) {
 
       const documents = (res.rows || []).map((row: any) => ({
         id: row.id,
+        branch_id: row.branch_id || '',
+        branchId: row.branch_id || '',
         type: row.type,
         priority: row.priority || 'NORMAL',
         status: row.status || 'COMPLETED',
@@ -204,6 +214,8 @@ export async function GET(req: Request) {
 
       const installments = (res.rows || []).map((row: any) => ({
         id: row.id,
+        branch_id: row.branch_id || '',
+        branchId: row.branch_id || '',
         customerType: row.customer_type,
         customerName: row.customer_name,
         customerPhone: row.customer_phone || '',
@@ -443,10 +455,13 @@ export async function POST(req: Request) {
       if (Array.isArray(d.official_documents)) {
         for (const doc of d.official_documents) {
           await query(`
-            INSERT INTO official_documents (id, type, priority, status, doc_number, doc_date, sender_doc_number, sender_doc_date, party_name, subject, content, attachments, carbon_copy, signatory_title, signatory_name, main_letter_url, scanned_file_urls, notes)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-            ON CONFLICT (id) DO NOTHING
-          `, [doc.id, doc.type, doc.priority, doc.status, doc.doc_number, doc.doc_date, doc.sender_doc_number, doc.sender_doc_date, doc.party_name, doc.subject, doc.content, doc.attachments, doc.carbon_copy, doc.signatory_title, doc.signatory_name, doc.main_letter_url, JSON.stringify(doc.scanned_file_urls || []), doc.notes]).catch(console.error);
+            INSERT INTO official_documents (id, branch_id, type, priority, status, doc_number, doc_date, sender_doc_number, sender_doc_date, party_name, subject, content, attachments, carbon_copy, signatory_title, signatory_name, main_letter_url, scanned_file_urls, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            ON CONFLICT (id) DO UPDATE SET
+            branch_id = EXCLUDED.branch_id, doc_number = EXCLUDED.doc_number, party_name = EXCLUDED.party_name, subject = EXCLUDED.subject,
+            content = EXCLUDED.content, attachments = EXCLUDED.attachments, main_letter_url = EXCLUDED.main_letter_url,
+            scanned_file_urls = EXCLUDED.scanned_file_urls
+          `, [doc.id, doc.branch_id || null, doc.type, doc.priority, doc.status, doc.doc_number, doc.doc_date, doc.sender_doc_number, doc.sender_doc_date, doc.party_name, doc.subject, doc.content, doc.attachments, doc.carbon_copy, doc.signatory_title, doc.signatory_name, doc.main_letter_url, JSON.stringify(doc.scanned_file_urls || []), doc.notes]).catch(console.error);
         }
       }
 
@@ -454,10 +469,12 @@ export async function POST(req: Request) {
       if (Array.isArray(d.electronic_contracts)) {
         for (const c of d.electronic_contracts) {
           await query(`
-            INSERT INTO electronic_contracts (id, contract_type, contract_number, contract_date, seller_name, buyer_name, item_description, price, paid_amount, remaining_amount, details)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-            ON CONFLICT (id) DO NOTHING
-          `, [c.id, c.contract_type, c.contract_number, c.contract_date, c.seller_name, c.buyer_name, c.item_description, c.price, c.paid_amount, c.remaining_amount, JSON.stringify(c.details || {})]).catch(console.error);
+            INSERT INTO electronic_contracts (id, branch_id, contract_type, contract_number, contract_date, seller_name, buyer_name, item_description, price, paid_amount, remaining_amount, details)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+            ON CONFLICT (id) DO UPDATE SET
+            branch_id = EXCLUDED.branch_id, seller_name = EXCLUDED.seller_name, buyer_name = EXCLUDED.buyer_name, price = EXCLUDED.price,
+            paid_amount = EXCLUDED.paid_amount, remaining_amount = EXCLUDED.remaining_amount, details = EXCLUDED.details
+          `, [c.id, c.branch_id || null, c.contract_type, c.contract_number, c.contract_date, c.seller_name, c.buyer_name, c.item_description, c.price, c.paid_amount, c.remaining_amount, JSON.stringify(c.details || {})]).catch(console.error);
         }
       }
 
@@ -465,10 +482,12 @@ export async function POST(req: Request) {
       if (Array.isArray(d.installment_contracts)) {
         for (const inst of d.installment_contracts) {
           await query(`
-            INSERT INTO installment_contracts (id, customer_type, customer_name, customer_phone, customer_id_card, customer_address, items, goods_description, cash_price, profit_rate, total_installment_price, down_payment, remaining_balance, total_paid, months_count, monthly_installment, start_date, guarantor_name, guarantor_phone, status, installments)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-            ON CONFLICT (id) DO NOTHING
-          `, [inst.id, inst.customer_type, inst.customer_name, inst.customer_phone, inst.customer_id_card, inst.customer_address, JSON.stringify(inst.items || []), inst.goods_description, inst.cash_price, inst.profit_rate, inst.total_installment_price, inst.down_payment, inst.remaining_balance, inst.total_paid, inst.months_count, inst.monthly_installment, inst.start_date, inst.guarantor_name, inst.guarantor_phone, inst.status, JSON.stringify(inst.installments || [])]).catch(console.error);
+            INSERT INTO installment_contracts (id, branch_id, customer_type, customer_name, customer_phone, customer_id_card, customer_address, items, goods_description, cash_price, profit_rate, total_installment_price, down_payment, remaining_balance, total_paid, months_count, monthly_installment, start_date, guarantor_name, guarantor_phone, status, installments)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            ON CONFLICT (id) DO UPDATE SET
+            branch_id = EXCLUDED.branch_id, customer_name = EXCLUDED.customer_name, customer_phone = EXCLUDED.customer_phone,
+            total_paid = EXCLUDED.total_paid, remaining_balance = EXCLUDED.remaining_balance, status = EXCLUDED.status, installments = EXCLUDED.installments
+          `, [inst.id, inst.branch_id || null, inst.customer_type, inst.customer_name, inst.customer_phone, inst.customer_id_card, inst.customer_address, JSON.stringify(inst.items || []), inst.goods_description, inst.cash_price, inst.profit_rate, inst.total_installment_price, inst.down_payment, inst.remaining_balance, inst.total_paid, inst.months_count, inst.monthly_installment, inst.start_date, inst.guarantor_name, inst.guarantor_phone, inst.status, JSON.stringify(inst.installments || [])]).catch(console.error);
         }
       }
 
@@ -518,19 +537,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true, message: `تمت إعادة فتح شهر ${period_month}` });
     }
 
-    // 4. مزامنة الكتب الرسمية
+    // 4. مزامنة الكتب الرسمية (مع حفظ الفرع)
     if (action === 'SYNC_OFFICIAL_DOC') {
       const { doc } = body;
+      const bId = doc.branch_id || doc.branchId || null;
       await query(
         `INSERT INTO official_documents 
-         (id, type, priority, status, doc_number, doc_date, sender_doc_number, sender_doc_date, party_name, subject, content, attachments, carbon_copy, signatory_title, signatory_name, main_letter_url, scanned_file_urls, notes)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+         (id, branch_id, type, priority, status, doc_number, doc_date, sender_doc_number, sender_doc_date, party_name, subject, content, attachments, carbon_copy, signatory_title, signatory_name, main_letter_url, scanned_file_urls, notes)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
          ON CONFLICT (id) DO UPDATE SET
+         branch_id = COALESCE(EXCLUDED.branch_id, official_documents.branch_id),
          doc_number = EXCLUDED.doc_number, party_name = EXCLUDED.party_name, subject = EXCLUDED.subject,
          content = EXCLUDED.content, attachments = EXCLUDED.attachments, main_letter_url = EXCLUDED.main_letter_url,
          scanned_file_urls = EXCLUDED.scanned_file_urls`,
         [
-          doc.id, doc.type, doc.priority, doc.status, doc.docNumber, doc.docDate,
+          doc.id, bId, doc.type, doc.priority, doc.status, doc.docNumber, doc.docDate,
           doc.senderDocNumber || null, doc.senderDocDate || null, doc.partyName, doc.subject,
           doc.content || '', doc.attachments || '', doc.carbonCopy || '', doc.signatoryTitle || '',
           doc.signatoryName || '', doc.mainLetterUrl || '', JSON.stringify(doc.scannedFileUrls || []), doc.notes || ''
@@ -539,18 +560,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 5. مزامنة العقود
+    // 5. مزامنة العقود (مع حفظ الفرع)
     if (action === 'SYNC_CONTRACT') {
       const { contract } = body;
+      const bId = contract.branch_id || contract.branchId || null;
       await query(
         `INSERT INTO electronic_contracts 
-         (id, contract_type, contract_number, contract_date, seller_name, buyer_name, item_description, price, paid_amount, remaining_amount, details)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+         (id, branch_id, contract_type, contract_number, contract_date, seller_name, buyer_name, item_description, price, paid_amount, remaining_amount, details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
          ON CONFLICT (id) DO UPDATE SET
+         branch_id = COALESCE(EXCLUDED.branch_id, electronic_contracts.branch_id),
          seller_name = EXCLUDED.seller_name, buyer_name = EXCLUDED.buyer_name, price = EXCLUDED.price,
          paid_amount = EXCLUDED.paid_amount, remaining_amount = EXCLUDED.remaining_amount, details = EXCLUDED.details`,
         [
-          contract.id, contract.contractType, contract.contractNumber, contract.contractDate,
+          contract.id, bId, contract.contractType, contract.contractNumber, contract.contractDate,
           contract.sellerName, contract.buyerName, contract.itemDescription,
           contract.price || 0, contract.paidAmount || 0, contract.remainingAmount || 0,
           JSON.stringify(contract.details || {})
@@ -577,14 +600,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: true });
     }
 
-    // 8. مزامنة وحفظ الأقساط سحابياً
+    // 8. مزامنة وحفظ الأقساط سحابياً (مع حفظ الفرع)
     if (action === 'SYNC_INSTALLMENT') {
       const { plan } = body;
+      const bId = plan.branch_id || plan.branchId || null;
       await query(
         `INSERT INTO installment_contracts 
-         (id, customer_type, customer_name, customer_phone, customer_id_card, customer_address, items, goods_description, cash_price, profit_rate, total_installment_price, down_payment, remaining_balance, total_paid, months_count, monthly_installment, start_date, guarantor_name, guarantor_phone, status, installments)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+         (id, branch_id, customer_type, customer_name, customer_phone, customer_id_card, customer_address, items, goods_description, cash_price, profit_rate, total_installment_price, down_payment, remaining_balance, total_paid, months_count, monthly_installment, start_date, guarantor_name, guarantor_phone, status, installments)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
          ON CONFLICT (id) DO UPDATE SET
+         branch_id = COALESCE(EXCLUDED.branch_id, installment_contracts.branch_id),
          customer_name = EXCLUDED.customer_name, customer_phone = EXCLUDED.customer_phone,
          customer_id_card = EXCLUDED.customer_id_card, customer_address = EXCLUDED.customer_address,
          items = EXCLUDED.items, goods_description = EXCLUDED.goods_description,
@@ -596,7 +621,7 @@ export async function POST(req: Request) {
          guarantor_phone = EXCLUDED.guarantor_phone, status = EXCLUDED.status,
          installments = EXCLUDED.installments`,
         [
-          plan.id, plan.customerType || 'INDIVIDUAL', plan.customerName, plan.customerPhone || '',
+          plan.id, bId, plan.customerType || 'INDIVIDUAL', plan.customerName, plan.customerPhone || '',
           plan.customerIdCard || '', plan.customerAddress || '', JSON.stringify(plan.items || []),
           plan.goodsDescription || '', plan.cashPrice || 0, plan.profitRate || 0,
           plan.totalInstallmentPrice || 0, plan.downPayment || 0, plan.remainingBalance || 0,

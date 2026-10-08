@@ -1,133 +1,159 @@
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import fs from 'fs';
 import path from 'path';
 
-let activePool: Pool | null = null;
-let currentDbUrl: string | null = null;
+// ملف حفظ الرابط المبدل محلياً إن وُجد
+const ACTIVE_DB_FILE = path.join(process.cwd(), '.active_db.json');
 
-const CONFIG_FILE = path.join(process.cwd(), '.active_db.json');
-
-// تنظيف الرابط من المعايير التي تسبب تجمد أو فشل الاتصال في Node.js
-function sanitizeUrl(rawUrl: string): string {
+// دالة لتطهير الرابط من المعاملات غير المتوافقة وإسكات تحذير SSL
+function sanitizeDatabaseUrl(rawUrl: string): string {
   if (!rawUrl) return '';
-  let cleaned = rawUrl.trim();
-  // إزالة channel_binding=require إن وجدت
-  cleaned = cleaned.replace(/[?&]channel_binding=[^&]+/g, '');
-  // التأكد من وجود sslmode=require
-  if (!cleaned.includes('sslmode=')) {
-    cleaned += (cleaned.includes('?') ? '&' : '?') + 'sslmode=require';
-  }
-  return cleaned;
+  let url = rawUrl.trim();
+  url = url.replace(/([&?])channel_binding=[^&]+/gi, '');
+  url = url.replace(/([&?])sslmode=[^&]+/gi, '');
+  url = url.replace(/([&?])uselibpqcompat=[^&]+/gi, '');
+  url = url.replace(/\?&/, '?').replace(/[?&]$/, '');
+
+  // إضافة معامل التوافق الصريح لمنع تحذير SSL الخاص بـ pg
+  const separator = url.includes('?') ? '&' : '?';
+  url += `${separator}uselibpqcompat=true&sslmode=require`;
+
+  return url;
 }
 
-export function getActiveConnectionString(): string {
-  if (currentDbUrl) return currentDbUrl;
-
+// استخراج الرابط الفعال (قراءة فقط بدون تعطيل النظام)
+function getInitialConnectionString(): string {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      const data = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
-      if (data && data.database_url) {
-        currentDbUrl = sanitizeUrl(data.database_url);
-        return currentDbUrl;
+    if (fs.existsSync(ACTIVE_DB_FILE)) {
+      const data = JSON.parse(fs.readFileSync(ACTIVE_DB_FILE, 'utf8'));
+      if (data && data.active_url) {
+        return sanitizeDatabaseUrl(data.active_url);
       }
     }
-  } catch {
-    // تجاهل خطأ قراءة الملف في البيئات المعزولة أو السحابية
+  } catch (e) {
+    // تجاهل أخطاء القراءة بهدوء
   }
-
-  currentDbUrl = sanitizeUrl(process.env.DATABASE_URL || '');
-  return currentDbUrl;
+  return sanitizeDatabaseUrl(process.env.DATABASE_URL || '');
 }
 
-export function getPool(overrideUrl?: string): Pool {
-  const connectionString = overrideUrl ? sanitizeUrl(overrideUrl) : getActiveConnectionString();
-
-  if (!connectionString) {
-    throw new Error('DATABASE_URL is not defined');
-  }
-
-  if (activePool && !overrideUrl) {
-    return activePool;
-  }
-
-  const pool = new Pool({
+// دالة إنشاء إعدادات المسبح المحسنة
+function createPoolConfig(connectionString: string): PoolConfig {
+  const isSslRequired = connectionString.includes('neon.tech') || connectionString.includes('sslmode');
+  
+  return {
     connectionString,
-    ssl: {
-      rejectUnauthorized: false
-    },
-    max: 10,
+    max: 20,
+    min: 2,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 30000, // مهلة كافية لسيرفرات Neon/Supabase للاستيقاظ
-  });
-
-  pool.on('error', (err) => {
-    console.error('Unexpected database client error:', err);
-  });
-
-  if (!overrideUrl) {
-    activePool = pool;
-  }
-
-  return pool;
+    connectionTimeoutMillis: 20000,
+    ssl: isSslRequired ? { rejectUnauthorized: false } : undefined,
+  };
 }
 
-export async function switchDatabase(newConnectionString: string): Promise<boolean> {
-  const cleanUrl = sanitizeUrl(newConnectionString);
+declare global {
+  // eslint-disable-next-line no-var
+  var __globalPgPool: Pool | undefined;
+  // eslint-disable-next-line no-var
+  var __branchesSchemaPatched: boolean | undefined;
+}
 
-  // إعطاء مهلة 30 ثانية لتستيقظ قاعدة البيانات من حالة السكون
-  const testPool = new Pool({
-    connectionString: cleanUrl,
-    ssl: { rejectUnauthorized: false },
-    connectionTimeoutMillis: 30000
+let pool: Pool;
+
+async function patchBranchesSchema(activePool: Pool) {
+  if (global.__branchesSchemaPatched) return;
+  try {
+    await activePool.query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns 
+          WHERE table_name = 'branches' AND column_name = 'branch_code'
+        ) THEN
+          ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;
+        END IF;
+      END $$;
+    `);
+    global.__branchesSchemaPatched = true;
+  } catch (e) {
+    // كتم الخطأ
+  }
+}
+
+function getPool(): Pool {
+  if (global.__globalPgPool) {
+    return global.__globalPgPool;
+  }
+  
+  const connStr = getInitialConnectionString();
+  const config = createPoolConfig(connStr);
+  const newPool = new Pool(config);
+
+  newPool.on('error', (err) => {
+    console.error('Unexpected error on idle pg client'); // تم كتم تفاصيل الخطأ أمنياً
   });
+
+  patchBranchesSchema(newPool);
+
+  global.__globalPgPool = newPool;
+  return newPool;
+}
+
+pool = getPool();
+
+// تنفيذ الاستعلامات مع حماية ضد تسريب الأخطاء (Error Leakage Protection)
+export async function query(text: string, params?: any[], retryCount = 1): Promise<any> {
+  const currentPool = getPool();
+  try {
+    return await currentPool.query(text, params);
+  } catch (err: any) {
+    if (
+      retryCount > 0 && 
+      (err.message?.includes('timeout') || err.message?.includes('Connection terminated') || err.message?.includes('ECONNRESET'))
+    ) {
+      await new Promise(res => setTimeout(res, 500));
+      return await currentPool.query(text, params);
+    }
+    
+    // إغلاق ثغرة تسريب هيكل قاعدة البيانات للمستخدمين
+    if (process.env.NODE_ENV === 'production') {
+       console.error('Secure DB Error Log:', err.message);
+       throw new Error('حدث خطأ داخلي متصل بقاعدة البيانات. يرجى المحاولة لاحقاً.');
+    }
+    throw err;
+  }
+}
+
+// دالة التبديل (معدلة لتجنب انهيار بيئة Vercel/Netlify)
+export async function switchDatabase(newUrl: string): Promise<void> {
+  const sanitized = sanitizeDatabaseUrl(newUrl);
+  if (!sanitized) {
+    throw new Error('رابط قاعدة البيانات غير صالح أو فارغ.');
+  }
+
+  const testConfig = createPoolConfig(sanitized);
+  const testPool = new Pool(testConfig);
 
   try {
     const client = await testPool.connect();
     await client.query('SELECT 1');
     client.release();
-    await testPool.end();
-
-    if (activePool) {
-      await activePool.end().catch((err) => {
-        console.warn('Error closing active pool during switch:', err);
-      });
-      activePool = null;
-    }
-
-    try {
-      fs.writeFileSync(CONFIG_FILE, JSON.stringify({ database_url: cleanUrl }), 'utf8');
-    } catch (e) {
-      console.warn('Could not write to local config file (possibly read-only filesystem):', e);
-    }
-
-    currentDbUrl = cleanUrl;
-    activePool = new Pool({
-      connectionString: cleanUrl,
-      ssl: { rejectUnauthorized: false },
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 30000
-    });
-
-    activePool.on('error', (err) => {
-      console.error('Unexpected database client error in new active pool:', err);
-    });
-
-    return true;
-  } catch (err) {
+    await patchBranchesSchema(testPool);
+  } catch (err: any) {
     await testPool.end().catch(() => {});
-    throw err;
+    throw new Error('فشل التحقق من الاتصال بالقاعدة الجديدة.'); // تم إخفاء تفاصيل الفشل أمنياً
   }
+
+  if (global.__globalPgPool) {
+    try {
+      await global.__globalPgPool.end();
+    } catch (e) {
+    }
+  }
+
+  global.__globalPgPool = testPool;
+  pool = testPool;
+
+  // تمت إزالة fs.writeFileSync بالكامل لسد ثغرة توقف السيرفر (Error 500 Serverless Crash)
 }
 
-export async function query(text: string, params?: any[]) {
-  const pool = getPool();
-  const client = await pool.connect();
-  try {
-    return await client.query(text, params);
-  } finally {
-    client.release();
-  }
-}
-
-export default getPool;
+export default pool;

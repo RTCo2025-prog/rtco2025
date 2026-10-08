@@ -25,12 +25,15 @@ import {
   Sparkles, 
   Search, 
   Trash2, 
+  Edit3,
   Eye, 
   FolderArchive, 
   Award,
-  Globe
+  Globe,
+  Lock
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -87,7 +90,6 @@ type ContractCategory =
   | 'REALESTATE_SALE' 
   | 'REALESTATE_RENT';
 
-// دالة إرسال الإشعار المركزي للمنظومة لضمان ظهوره الفوري في الصفحة الرئيسية
 async function pushSystemNotification(title: string, message: string, sector: string, link: string) {
   try {
     await fetch('/api/notifications', {
@@ -106,7 +108,6 @@ async function pushSystemNotification(title: string, message: string, sector: st
   }
 }
 
-// دالة ترحيل ومزامنة العقد مع السيرفر السحابي
 async function syncContractToCloud(contract: any) {
   try {
     await fetch('/api/admin/system', {
@@ -119,7 +120,6 @@ async function syncContractToCloud(contract: any) {
   }
 }
 
-// نافذة المعاينة والطباعة كـ Component مستقل لحل خطأ React
 function ContractPreviewModal({
   contract,
   companySettings,
@@ -169,220 +169,249 @@ function ContractPreviewModal({
 
       <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
         <div 
-          className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-12 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-5 relative overflow-hidden font-sans my-auto"
+          className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-4 relative overflow-hidden font-sans my-auto min-h-[1080px] max-h-[1115px] flex flex-col justify-between"
           style={{ borderColor: primaryCol }}
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
             {hasLogo ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={companySettings.logo_url} alt="علامة مائية" width={480} height={480} className="object-contain grayscale" />
+              <img src={companySettings.logo_url} alt="علامة مائية" width={460} height={460} className="object-contain grayscale" />
             ) : (
-              <Image src="/logo.png" alt="علامة مائية" width={480} height={480} className="object-contain grayscale" priority />
+              <Image src="/logo.png" alt="علامة مائية" width={460} height={460} className="object-contain grayscale" priority />
             )}
           </div>
 
-          <div className="h-1.5 w-full rounded-full" style={{ background: `linear-gradient(90deg, #0f172a, ${primaryCol}, #0f172a)` }}></div>
+          <div className="relative z-10 space-y-4">
+            <div className="h-1.5 w-full rounded-full" style={{ background: `linear-gradient(90deg, #0f172a, ${primaryCol}, #0f172a)` }}></div>
 
-          {hasLetterhead ? (
-            <div className="w-full border-b pb-3 mb-2">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
-            </div>
-          ) : (
-            <div className="relative z-10 flex items-center justify-between pb-4 border-b border-slate-200">
-              <div className="flex items-center gap-4 text-right">
-                <div className="w-16 h-16 relative flex items-center justify-center p-1.5 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
-                  {hasLogo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
-                  ) : (
-                    <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
-                  )}
-                </div>
-                <div>
-                  <span 
-                    className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-1"
-                    style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
-                  >
-                    جمهورية العراق • شركة معتمدة
-                  </span>
-                  <h1 className="text-xl font-black leading-tight" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
-                  <p className="text-[11px] text-slate-600 font-bold">{companySettings.tagline}</p>
-                </div>
-              </div>
-
-              <div className="text-center">
-                <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-6 py-2 rounded-2xl shadow-md">
-                  <h2 className="text-lg font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
-                  <span className="text-[9px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
-                    {!contract.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
-                  </span>
-                </div>
-              </div>
-
-              <div className="text-left font-mono text-xs space-y-1">
-                <div className="border border-slate-300 bg-slate-50 px-3 py-1.5 rounded-xl font-black text-slate-950 inline-block text-[11px]">
-                  REF: <span style={{ color: primaryCol }}>{contract.contractNo}</span>
-                </div>
-                <p className="text-[11px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{contract.contractDate}</strong></p>
-              </div>
-            </div>
-          )}
-
-          <div className="relative z-10 grid grid-cols-2 gap-4">
-            <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-slate-950"></span>
-                  الطرف الأول ({contract.isRent ? 'المؤجر' : 'البائع / المالك الشرعي'})
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">FIRST PARTY</span>
-              </div>
-              <div className="space-y-1 text-[11px]">
-                <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{contract.sellerName || '---'}</strong></p>
-                <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{contract.sellerId || '---'}</strong></p>
-                <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{contract.sellerPhone || '---'}</strong></p>
-                <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{contract.sellerAddress}</span></p>
-              </div>
-            </div>
-
-            <div className="border border-slate-200 p-4 rounded-2xl bg-slate-50/70 space-y-2 text-xs">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
-                <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryCol }}></span>
-                  الطرف الثاني ({contract.isRent ? 'المستأجر' : 'المشتري'})
-                </span>
-                <span className="text-[10px] text-slate-500 font-mono">SECOND PARTY</span>
-              </div>
-              <div className="space-y-1 text-[11px]">
-                <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 text-xs font-bold font-sans">{contract.buyerName || '---'}</strong></p>
-                <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{contract.buyerId || '---'}</strong></p>
-                <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{contract.buyerPhone || '---'}</strong></p>
-                <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{contract.buyerAddress}</span></p>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-white shadow-sm space-y-2">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-1.5 text-xs font-bold">
-              <span className="text-slate-950 flex items-center gap-1.5">
-                <Award className="w-3.5 h-3.5" style={{ color: primaryCol }} />
-                مواصفات المبيع المتفق عليه وتفاصيله الفنية:
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">SPECIFICATIONS</span>
-            </div>
-
-            {contract.isVehicle ? (
-              <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">الماركة والنوع:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.vehicleBrand}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">سنة الصنع / الموديل:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.vehicleModel}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">رقم اللوحة والتسجيل:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.vehiclePlate}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">اللون الخارجي:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.vehicleColor}</strong>
-                </div>
-                <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">رقم الشاصي (VIN):</span>
-                  <strong className="text-slate-950 text-xs font-mono uppercase font-bold">{contract.vehicleVin || 'غير محدد'}</strong>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-2.5 text-xs pt-1 font-sans">
-                <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">وصف العقار / الدار:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.propertyTitle}</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">المساحة الإجمالية:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.propertyArea} م²</strong>
-                </div>
-                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">رقم القطعة والمقاطعة:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.propertyPlot}</strong>
-                </div>
-                <div className="col-span-2 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                  <span className="text-[10px] text-slate-500 block">الموقع الجغرافي:</span>
-                  <strong className="text-slate-950 text-xs font-bold">{contract.propertyLocation}</strong>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="relative z-10 border border-slate-200 p-4 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-2.5">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-2">
-              <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
-              <span className="text-sm font-black font-sans text-slate-950 bg-white px-3 py-1 rounded-lg border border-slate-200 shadow-sm">
-                {formatNum(contract.totalAmount)} د.ع
-              </span>
-            </div>
-            
-            <p className="text-[11px] font-bold text-slate-800 leading-relaxed font-sans">
-              كتابة وتفقيطاً: <span className="font-bold" style={{ color: primaryCol }}>{numberToArabicWords(Number(contract.totalAmount) || 0)}</span>
-            </p>
-            
-            <div className="grid grid-cols-2 gap-4 pt-2 font-sans text-xs border-t border-slate-100 text-slate-800">
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-600">الواصل نقداً ومقبوضاً (العربون):</span>
-                <strong className="text-emerald-700 font-bold font-sans">{formatNum(contract.paidDeposit)} د.ع</strong>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-slate-600">المتبقي بذمة المشتري:</span>
-                <strong className="text-rose-700 font-bold font-sans">{formatNum(contract.remainingBalance)} د.ع</strong>
-              </div>
-            </div>
-          </div>
-
-          <div className="relative z-10 border border-slate-200 p-3.5 rounded-2xl bg-slate-50/50 space-y-1 text-[11px] text-slate-600 leading-relaxed font-sans">
-            <strong className="text-slate-950 block text-xs mb-1 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
-            <p className="whitespace-pre-line text-justify">{contract.extraConditions}</p>
-          </div>
-
-          <div className="relative z-10 grid grid-cols-4 gap-4 pt-4 text-center text-xs items-end border-t border-slate-200">
-            <div>
-              <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
-              <p className="text-[10px] text-slate-400">({contract.isRent ? 'المؤجر' : 'البائع'})</p>
-              <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
-            </div>
-
-            <div>
-              <p className="font-black text-slate-950 text-xs">توقيع الطرف الثاني</p>
-              <p className="text-[10px] text-slate-400">({contract.isRent ? 'المستأجر' : 'المشتري'})</p>
-              <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center">
-              <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+            {/* الهيدر الأصلي المعتمد دون المساس به */}
+            {hasLetterhead ? (
+              <div className="w-full border-b pb-2 mb-1">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img 
-                  src={qrCodeApiUrl} 
-                  alt="باركود التحقق الإلكتروني" 
-                  className="w-full h-full object-contain"
-                />
+                <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-28 object-contain" />
               </div>
-              <span className="font-mono text-[9px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
-                <Globe className="w-2.5 h-2.5" /> امسح للتحقق أونلاين
-              </span>
+            ) : (
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-3.5 text-right">
+                  <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
+                    {hasLogo ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                    ) : (
+                      <Image src="/logo.png" alt="شركة البرج المتألق" width={52} height={52} className="object-contain" priority />
+                    )}
+                  </div>
+                  <div>
+                    <span 
+                      className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-0.5"
+                      style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                    >
+                      جمهورية العراق • شركة معتمدة
+                    </span>
+                    <h1 className="text-lg font-black leading-tight" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                    <p className="text-[10px] text-slate-600 font-bold">{companySettings.tagline}</p>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-5 py-1.5 rounded-2xl shadow-md">
+                    <h2 className="text-base font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
+                    <span className="text-[8px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
+                      {!contract.isRent ? 'OFFICIAL SALE CONTRACT' : 'OFFICIAL LEASE CONTRACT'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="text-left font-mono text-xs space-y-0.5">
+                  <div className="border border-slate-300 bg-slate-50 px-2.5 py-1 rounded-xl font-black text-slate-950 inline-block text-[10px]">
+                    REF: <span style={{ color: primaryCol }}>{contract.contractNo}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 font-sans">تاريخ التحرير: <strong className="text-slate-900 font-mono">{contract.contractDate}</strong></p>
+                </div>
+              </div>
+            )}
+
+            {/* شريط التوثيق والفرع تحت الهيدر مباشرة: في اليمين العدد، في المنتصف اسم الفرع فقط مأطر، وفي اليسار التاريخ */}
+            <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+              {/* اليمين: العدد ورقم العقد */}
+              <div className="flex items-center gap-1.5" dir="rtl">
+                <span className="text-slate-500 font-bold">العدد :</span>
+                <span className="font-mono text-slate-950 text-sm tracking-wide">
+                  ع/ {contract.contractNo} / 2026
+                </span>
+              </div>
+
+              {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
+              <div className="flex items-center justify-center">
+                <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                  {contract.branch_name || 'فرع الاستثمارات العقارية'}
+                </span>
+              </div>
+
+              {/* اليسار: التاريخ */}
+              <div className="flex items-center gap-1.5" dir="rtl">
+                <span className="text-slate-500 font-bold">التاريخ :</span>
+                <span className="font-mono text-slate-950 text-sm tracking-wider">{contract.contractDate}</span>
+              </div>
             </div>
 
-            <div>
-              <p className="font-black text-slate-950 text-xs">مصادقة إدارة الشركة</p>
-              <p className="text-[10px] text-slate-400">الختم والتوثيق المعتمد</p>
-              <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-7"></div>
+            <div className="grid grid-cols-2 gap-3.5">
+              <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/70 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                  <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-slate-950"></span>
+                    الطرف الأول ({contract.isRent ? 'المؤجر' : 'البائع / المالك الشرعي'})
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">FIRST PARTY</span>
+                </div>
+                <div className="space-y-0.5 text-[11px]">
+                  <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 font-bold font-sans">{contract.sellerName || '---'}</strong></p>
+                  <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{contract.sellerId || '---'}</strong></p>
+                  <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{contract.sellerPhone || '---'}</strong></p>
+                  <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{contract.sellerAddress}</span></p>
+                </div>
+              </div>
+
+              <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/70 space-y-1.5 text-xs">
+                <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+                  <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryCol }}></span>
+                    الطرف الثاني ({contract.isRent ? 'المستأجر' : 'المشتري'})
+                  </span>
+                  <span className="text-[9px] text-slate-500 font-mono">SECOND PARTY</span>
+                </div>
+                <div className="space-y-0.5 text-[11px]">
+                  <p className="text-slate-600">الاسم الكامل: <strong className="text-slate-950 font-bold font-sans">{contract.buyerName || '---'}</strong></p>
+                  <p className="text-slate-600">رقم البطاقة الوطنية / الهوية: <strong className="font-sans text-slate-900">{contract.buyerId || '---'}</strong></p>
+                  <p className="text-slate-600">رقم الهاتف المعتمد: <strong className="font-sans text-slate-900">{contract.buyerPhone || '---'}</strong></p>
+                  <p className="text-slate-600">العنوان ومحل الإقامة: <span className="text-slate-800 font-sans">{contract.buyerAddress}</span></p>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 p-3.5 rounded-2xl bg-white shadow-sm space-y-1.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-1 text-xs font-bold">
+                <span className="text-slate-950 flex items-center gap-1.5">
+                  <Award className="w-3.5 h-3.5" style={{ color: primaryCol }} />
+                  مواصفات المبيع المتفق عليه وتفاصيله الفنية:
+                </span>
+                <span className="text-[9px] text-slate-400 font-mono">SPECIFICATIONS</span>
+              </div>
+
+              {contract.isVehicle ? (
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1 font-sans">
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">الماركة والنوع:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.vehicleBrand}</strong>
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">سنة الصنع / الموديل:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.vehicleModel}</strong>
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">رقم اللوحة والتسجيل:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.vehiclePlate}</strong>
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">اللون الخارجي:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.vehicleColor}</strong>
+                  </div>
+                  <div className="col-span-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">رقم الشاصي (VIN):</span>
+                    <strong className="text-slate-950 text-xs font-mono uppercase font-bold">{contract.vehicleVin || 'غير محدد'}</strong>
+                  </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 text-xs pt-1 font-sans">
+                  <div className="col-span-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">وصف العقار / الدار:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.propertyTitle}</strong>
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">المساحة الإجمالية:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.propertyArea} م²</strong>
+                  </div>
+                  <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">رقم القطعة والمقاطعة:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.propertyPlot}</strong>
+                  </div>
+                  <div className="col-span-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
+                    <span className="text-[9px] text-slate-500 block">الموقع الجغرافي:</span>
+                    <strong className="text-slate-950 text-xs font-bold">{contract.propertyLocation}</strong>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="border border-slate-200 p-3.5 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-1.5">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+                <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
+                <span className="text-xs font-black font-sans text-slate-950 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-sm">
+                  {formatNum(contract.totalAmount)} د.ع
+                </span>
+              </div>
+              
+              <p className="text-[10px] font-bold text-slate-800 leading-snug font-sans">
+                كتابة وتفقيطاً: <span className="font-bold" style={{ color: primaryCol }}>{numberToArabicWords(Number(contract.totalAmount) || 0)}</span>
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3 pt-1.5 font-sans text-xs border-t border-slate-100 text-slate-800">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-600 text-[11px]">الواصل نقداً (العربون):</span>
+                  <strong className="text-emerald-700 font-bold font-sans text-xs">{formatNum(contract.paidDeposit)} د.ع</strong>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-slate-600 text-[11px]">المتبقي بذمة المشتري:</span>
+                  <strong className="text-rose-700 font-bold font-sans text-xs">{formatNum(contract.remainingBalance)} د.ع</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50 space-y-1 text-[10px] text-slate-600 leading-relaxed font-sans">
+              <strong className="text-slate-950 block text-[11px] mb-0.5 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
+              <p className="whitespace-pre-line text-justify">{contract.extraConditions}</p>
             </div>
           </div>
 
-          <div className="relative z-10 text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between font-mono">
-            <span>{companySettings.company_name} - {companySettings.address}</span>
-            <span>هاتف الإدارة: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
+          <div className="relative z-10 pt-2 space-y-3">
+            <div className="grid grid-cols-4 gap-4 text-center text-xs items-end border-t border-slate-200 pt-3">
+              <div>
+                <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
+                <p className="text-[9px] text-slate-400">({contract.isRent ? 'المؤجر' : 'البائع'})</p>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+              </div>
+
+              <div>
+                <p className="font-black text-slate-950 text-xs">توقيع الطرف الثاني</p>
+                <p className="text-[9px] text-slate-400">({contract.isRent ? 'المستأجر' : 'المشتري'})</p>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+              </div>
+
+              <div className="flex flex-col items-center justify-center">
+                <div className="w-14 h-14 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img 
+                    src={qrCodeApiUrl} 
+                    alt="باركود التحقق الإلكتروني" 
+                    className="w-full h-full object-contain"
+                  />
+                </div>
+                <span className="font-mono text-[8px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
+                  <Globe className="w-2.5 h-2.5" /> تحقق رسمي
+                </span>
+              </div>
+
+              <div>
+                <p className="font-black text-slate-950 text-xs">مصادقة إدارة الشركة</p>
+                <p className="text-[9px] text-slate-400">الختم والتوثيق المعتمد</p>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+              </div>
+            </div>
+
+            <div className="text-center text-[9px] text-slate-500 font-semibold border-t border-slate-200 pt-1.5 flex items-center justify-between font-mono">
+              <span>{companySettings.company_name} - {companySettings.address}</span>
+              <span>هاتف: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
+            </div>
           </div>
 
         </div>
@@ -395,12 +424,13 @@ function ContractPreviewModal({
 }
 
 export default function ElectronicContractsPage() {
+  const { selectedBranchId, branches } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
     tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
     phone_primary: '07868006699',
-    phone_secondary: '07737006699',
+    phone_secondary: '07738006699',
     email: '',
     website: '',
     address: 'العراق - النجف الأشرف - حي الفرات',
@@ -415,6 +445,9 @@ export default function ElectronicContractsPage() {
   const [savedContracts, setSavedContracts] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [siteOrigin, setSiteOrigin] = useState('');
+
+  const [editingContractId, setEditingContractId] = useState<string | null>(null);
+  const [contractBranchId, setContractBranchId] = useState<string>('BR-HQ-01');
 
   const [contractNo, setContractNo] = useState(() => `9577${Math.floor(100000 + Math.random() * 900000)}`);
   const [contractDate, setContractDate] = useState(() => new Date().toISOString().substring(0, 10));
@@ -451,6 +484,64 @@ export default function ElectronicContractsPage() {
   const [selectedContractForPrint, setSelectedContractForPrint] = useState<any | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
 
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
+  const resolveBranchName = (bId?: string): string => {
+    if (!bId || bId === 'ALL' || bId === 'BR-HQ-01') {
+      return 'المقر الرئيسي (النجف الأشرف)';
+    }
+    const cleanId = String(bId).trim().toUpperCase();
+    if (cleanId === 'TRD-01' || cleanId === 'BR-TRADE-03' || cleanId.includes('TRD') || cleanId.includes('TRADE')) {
+      return 'فرع التجارة العامة';
+    }
+    if (cleanId === 'CNT-01' || cleanId === 'BR-CONST-02' || cleanId.includes('CNT') || cleanId.includes('CONST')) {
+      return 'فرع المقاولات العامة';
+    }
+    if (cleanId === 'FLT-01' || cleanId === 'BR-TRANS-04' || cleanId.includes('FLT') || cleanId.includes('TRANS')) {
+      return 'فرع النقل العام';
+    }
+    if (cleanId === 'EST-01' || cleanId === 'BR-RE-05' || cleanId.includes('EST') || cleanId.includes('RE')) {
+      return 'فرع الاستثمارات العقارية';
+    }
+    if (cleanId === 'STR-01' || cleanId.includes('STR') || cleanId.includes('WAREHOUSE')) {
+      return 'فرع المخازن';
+    }
+    if (cleanId === 'HQ-01' || cleanId === 'BR-HQ-01') {
+      return 'المقر الرئيسي';
+    }
+
+    const found = (branches || []).find((b: any) => 
+      String(b.branch_id).trim().toUpperCase() === cleanId || 
+      String(b.branch_code).trim().toUpperCase() === cleanId
+    );
+    return found?.name_ar || `فرع ${bId}`;
+  };
+
+  const currentActiveBranchName = useMemo(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      return resolveBranchName(currentUser.assigned_branch_id);
+    }
+    return resolveBranchName(selectedBranchId);
+  }, [selectedBranchId, branches, isRestrictedBranch, currentUser]);
+
+  useEffect(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      setContractBranchId(currentUser.assigned_branch_id);
+    } else {
+      const active = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'EST-01';
+      setContractBranchId(active);
+    }
+  }, [selectedBranchId, isRestrictedBranch, currentUser]);
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -465,12 +556,57 @@ export default function ElectronicContractsPage() {
     }
   };
 
+  const loadContractsData = async () => {
+    let localContracts: any[] = [];
+    const storedContracts = localStorage.getItem('rtco_electronic_contracts');
+    if (storedContracts) {
+      try {
+        localContracts = JSON.parse(storedContracts);
+      } catch {}
+    }
+
+    try {
+      const res = await fetch(`/api/admin/system?action=GET_CONTRACTS`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.contracts)) {
+        const mergedContracts = data.contracts.map((remoteContract: any) => {
+          const match = localContracts.find((lc) => lc.id === remoteContract.id || lc.contractNo === remoteContract.contractNo);
+          const bId = remoteContract.branch_id || remoteContract.branchId || match?.branch_id || match?.branchId || 'EST-01';
+          return {
+            ...remoteContract,
+            branch_id: bId,
+            branch_name: resolveBranchName(bId)
+          };
+        });
+
+        localContracts.forEach((lc) => {
+          if (!mergedContracts.some((mc: any) => mc.id === lc.id)) {
+            const bId = lc.branch_id || lc.branchId || 'EST-01';
+            mergedContracts.unshift({
+              ...lc,
+              branch_id: bId,
+              branch_name: resolveBranchName(bId)
+            });
+          }
+        });
+
+        setSavedContracts(mergedContracts);
+        localStorage.setItem('rtco_electronic_contracts', JSON.stringify(mergedContracts));
+      } else {
+        setSavedContracts(localContracts);
+      }
+    } catch {
+      setSavedContracts(localContracts);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
 
     loadSettings();
+    loadContractsData();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -492,44 +628,6 @@ export default function ElectronicContractsPage() {
         }
       } catch {}
     }
-
-    // جلب العقود حصراً من قاعدة البيانات النشطة أولاً وتصفيرها إذا كانت القاعدة جديدة وفارغة
-    fetch('/api/admin/system?action=GET_CONTRACTS', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.success && Array.isArray(data.contracts)) {
-          setSavedContracts(data.contracts);
-          localStorage.setItem('rtco_electronic_contracts', JSON.stringify(data.contracts));
-
-          if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const viewContractNo = urlParams.get('view');
-            if (viewContractNo) {
-              const found = data.contracts.find((c: any) => c.contractNo === viewContractNo);
-              if (found) {
-                setSelectedContractForPrint(found);
-                setShowPreviewModal(true);
-              }
-            }
-          }
-        } else {
-          setSavedContracts([]);
-          localStorage.removeItem('rtco_electronic_contracts');
-        }
-      })
-      .catch(() => {
-        // في حال انقطاع الاتصال فقط نحاول قراءة المخزن المحلي
-        const storedContracts = localStorage.getItem('rtco_electronic_contracts');
-        if (storedContracts) {
-          try {
-            setSavedContracts(JSON.parse(storedContracts));
-          } catch {
-            setSavedContracts([]);
-          }
-        } else {
-          setSavedContracts([]);
-        }
-      });
   }, []);
 
   const isSuperAdmin = useMemo(() => {
@@ -538,6 +636,10 @@ export default function ElectronicContractsPage() {
 
   const canAdd = useMemo(() => {
     return Boolean(isSuperAdmin || hasPermission(currentUser, 'contracts', 'add'));
+  }, [currentUser, isSuperAdmin]);
+
+  const canEdit = useMemo(() => {
+    return Boolean(isSuperAdmin || hasPermission(currentUser, 'contracts', 'edit'));
   }, [currentUser, isSuperAdmin]);
 
   const canDelete = useMemo(() => {
@@ -560,16 +662,70 @@ export default function ElectronicContractsPage() {
     }
   };
 
+  const handleEditContract = (contract: any) => {
+    if (!canEdit) {
+      alert('ليس لديك صلاحية لتعديل العقود المحفوظة.');
+      return;
+    }
+    setEditingContractId(contract.id);
+    setSelectedCategory(contract.category || 'REALESTATE_SALE');
+    setContractBranchId(contract.branch_id || (isRestrictedBranch ? currentUser.assigned_branch_id : 'EST-01'));
+    setContractNo(contract.contractNo || '');
+    setContractDate(contract.contractDate || new Date().toISOString().substring(0, 10));
+
+    setSellerName(contract.sellerName || '');
+    setSellerId(contract.sellerId || '');
+    setSellerPhone(contract.sellerPhone || '');
+    setSellerAddress(contract.sellerAddress || 'النجف الأشرف');
+
+    setBuyerName(contract.buyerName || '');
+    setBuyerId(contract.buyerId || '');
+    setBuyerPhone(contract.buyerPhone || '');
+    setBuyerAddress(contract.buyerAddress || 'النجف الأشرف');
+
+    setVehicleBrand(contract.vehicleBrand || 'كيا سيراتو');
+    setVehicleModel(contract.vehicleModel || '2023');
+    setVehiclePlate(contract.vehiclePlate || '');
+    setVehicleVin(contract.vehicleVin || '');
+    setVehicleColor(contract.vehicleColor || 'أبيض');
+
+    setPropertyTitle(contract.propertyTitle || 'دار سكني طابقين بناء حديث');
+    setPropertyArea(contract.propertyArea || '200');
+    setPlotNumber(contract.propertyPlot || '');
+    setPropertyLocation(contract.propertyLocation || 'النجف الأشرف - حي الفرات');
+
+    setTotalAmount(String(contract.totalAmount || '0'));
+    setPaidDeposit(String(contract.paidDeposit || '0'));
+    setExtraConditions(contract.extraConditions || '');
+
+    window.scrollTo({ top: 300, behavior: 'smooth' });
+  };
+
   const handleSaveAndPrintContract = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!canAdd) {
+    if (!editingContractId && !canAdd) {
       alert('ليس لديك صلاحية لإنشاء وإصدار عقود جديدة');
       return;
     }
+    if (editingContractId && !canEdit) {
+      alert('ليس لديك صلاحية لتعديل العقود');
+      return;
+    }
 
-    const newContractData = {
-      id: Date.now().toString(),
+    let assignedBranchId = contractBranchId;
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      assignedBranchId = currentUser.assigned_branch_id;
+    } else if (!assignedBranchId || assignedBranchId === 'ALL') {
+      assignedBranchId = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'EST-01';
+    }
+
+    const assignedBranchName = resolveBranchName(assignedBranchId);
+
+    const contractPayload = {
+      id: editingContractId || Date.now().toString(),
+      branch_id: assignedBranchId,
+      branch_name: assignedBranchName,
       contractNo,
       contractDate,
       category: selectedCategory,
@@ -597,45 +753,54 @@ export default function ElectronicContractsPage() {
       paidDeposit,
       remainingBalance,
       extraConditions,
-      createdAt: new Date().toISOString()
+      createdAt: editingContractId 
+        ? (savedContracts.find(c => c.id === editingContractId)?.createdAt || new Date().toISOString())
+        : new Date().toISOString()
     };
 
-    const updatedList = [newContractData, ...savedContracts];
+    const updatedList = editingContractId
+      ? savedContracts.map(c => c.id === editingContractId ? contractPayload : c)
+      : [contractPayload, ...savedContracts];
+
     setSavedContracts(updatedList);
     localStorage.setItem('rtco_electronic_contracts', JSON.stringify(updatedList));
 
     const cloudPayload = {
-      id: newContractData.id,
-      contractType: newContractData.category,
-      contractNumber: newContractData.contractNo,
-      contractDate: newContractData.contractDate,
-      sellerName: newContractData.sellerName,
-      buyerName: newContractData.buyerName,
-      itemDescription: isVehicle ? `${newContractData.vehicleBrand} (${newContractData.vehiclePlate})` : `${newContractData.propertyTitle} (${newContractData.propertyPlot})`,
-      price: Number(newContractData.totalAmount) || 0,
-      paidAmount: Number(newContractData.paidDeposit) || 0,
-      remainingAmount: Number(newContractData.remainingBalance) || 0,
-      details: newContractData
+      id: contractPayload.id,
+      branch_id: assignedBranchId,
+      contractType: contractPayload.category,
+      contractNumber: contractPayload.contractNo,
+      contractDate: contractPayload.contractDate,
+      sellerName: contractPayload.sellerName,
+      buyerName: contractPayload.buyerName,
+      itemDescription: isVehicle ? `${contractPayload.vehicleBrand} (${contractPayload.vehiclePlate})` : `${contractPayload.propertyTitle} (${contractPayload.propertyPlot})`,
+      price: Number(contractPayload.totalAmount) || 0,
+      paidAmount: Number(contractPayload.paidDeposit) || 0,
+      remainingAmount: Number(contractPayload.remainingBalance) || 0,
+      details: contractPayload
     };
     await syncContractToCloud(cloudPayload);
 
-    // إرسال الإشعار المركزي المباشر للسيرفر وقاعدة البيانات
     await pushSystemNotification(
-      `إصدار ${newContractData.title}: ${newContractData.contractNo}`,
-      `تم توثيق ${newContractData.title} ذي الرقم (${newContractData.contractNo}) بين الطرفين (${newContractData.sellerName}) و (${newContractData.buyerName}) بقيمة ${formatNum(newContractData.totalAmount)} د.ع`,
+      `${editingContractId ? 'تعديل' : 'إصدار'} ${contractPayload.title}: ${contractPayload.contractNo}`,
+      `تم ${editingContractId ? 'تعديل' : 'توثيق'} ${contractPayload.title} ذي الرقم (${contractPayload.contractNo}) في فرع (${contractPayload.branch_name}) بين الطرفين (${contractPayload.sellerName}) و (${contractPayload.buyerName}) بقيمة ${formatNum(contractPayload.totalAmount)} د.ع`,
       'CONTRACTS',
       '/real-estate/contracts'
     );
 
-    setSelectedContractForPrint(newContractData);
+    setSelectedContractForPrint(contractPayload);
     setShowPreviewModal(true);
 
+    setEditingContractId(null);
     setContractNo(`9577${Math.floor(100000 + Math.random() * 900000)}`);
   };
 
   const handleOpenExistingContract = async (contract: any) => {
     await loadSettings();
-    setSelectedContractForPrint(contract);
+    setSelectedContractForPrint({
+      ...contract,
+      branch_name: resolveBranchName(contract.branch_id || contract.branchId)
+    });
     setShowPreviewModal(true);
   };
 
@@ -671,15 +836,41 @@ export default function ElectronicContractsPage() {
   };
 
   const filteredContracts = useMemo(() => {
-    if (!searchQuery.trim()) return savedContracts;
+    let list = savedContracts;
+    
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      const assignedId = String(currentUser.assigned_branch_id).trim().toUpperCase();
+      const assignedName = resolveBranchName(assignedId).trim();
+      list = list.filter(c => {
+        const cBId = String(c.branch_id || '').trim().toUpperCase();
+        const cBName = String(c.branch_name || '').trim();
+        return cBId === assignedId || (cBName && cBName.includes(assignedName));
+      });
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      const activeBId = String(selectedBranchId).trim().toUpperCase();
+      const activeBName = currentActiveBranchName.trim();
+
+      list = list.filter(c => {
+        const cBId = String(c.branch_id || '').trim().toUpperCase();
+        const cBName = String(c.branch_name || '').trim();
+
+        return (
+          cBId === activeBId ||
+          (cBName && cBName.includes(activeBName)) ||
+          (cBName && cBName.includes(activeBId))
+        );
+      });
+    }
+
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase().trim();
-    return savedContracts.filter(c => 
+    return list.filter(c => 
       c.contractNo.toLowerCase().includes(q) ||
       c.sellerName.toLowerCase().includes(q) ||
       c.buyerName.toLowerCase().includes(q) ||
       c.title.toLowerCase().includes(q)
     );
-  }, [savedContracts, searchQuery]);
+  }, [savedContracts, searchQuery, selectedBranchId, currentActiveBranchName, isRestrictedBranch, currentUser]);
 
   const primaryCol = companySettings.primary_color || '#d97706';
   const secondaryCol = companySettings.secondary_color || '#ea580c';
@@ -709,20 +900,26 @@ export default function ElectronicContractsPage() {
               margin: 0 !important;
               padding: 0 !important;
               width: 210mm !important;
+              height: 297mm !important;
             }
-            .print-hidden-element {
+            header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
               display: none !important;
+              visibility: hidden !important;
             }
             .print-paper-sheet {
+              box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
-              padding: 10mm 12mm !important;
               margin: 0 !important;
               width: 210mm !important;
               max-width: 210mm !important;
-              min-height: 297mm !important;
+              height: 296mm !important;
+              max-height: 296mm !important;
+              padding: 8mm 12mm !important;
+              overflow: hidden !important;
               page-break-after: always !important;
+              page-break-inside: avoid !important;
             }
           }
         `}</style>
@@ -755,7 +952,7 @@ export default function ElectronicContractsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  {companySettings.company_name} • عقود معتمدة لبيع وإيجار السيارات، الدراجات، والدور السكنية والأملاك
+                  {companySettings.company_name} • نطاق العرض: <strong className="text-amber-400">{currentActiveBranchName}</strong>
                 </p>
               </div>
             </div>
@@ -791,6 +988,7 @@ export default function ElectronicContractsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('CAR_SALE');
                 setTotalAmount('24000000');
                 setPaidDeposit('10000000');
@@ -812,6 +1010,7 @@ export default function ElectronicContractsPage() {
 
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('CAR_RENT');
                 setTotalAmount('600000');
                 setPaidDeposit('600000');
@@ -833,6 +1032,7 @@ export default function ElectronicContractsPage() {
 
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('BIKE_SALE');
                 setTotalAmount('1800000');
                 setPaidDeposit('1800000');
@@ -854,6 +1054,7 @@ export default function ElectronicContractsPage() {
 
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('BIKE_RENT');
                 setTotalAmount('150000');
                 setPaidDeposit('150000');
@@ -875,6 +1076,7 @@ export default function ElectronicContractsPage() {
 
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('REALESTATE_SALE');
                 setTotalAmount('185000000');
                 setPaidDeposit('50000000');
@@ -896,6 +1098,7 @@ export default function ElectronicContractsPage() {
 
             <div 
               onClick={() => {
+                setEditingContractId(null);
                 setSelectedCategory('REALESTATE_RENT');
                 setTotalAmount('700000');
                 setPaidDeposit('700000');
@@ -917,20 +1120,58 @@ export default function ElectronicContractsPage() {
           </div>
         </div>
 
-        {/* استمارة تحرير العقد */}
+        {/* استمارة تحرير / تعديل العقد */}
         <div className="max-w-5xl mx-auto mt-6 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-5 print:hidden print-hidden-element">
           <div className="flex items-center justify-between border-b border-slate-800 pb-3">
             <h2 className="text-sm font-bold text-white flex items-center gap-2">
               <FileCheck className="w-4 h-4" style={{ color: primaryCol }} />
-              بيانات ومواصفات {getContractTitle()}
+              {editingContractId ? `تعديل بيانات ${getContractTitle()}` : `بيانات ومواصفات ${getContractTitle()}`}
             </h2>
             <div className="flex items-center gap-2 text-xs font-mono">
               <span className="text-slate-400">رقم العقد:</span>
               <span className="font-bold" style={{ color: primaryCol }}>{contractNo}</span>
+              {editingContractId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingContractId(null);
+                    setContractNo(`9577${Math.floor(100000 + Math.random() * 900000)}`);
+                  }}
+                  className="mr-3 px-2 py-0.5 bg-rose-500/20 text-rose-400 hover:bg-rose-500 hover:text-white rounded-lg border border-rose-500/30 transition text-[10px]"
+                >
+                  إلغاء التعديل ✕
+                </button>
+              )}
             </div>
           </div>
 
           <form onSubmit={handleSaveAndPrintContract} className="space-y-4 text-xs">
+            {/* اختيار وتثبيت الفرع صراحة */}
+            <div className="bg-slate-950 p-3.5 rounded-2xl border border-amber-500/30">
+              <label className="block text-amber-400 mb-1 font-bold">الفرع الصادر منه العقد رسمياً *</label>
+              {isRestrictedBranch ? (
+                <div className="w-full bg-slate-900 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-bold flex items-center justify-between">
+                  <span>📍 {currentActiveBranchName}</span>
+                  <span className="text-[10px] bg-slate-950 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                    <Lock className="w-2.5 h-2.5 text-amber-400" /> مقيد
+                  </span>
+                </div>
+              ) : (
+                <select
+                  value={contractBranchId}
+                  onChange={(e) => setContractBranchId(e.target.value)}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold outline-none cursor-pointer"
+                >
+                  <option value="EST-01">فرع الاستثمارات العقارية (النجف الأشرف)</option>
+                  <option value="CNT-01">فرع المقاولات العامة (النجف الأشرف)</option>
+                  <option value="FLT-01">فرع النقل العام (النجف الأشرف)</option>
+                  <option value="TRD-01">فرع التجارة العامة (النجف الأشرف)</option>
+                  <option value="STR-01">فرع المخازن (النجف الأشرف)</option>
+                  <option value="HQ-01">المقر الرئيسي (النجف الأشرف)</option>
+                </select>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-slate-400 mb-1 font-semibold">تاريخ تحرير العقد *</label>
@@ -1165,19 +1406,31 @@ export default function ElectronicContractsPage() {
               />
             </div>
 
-            <div className="pt-3 flex justify-end">
+            <div className="pt-3 flex justify-end gap-2.5">
+              {editingContractId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingContractId(null);
+                    setContractNo(`9577${Math.floor(100000 + Math.random() * 900000)}`);
+                  }}
+                  className="px-6 py-3 bg-slate-800 text-slate-300 hover:text-white rounded-2xl text-xs font-bold cursor-pointer transition"
+                >
+                  إلغاء التعديل
+                </button>
+              )}
               <button
                 type="submit"
                 className="w-full sm:w-auto px-8 py-3 text-slate-950 font-black rounded-2xl text-xs flex items-center justify-center gap-2 shadow-xl transition cursor-pointer"
                 style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
               >
-                <Printer className="w-4 h-4" /> حفظ وإصدار ورقة العقد الرسمية (عقد الشاري A4)
+                <Printer className="w-4 h-4" /> {editingContractId ? 'حفظ تعديلات العقد وإعادة الطباعة A4' : 'حفظ وإصدار ورقة العقد الرسمية (عقد الشاري A4)'}
               </button>
             </div>
           </form>
         </div>
 
-        {/* سجل العقود */}
+        {/* سجل العقود والأرشيف */}
         <div className="max-w-5xl mx-auto mt-8 bg-slate-900 border border-slate-800 rounded-3xl p-6 shadow-2xl space-y-4 print:hidden print-hidden-element">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
             <div className="flex items-center gap-2">
@@ -1186,7 +1439,7 @@ export default function ElectronicContractsPage() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-white">سجل وأرشيف العقود الصادرة</h3>
-                <p className="text-[11px] text-slate-400">مراجعة العقود، إعادة طباعتها A4، أو حذفها</p>
+                <p className="text-[11px] text-slate-400">مراجعة العقود، تعديلها، إعادة طباعتها A4، أو حذفها</p>
               </div>
             </div>
 
@@ -1219,51 +1472,68 @@ export default function ElectronicContractsPage() {
                 {filteredContracts.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="p-8 text-center text-slate-500 font-sans">
-                      لا توجد عقود صادرة محفوظة حتى الآن. عند ملء الاستمارة والضغط على حفظ ستظهر هنا تلقائياً.
+                      لا توجد عقود مسجلة لهذا الفرع حالياً.
                     </td>
                   </tr>
                 ) : (
-                  filteredContracts.map((c) => (
-                    <tr key={c.id} className="hover:bg-slate-800/40 transition font-sans">
-                      <td className="p-3 font-mono font-bold" style={{ color: primaryCol }}>{c.contractNo}</td>
-                      <td className="p-3">
-                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
-                          {c.title}
-                        </span>
-                      </td>
-                      <td className="p-3 font-bold text-white">{c.sellerName || '---'}</td>
-                      <td className="p-3 font-bold text-slate-200">{c.buyerName || '---'}</td>
-                      <td className="p-3 font-mono text-emerald-400 font-bold">{formatNum(c.totalAmount)} د.ع</td>
-                      <td className="p-3 text-slate-400 font-mono">{c.contractDate}</td>
-                      <td className="p-3 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            onClick={() => handleOpenExistingContract(c)}
-                            className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 rounded-lg border border-emerald-500/30 transition shadow flex items-center gap-1 text-[11px] font-bold cursor-pointer"
-                            title="إعادة المعاينة والطباعة A4"
-                          >
-                            <Printer className="w-3.5 h-3.5" /> طباعة
-                          </button>
-                          {canDelete && (
+                  filteredContracts.map((c) => {
+                    const cBranchDisplay = c.branch_name || resolveBranchName(c.branch_id);
+
+                    return (
+                      <tr key={c.id} className="hover:bg-slate-800/40 transition font-sans">
+                        <td className="p-3 font-mono font-bold" style={{ color: primaryCol }}>{c.contractNo}</td>
+                        <td className="p-3">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
+                            {c.title}
+                          </span>
+                          <span className="block text-[9px] text-amber-400 font-normal mt-0.5">
+                            ({cBranchDisplay})
+                          </span>
+                        </td>
+                        <td className="p-3 font-bold text-white">{c.sellerName || '---'}</td>
+                        <td className="p-3 font-bold text-slate-200">{c.buyerName || '---'}</td>
+                        <td className="p-3 font-mono text-emerald-400 font-bold">{formatNum(c.totalAmount)} د.ع</td>
+                        <td className="p-3 text-slate-400 font-mono">{c.contractDate}</td>
+                        <td className="p-3 text-center">
+                          <div className="flex items-center justify-center gap-1.5">
                             <button
-                              onClick={() => handleDeleteSavedContract(c.id)}
-                              className="p-1.5 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg border border-rose-500/30 transition cursor-pointer"
-                              title="حذف من الأرشيف"
+                              onClick={() => handleOpenExistingContract(c)}
+                              className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 rounded-lg border border-emerald-500/30 transition shadow flex items-center gap-1 text-[11px] font-bold cursor-pointer"
+                              title="معاينة وطباعة العقد A4"
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Printer className="w-3.5 h-3.5" /> طباعة
                             </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
+
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEditContract(c)}
+                                className="p-1.5 bg-sky-500/10 hover:bg-sky-600 text-sky-400 hover:text-white rounded-lg border border-sky-500/30 transition cursor-pointer"
+                                title="تعديل بيانات العقد"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
+                            {canDelete && (
+                              <button
+                                onClick={() => handleDeleteSavedContract(c.id)}
+                                className="p-1.5 bg-rose-500/10 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg border border-rose-500/30 transition cursor-pointer"
+                                title="حذف من الأرشيف"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </div>
 
-        {/* استدعاء المكون المستقل بدون دوال IIFE */}
         {showPreviewModal && selectedContractForPrint && (
           <ContractPreviewModal
             contract={selectedContractForPrint}

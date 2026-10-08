@@ -3,20 +3,58 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
   }
 }
 
+// خريطة مسميات الفروع المعتمدة الحصرية
+const BRANCH_NAMES_MAP: Record<string, string> = {
+  'BR-HQ-01': 'المقر الرئيسي (النجف الأشرف)',
+  'BR-CONST-02': 'فرع المقاولات والمشاريع الهندسية',
+  'BR-TRADE-03': 'فرع التجارة العامة والمخازن',
+  'BR-TRANS-04': 'فرع النقل العام واللوجستيات',
+  'BR-RE-05': 'فرع الاستثمارات والتطوير العقاري',
+  'ALL': 'كافة الفروع (عرض المنظومة الموحدة)'
+};
+
 async function initHRTables() {
   try {
+    await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
+    // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+    await query(`
+      CREATE TABLE IF NOT EXISTS branches (
+        branch_id VARCHAR(50) PRIMARY KEY,
+        branch_code VARCHAR(50),
+        name_ar VARCHAR(255) NOT NULL,
+        branch_type VARCHAR(100),
+        manager_name VARCHAR(150),
+        phone VARCHAR(50),
+        city VARCHAR(100) DEFAULT 'النجف الأشرف',
+        address VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'ACTIVE',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+    await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
     await query(`
       CREATE TABLE IF NOT EXISTS hr_employees (
         employee_id VARCHAR(50) PRIMARY KEY,
+        branch_id VARCHAR(50) DEFAULT 'BR-HQ-01',
         emp_code VARCHAR(50) UNIQUE NOT NULL,
         full_name VARCHAR(255) NOT NULL,
         job_title VARCHAR(150) NOT NULL,
@@ -37,6 +75,8 @@ async function initHRTables() {
       );
     `);
 
+    await query(`ALTER TABLE hr_employees ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-HQ-01';`).catch(() => {});
+
     await query(`
       DO $$
       BEGIN
@@ -45,7 +85,7 @@ async function initHRTables() {
         ALTER TABLE hr_payroll_runs DROP CONSTRAINT IF EXISTS hr_payroll_runs_employee_id_fkey;
         ALTER TABLE hr_penalties_appraisals DROP CONSTRAINT IF EXISTS hr_penalties_appraisals_employee_id_fkey;
 
-        ALTER TABLE hr_employees ALTER COLUMN employee_id TYPE VARCHAR(50);
+        ALTER TABLE hr_employees ALTER COLUMN employee_id TYPE VARCHAR(50) USING employee_id::varchar;
       EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `).catch(() => {});
@@ -53,7 +93,7 @@ async function initHRTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS hr_adjustments (
         adj_id VARCHAR(50) PRIMARY KEY,
-        employee_id VARCHAR(50),
+        employee_id VARCHAR(50) NOT NULL,
         adj_type VARCHAR(50) NOT NULL,
         amount NUMERIC NOT NULL DEFAULT 0,
         hours_count NUMERIC DEFAULT 0,
@@ -70,9 +110,9 @@ async function initHRTables() {
     await query(`
       DO $$
       BEGIN
-        ALTER TABLE hr_adjustments ALTER COLUMN employee_id TYPE VARCHAR(50);
-        ALTER TABLE hr_adjustments ALTER COLUMN adj_id TYPE VARCHAR(50);
-        ALTER TABLE hr_adjustments ALTER COLUMN leave_id TYPE VARCHAR(50);
+        ALTER TABLE hr_adjustments ALTER COLUMN employee_id TYPE VARCHAR(50) USING employee_id::varchar;
+        ALTER TABLE hr_adjustments ALTER COLUMN adj_id TYPE VARCHAR(50) USING adj_id::varchar;
+        ALTER TABLE hr_adjustments ALTER COLUMN leave_id TYPE VARCHAR(50) USING leave_id::varchar;
       EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `).catch(() => {});
@@ -88,7 +128,7 @@ async function initHRTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS hr_leaves (
         leave_id VARCHAR(50) PRIMARY KEY,
-        employee_id VARCHAR(50),
+        employee_id VARCHAR(50) NOT NULL,
         leave_type VARCHAR(50) NOT NULL,
         days_count NUMERIC NOT NULL DEFAULT 1,
         start_date DATE NOT NULL,
@@ -103,8 +143,8 @@ async function initHRTables() {
     await query(`
       DO $$
       BEGIN
-        ALTER TABLE hr_leaves ALTER COLUMN employee_id TYPE VARCHAR(50);
-        ALTER TABLE hr_leaves ALTER COLUMN leave_id TYPE VARCHAR(50);
+        ALTER TABLE hr_leaves ALTER COLUMN employee_id TYPE VARCHAR(50) USING employee_id::varchar;
+        ALTER TABLE hr_leaves ALTER COLUMN leave_id TYPE VARCHAR(50) USING leave_id::varchar;
       EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `).catch(() => {});
@@ -116,7 +156,7 @@ async function initHRTables() {
       CREATE TABLE IF NOT EXISTS hr_payroll_runs (
         run_id VARCHAR(50) PRIMARY KEY,
         payroll_month VARCHAR(20) NOT NULL,
-        employee_id VARCHAR(50),
+        employee_id VARCHAR(50) NOT NULL,
         base_salary NUMERIC NOT NULL DEFAULT 0,
         allowances NUMERIC DEFAULT 0,
         bonuses NUMERIC DEFAULT 0,
@@ -133,8 +173,8 @@ async function initHRTables() {
     await query(`
       DO $$
       BEGIN
-        ALTER TABLE hr_payroll_runs ALTER COLUMN employee_id TYPE VARCHAR(50);
-        ALTER TABLE hr_payroll_runs ALTER COLUMN run_id TYPE VARCHAR(50);
+        ALTER TABLE hr_payroll_runs ALTER COLUMN employee_id TYPE VARCHAR(50) USING employee_id::varchar;
+        ALTER TABLE hr_payroll_runs ALTER COLUMN run_id TYPE VARCHAR(50) USING run_id::varchar;
       EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `).catch(() => {});
@@ -142,7 +182,7 @@ async function initHRTables() {
     await query(`
       CREATE TABLE IF NOT EXISTS hr_penalties_appraisals (
         record_id VARCHAR(50) PRIMARY KEY,
-        employee_id VARCHAR(50),
+        employee_id VARCHAR(50) NOT NULL,
         record_type VARCHAR(50) NOT NULL,
         title VARCHAR(255) NOT NULL,
         details TEXT,
@@ -155,8 +195,8 @@ async function initHRTables() {
     await query(`
       DO $$
       BEGIN
-        ALTER TABLE hr_penalties_appraisals ALTER COLUMN employee_id TYPE VARCHAR(50);
-        ALTER TABLE hr_penalties_appraisals ALTER COLUMN record_id TYPE VARCHAR(50);
+        ALTER TABLE hr_penalties_appraisals ALTER COLUMN employee_id TYPE VARCHAR(50) USING employee_id::varchar;
+        ALTER TABLE hr_penalties_appraisals ALTER COLUMN record_id TYPE VARCHAR(50) USING record_id::varchar;
       EXCEPTION WHEN OTHERS THEN NULL;
       END $$;
     `).catch(() => {});
@@ -165,26 +205,55 @@ async function initHRTables() {
   }
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initHRTables();
 
-    const empRes = await query(`SELECT *, employee_id::text AS employee_id FROM hr_employees ORDER BY created_at DESC`).catch(() => ({ rows: [] }));
-    const adjRes = await query(`
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let empSql = `
+      SELECT 
+        e.*, 
+        e.employee_id::text AS employee_id,
+        e.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name
+      FROM hr_employees e
+      LEFT JOIN branches b ON TRIM(e.branch_id::text) = TRIM(b.branch_id::text)
+    `;
+    const empParams: any[] = [];
+    if (isSpecificBranch) {
+      empSql += ` WHERE TRIM(e.branch_id::text) = TRIM($1)`;
+      empParams.push(String(branchFilter));
+    }
+    empSql += ` ORDER BY e.created_at DESC`;
+
+    let adjSql = `
       SELECT a.*, a.employee_id::text AS employee_id, a.adj_id::text AS adj_id, e.full_name, e.emp_code 
       FROM hr_adjustments a 
-      JOIN hr_employees e ON a.employee_id::text = e.employee_id::text 
-      ORDER BY a.created_at DESC
-    `).catch(() => ({ rows: [] }));
+      JOIN hr_employees e ON TRIM(a.employee_id::text) = TRIM(e.employee_id::text) 
+    `;
+    const adjParams: any[] = [];
+    if (isSpecificBranch) {
+      adjSql += ` WHERE TRIM(e.branch_id::text) = TRIM($1)`;
+      adjParams.push(String(branchFilter));
+    }
+    adjSql += ` ORDER BY a.created_at DESC`;
 
-    const payRes = await query(`
+    let paySql = `
       SELECT p.*, p.employee_id::text AS employee_id, p.run_id::text AS run_id, e.full_name, e.emp_code, e.job_title, e.department, e.avatar_url, e.phone, e.bank_account 
       FROM hr_payroll_runs p 
-      JOIN hr_employees e ON p.employee_id::text = e.employee_id::text 
-      ORDER BY p.created_at DESC LIMIT 300
-    `).catch(() => ({ rows: [] }));
+      JOIN hr_employees e ON TRIM(p.employee_id::text) = TRIM(e.employee_id::text) 
+    `;
+    const payParams: any[] = [];
+    if (isSpecificBranch) {
+      paySql += ` WHERE TRIM(e.branch_id::text) = TRIM($1)`;
+      payParams.push(String(branchFilter));
+    }
+    paySql += ` ORDER BY p.created_at DESC LIMIT 300`;
 
-    const leaveRes = await query(`
+    let leaveSql = `
       SELECT 
         l.leave_id::text AS leave_id,
         l.employee_id::text AS employee_id,
@@ -199,18 +268,39 @@ export async function GET() {
         e.full_name, 
         e.emp_code 
       FROM hr_leaves l 
-      JOIN hr_employees e ON l.employee_id::text = e.employee_id::text 
-      ORDER BY l.start_date DESC
-    `).catch(() => ({ rows: [] }));
+      JOIN hr_employees e ON TRIM(l.employee_id::text) = TRIM(e.employee_id::text) 
+    `;
+    const leaveParams: any[] = [];
+    if (isSpecificBranch) {
+      leaveSql += ` WHERE TRIM(e.branch_id::text) = TRIM($1)`;
+      leaveParams.push(String(branchFilter));
+    }
+    leaveSql += ` ORDER BY l.start_date DESC`;
 
-    const penRes = await query(`
+    let penSql = `
       SELECT pa.*, pa.employee_id::text AS employee_id, pa.record_id::text AS record_id, e.full_name, e.emp_code 
       FROM hr_penalties_appraisals pa 
-      JOIN hr_employees e ON pa.employee_id::text = e.employee_id::text 
-      ORDER BY pa.created_at DESC
-    `).catch(() => ({ rows: [] }));
+      JOIN hr_employees e ON TRIM(pa.employee_id::text) = TRIM(e.employee_id::text) 
+    `;
+    const penParams: any[] = [];
+    if (isSpecificBranch) {
+      penSql += ` WHERE TRIM(e.branch_id::text) = TRIM($1)`;
+      penParams.push(String(branchFilter));
+    }
+    penSql += ` ORDER BY pa.created_at DESC`;
 
-    const employees = empRes.rows || [];
+    const [empRes, adjRes, payRes, leaveRes, penRes] = await Promise.all([
+      query(empSql, empParams).catch(() => ({ rows: [] })),
+      query(adjSql, adjParams).catch(() => ({ rows: [] })),
+      query(paySql, payParams).catch(() => ({ rows: [] })),
+      query(leaveSql, leaveParams).catch(() => ({ rows: [] })),
+      query(penSql, penParams).catch(() => ({ rows: [] }))
+    ]);
+
+    const employees = (empRes.rows || []).map((e: any) => ({
+      ...e,
+      branch_name: e.branch_name || BRANCH_NAMES_MAP[e.branch_id] || 'فرع الشركة'
+    }));
     const adjustments = adjRes.rows || [];
     const payrollRuns = payRes.rows || [];
     const leaves = (leaveRes.rows || []).map((l: any) => ({
@@ -257,6 +347,7 @@ export async function POST(req: Request) {
       const { 
         employee_id,
         id,
+        branch_id,
         emp_code, 
         full_name, 
         job_title, 
@@ -275,16 +366,22 @@ export async function POST(req: Request) {
       } = body;
 
       const finalEmpId = String(employee_id || id || `EMP-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+      
+      const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+        ? String(branch_id).trim()
+        : null;
+
       const code = String(emp_code || `EMP-${Date.now().toString().slice(-4)}`).trim().toUpperCase();
 
       const res = await query(`
         INSERT INTO hr_employees (
-          employee_id, emp_code, full_name, job_title, department, base_salary, allowances, phone, national_id, avatar_url, annual_leave_balance, bank_account, hire_date, contract_end_date, notes, cv_data, status
+          employee_id, branch_id, emp_code, full_name, job_title, department, base_salary, allowances, phone, national_id, avatar_url, annual_leave_balance, bank_account, hire_date, contract_end_date, notes, cv_data, status
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, COALESCE($13::date, CURRENT_DATE), $14, $15, $16, 'ACTIVE')
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, COALESCE($14::date, CURRENT_DATE), $15, $16, $17, 'ACTIVE')
         RETURNING *
       `, [
         finalEmpId,
+        finalBranchId,
         code,
         full_name || 'موظف جديد',
         job_title || 'كادر عام',
@@ -302,15 +399,18 @@ export async function POST(req: Request) {
         JSON.stringify(cv_data || {})
       ]);
 
+      const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+      const bName = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
       await logNotification(
         'HR',
         'ADD',
-        `تعيين موظف جديد: ${full_name}`,
-        `تم تسجيل الموظف (${full_name} - ${job_title}) في قسم (${department}) براتب أساسي ${Number(base_salary).toLocaleString('en-US')} د.ع`,
+        `تعيين موظف جديد: ${full_name} (${bName})`,
+        `تم تسجيل الموظف (${full_name} - ${job_title}) في فرع (${bName}) بقسم (${department}) براتب أساسي ${Number(base_salary).toLocaleString('en-US')} د.ع`,
         '/hr'
       );
 
-      return NextResponse.json({ success: true, employee: res.rows[0] });
+      return NextResponse.json({ success: true, employee: { ...res.rows[0], branch_name: bName } });
     }
 
     if (action === 'UPDATE_EMPLOYEE') {
@@ -398,8 +498,9 @@ export async function POST(req: Request) {
       const instCount = Number(installments_count) || 1;
       const startMonth = effective_month || new Date().toISOString().substring(0, 7);
 
-      const emp = await query(`SELECT full_name FROM hr_employees WHERE employee_id::text = $1::text`, [String(employee_id)]);
+      const emp = await query(`SELECT full_name, branch_id FROM hr_employees WHERE employee_id::text = $1::text`, [String(employee_id)]);
       const empName = emp.rows[0]?.full_name || 'موظف';
+      const empBranchId = emp.rows[0]?.branch_id || null;
 
       if (adj_type === 'LOAN' && instCount > 1) {
         const monthlyInst = Math.round(numAmt / instCount);
@@ -430,9 +531,9 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, numAmt, notes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, created_by, issue_date)
+          VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', 'إدارة الموارد البشرية والرواتب', CURRENT_DATE)
+        `, [vId, empBranchId, vNum, numAmt, notes]).catch(() => {});
 
         await logNotification(
           'HR',
@@ -473,9 +574,9 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, numAmt, notes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, created_by, issue_date)
+          VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', 'إدارة الموارد البشرية والرواتب', CURRENT_DATE)
+        `, [vId, empBranchId, vNum, numAmt, notes]).catch(() => {});
       }
 
       const adjTitle = adj_type === 'DEDUCTION' ? 'استقطاع / قطع راتب' : adj_type === 'OVERTIME' ? 'ساعات إضافية' : adj_type === 'LOAN' ? 'سلفة نقدية' : 'مكافأة إنجاز';
@@ -496,7 +597,6 @@ export async function POST(req: Request) {
       const days = Number(days_count) || 1;
       const finalLeaveId = String(leave_id || `LEV-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
 
-      // التحقق من التداخل الزمني
       const conflictCheck = await query(`
         SELECT leave_id, to_char(start_date, 'YYYY-MM-DD') as s_date, to_char(end_date, 'YYYY-MM-DD') as e_date 
         FROM hr_leaves 
@@ -517,7 +617,6 @@ export async function POST(req: Request) {
         }, { status: 400 });
       }
 
-      // تحديد نوع الإجازة بدقة
       const rawType = String(leave_type || '').toUpperCase();
       let normalizedType = 'ANNUAL';
       let typeLabelAr = 'اعتيادية';
@@ -543,7 +642,6 @@ export async function POST(req: Request) {
 
       const newLeave = leaveRes.rows[0];
 
-      // خصم الرصيد فقط للإجازات الاعتيادية
       if (normalizedType === 'ANNUAL') {
         await query(`
           UPDATE hr_employees 
@@ -552,7 +650,6 @@ export async function POST(req: Request) {
         `, [days, String(employee_id)]);
       }
 
-      // قيد استقطاع مالي إذا كانت الإجازة بدون راتب
       if (isUnpaid) {
         const empRes = await query(`SELECT base_salary FROM hr_employees WHERE employee_id::text = $1::text`, [String(employee_id)]);
         const baseSal = Number(empRes.rows[0]?.base_salary || 0);
@@ -639,15 +736,24 @@ export async function POST(req: Request) {
     }
 
     if (action === 'PROCESS_PAYROLL') {
-      const { month } = body;
+      const { month, branch_id } = body;
       const targetMonth = month || new Date().toISOString().substring(0, 7);
+      const isSpecificBranch = branch_id && branch_id !== 'ALL' && branch_id.trim() !== '';
 
-      const activeEmployees = await query(`SELECT * FROM hr_employees WHERE status = 'ACTIVE'`);
+      let empQuery = `SELECT * FROM hr_employees WHERE status = 'ACTIVE'`;
+      const empQueryParams: any[] = [];
+      if (isSpecificBranch) {
+        empQuery += ` AND TRIM(branch_id::text) = TRIM($1)`;
+        empQueryParams.push(String(branch_id));
+      }
+
+      const activeEmployees = await query(empQuery, empQueryParams);
       const emps = activeEmployees.rows || [];
 
       for (const emp of emps) {
         const base = Number(emp.base_salary) || 0;
         const allow = Number(emp.allowances) || 0;
+        const empBranchId = emp.branch_id || null;
 
         const adjs = await query(`
           SELECT * FROM hr_adjustments 
@@ -693,9 +799,9 @@ export async function POST(req: Request) {
         await query(`DELETE FROM vouchers WHERE voucher_number = $1`, [vNum]).catch(() => {});
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'PAYMENT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, net, vNotes]).catch(() => {});
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, created_by, issue_date)
+          VALUES ($1, $2, $3, 'PAYMENT', $4, $4, $5, 'POSTED', 'إدارة الموارد البشرية والرواتب', CURRENT_DATE)
+        `, [vId, empBranchId, vNum, net, vNotes]).catch(() => {});
 
         const runId = `RUN-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         await query(`
@@ -716,7 +822,7 @@ export async function POST(req: Request) {
         'HR',
         'UPDATE',
         `ترحيل مسير رواتب شهر: ${targetMonth}`,
-        `تم احتساب واعتماد وترحيل رواتب شهر (${targetMonth}) لجميع الكوادر وتوليد سندات الصرف في الصندوق`,
+        `تم احتساب واعتماد وترحيل رواتب شهر (${targetMonth}) للكوادر وتوليد سندات الصرف بصناديق الفروع`,
         '/hr'
       );
 

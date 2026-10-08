@@ -6,11 +6,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get('startDate') || '';
     const endDate = searchParams.get('endDate') || '';
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
 
-    // 1. جلب السندات المحاسبية المقيدة
+    // 1. جلب السندات المحاسبية المقيدة مع دعم الفلترة بحسب الفرع والتاريخ
     let voucherQuery = `
       SELECT 
         v.voucher_id::text AS voucher_id,
+        COALESCE(v.branch_id::text, 'BR-HQ-01') AS branch_id,
         v.voucher_number,
         v.voucher_type,
         v.currency,
@@ -29,6 +32,10 @@ export async function GET(req: Request) {
     `;
 
     const vParams: any[] = [];
+    if (isSpecificBranch) {
+      vParams.push(String(branchFilter));
+      voucherQuery += ` AND v.branch_id::text = $${vParams.length}`;
+    }
     if (startDate) {
       vParams.push(startDate);
       voucherQuery += ` AND v.issue_date >= $${vParams.length}`;
@@ -39,34 +46,85 @@ export async function GET(req: Request) {
     }
 
     voucherQuery += `
-      GROUP BY v.voucher_id, v.voucher_number, v.voucher_type, v.currency, v.status, v.notes, v.issue_date, v.total_amount, v.amount, v.project_id
+      GROUP BY v.voucher_id, v.branch_id, v.voucher_number, v.voucher_type, v.currency, v.status, v.notes, v.issue_date, v.total_amount, v.amount, v.project_id
     `;
 
     const vouchersRes = await query(voucherQuery, vParams).catch(() => ({ rows: [] }));
 
-    // 2. جلب أسطول النقل اللوجستي
+    // 2. جلب أسطول النقل اللوجستي مع الفلترة بحسب الفرع
+    let fleetTripsSql = `SELECT COALESCE(SUM(trip_cost), 0) AS transport_revenue FROM fleet_trips WHERE trip_status::text = 'COMPLETED'`;
+    let fleetMaintSql = `
+      SELECT COALESCE(SUM(m.cost), 0) AS transport_expenses 
+      FROM fleet_maintenance_logs m
+      LEFT JOIN fleet_vehicles v ON m.vehicle_id::text = v.vehicle_id::text
+    `;
+    const fleetParams: any[] = [];
+
+    if (isSpecificBranch) {
+      fleetParams.push(String(branchFilter));
+      fleetTripsSql += ` AND branch_id::text = $1`;
+      fleetMaintSql += ` WHERE v.branch_id::text = $1`;
+    }
+
     const [fleetTripsRes, fleetMaintRes] = await Promise.all([
-      query(`SELECT COALESCE(SUM(trip_cost), 0) AS transport_revenue FROM fleet_trips WHERE trip_status::text = 'COMPLETED'`).catch(() => ({ rows: [{ transport_revenue: 0 }] })),
-      query(`SELECT COALESCE(SUM(cost), 0) AS transport_expenses FROM fleet_maintenance_logs`).catch(() => ({ rows: [{ transport_expenses: 0 }] }))
+      query(fleetTripsSql, fleetParams).catch(() => ({ rows: [{ transport_revenue: 0 }] })),
+      query(fleetMaintSql, fleetParams).catch(() => ({ rows: [{ transport_expenses: 0 }] }))
     ]);
 
-    // 3. جلب بيانات مشاريع المقاولات + المواد + مقاولي الباطن
+    // 3. جلب بيانات مشاريع المقاولات + المواد + مقاولي الباطن مع الفلترة بحسب الفرع
+    let projSql = `SELECT *, project_id::text AS project_id, COALESCE(branch_id::text, 'BR-HQ-01') AS branch_id FROM projects`;
+    const projParams: any[] = [];
+    if (isSpecificBranch) {
+      projParams.push(String(branchFilter));
+      projSql += ` WHERE branch_id::text = $1`;
+    }
+    projSql += ` ORDER BY created_at DESC`;
+
     const [projRes, matRes, subsRes] = await Promise.all([
-      query(`SELECT *, project_id::text AS project_id FROM projects ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
+      query(projSql, projParams).catch(() => ({ rows: [] })),
       query(`SELECT *, project_id::text AS project_id FROM project_materials`).catch(() => ({ rows: [] })),
       query(`SELECT *, project_id::text AS project_id FROM project_subcontractors`).catch(() => ({ rows: [] }))
     ]);
 
-    // 4. جلب بيانات الموارد البشرية ومسير الرواتب المعتمد
+    // 4. جلب بيانات الموارد البشرية ومسير الرواتب المعتمد بحسب الفرع
+    let payrollSql = `
+      SELECT p.*, p.employee_id::text AS employee_id 
+      FROM hr_payroll_runs p
+      LEFT JOIN hr_employees e ON p.employee_id::text = e.employee_id::text
+    `;
+    let empSql = `SELECT *, employee_id::text AS employee_id, COALESCE(branch_id::text, 'BR-HQ-01') AS branch_id FROM hr_employees WHERE status::text = 'ACTIVE'`;
+    const hrParams: any[] = [];
+
+    if (isSpecificBranch) {
+      hrParams.push(String(branchFilter));
+      payrollSql += ` WHERE e.branch_id::text = $1`;
+      empSql += ` AND branch_id::text = $1`;
+    }
+    payrollSql += ` ORDER BY p.created_at DESC`;
+
     const [payrollRunsRes, employeesRes] = await Promise.all([
-      query(`SELECT *, employee_id::text AS employee_id FROM hr_payroll_runs ORDER BY created_at DESC`).catch(() => ({ rows: [] })),
-      query(`SELECT *, employee_id::text AS employee_id FROM hr_employees WHERE status::text = 'ACTIVE'`).catch(() => ({ rows: [] }))
+      query(payrollSql, hrParams).catch(() => ({ rows: [] })),
+      query(empSql, hrParams).catch(() => ({ rows: [] }))
     ]);
 
-    // 5. جلب بيانات العقارات والاستثمار
+    // 5. جلب بيانات العقارات والاستثمار بحسب الفرع
+    let unitsSql = `SELECT *, unit_id::text AS unit_id, COALESCE(branch_id::text, 'BR-HQ-01') AS branch_id FROM real_estate_units`;
+    let instSql = `
+      SELECT i.*, u.branch_id 
+      FROM real_estate_installments i
+      LEFT JOIN real_estate_units u ON i.unit_id::text = u.unit_id::text
+    `;
+    const realEstateParams: any[] = [];
+
+    if (isSpecificBranch) {
+      realEstateParams.push(String(branchFilter));
+      unitsSql += ` WHERE branch_id::text = $1`;
+      instSql += ` WHERE u.branch_id::text = $1`;
+    }
+
     const [realEstateUnitsRes, realEstateContractsRes] = await Promise.all([
-      query(`SELECT *, unit_id::text AS unit_id FROM real_estate_units`).catch(() => ({ rows: [] })),
-      query(`SELECT * FROM real_estate_installments`).catch(() => ({ rows: [] }))
+      query(unitsSql, realEstateParams).catch(() => ({ rows: [] })),
+      query(instSql, realEstateParams).catch(() => ({ rows: [] }))
     ]);
 
     const vouchersList = vouchersRes.rows || [];
@@ -146,7 +204,7 @@ export async function GET(req: Request) {
       totalPayrollPaid = employeesList.reduce((acc: number, e: any) => acc + (Number(e.base_salary || 0) + Number(e.allowances || 0)), 0);
     }
 
-    // 9. حسابات قطاع العقارات والاستثمار (من الأقساط المسددة أو الإيرادات)
+    // 9. حسابات قطاع العقارات والاستثمار
     const realEstateRevenue = realEstateInstallmentsList.filter((c: any) => c.is_paid).reduce((acc: number, c: any) => acc + Number(c.amount || 0), 0);
     const realEstateExpenses = 0;
     const realEstateNet = realEstateRevenue - realEstateExpenses;

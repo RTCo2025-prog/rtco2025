@@ -18,6 +18,7 @@ import {
   Printer, 
   X, 
   Trash2, 
+  Edit3,
   Building2, 
   QrCode, 
   FileText, 
@@ -30,13 +31,15 @@ import {
   Layers, 
   ChevronDown, 
   ChevronUp, 
-  MessageSquareShare,
-  Globe,
-  ShieldCheck,
-  Home,
-  Sparkles
+  MessageSquareShare, 
+  Globe, 
+  ShieldCheck, 
+  Home, 
+  Sparkles, 
+  Lock 
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -93,7 +96,6 @@ interface ItemLine {
   total: number;
 }
 
-// دالة إرسال الإشعار المركزي المباشرة إلى الخادم وقاعدة البيانات السحابية
 async function pushSystemNotification(title: string, message: string, sector: string, link: string, actionType: string = 'ADD') {
   try {
     await fetch('/api/notifications', {
@@ -112,7 +114,6 @@ async function pushSystemNotification(title: string, message: string, sector: st
   }
 }
 
-// مزامنة عقد التقسيط مع السيرفر وقاعدة البيانات السحابية
 async function syncInstallmentToCloud(plan: any) {
   try {
     await fetch('/api/admin/system', {
@@ -126,12 +127,13 @@ async function syncInstallmentToCloud(plan: any) {
 }
 
 export default function InstallmentsPage() {
+  const { selectedBranchId, branches } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
     tagline: 'للمقاولات العامة والاستثمارات العقارية والتجارة العامة والنقل العام',
     phone_primary: '07868006699',
-    phone_secondary: '07737006699',
+    phone_secondary: '07738006699',
     email: '',
     website: '',
     address: 'العراق - النجف الأشرف - حي الفرات',
@@ -146,7 +148,11 @@ export default function InstallmentsPage() {
   const [clientTypeFilter, setClientTypeFilter] = useState('ALL');
   const [siteOrigin, setSiteOrigin] = useState('');
 
+  // حالات فتح النوافذ والتحرير
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+  const [editingPlanId, setEditingPlanId] = useState<string | null>(null);
+  const [planBranchId, setPlanBranchId] = useState<string>('TRD-01');
+
   const [customerType, setCustomerType] = useState<'INDIVIDUAL' | 'MERCHANT'>('INDIVIDUAL');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -168,6 +174,66 @@ export default function InstallmentsPage() {
   const [receiptVoucherForPrint, setReceiptVoucherForPrint] = useState<any | null>(null);
   const [expandedClients, setExpandedClients] = useState<Record<string, boolean>>({});
 
+  // فحص تقييد الموظف بفرع محدد
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
+  // دالة مطابقة اسم الفرع المعتمد رسمياً بدقة تامة
+  const resolveBranchName = (bId?: string): string => {
+    if (!bId || bId === 'ALL') {
+      return 'المقر الرئيسي (النجف الأشرف)';
+    }
+    const cleanId = String(bId).trim().toUpperCase();
+    if (cleanId === 'TRD-01' || cleanId === 'BR-TRADE-03' || cleanId.includes('TRD') || cleanId.includes('TRADE')) {
+      return 'فرع التجارة العامة (النجف الأشرف)';
+    }
+    if (cleanId === 'CNT-01' || cleanId === 'BR-CONST-02' || cleanId.includes('CNT') || cleanId.includes('CONST')) {
+      return 'فرع المقاولات العامة (النجف الأشرف)';
+    }
+    if (cleanId === 'FLT-01' || cleanId === 'BR-TRANS-04' || cleanId.includes('FLT') || cleanId.includes('TRANS')) {
+      return 'فرع النقل العام (النجف الأشرف)';
+    }
+    if (cleanId === 'EST-01' || cleanId === 'BR-RE-05' || cleanId.includes('EST') || cleanId.includes('RE')) {
+      return 'فرع الاستثمارات العقارية (النجف الأشرف)';
+    }
+    if (cleanId === 'STR-01' || cleanId.includes('STR') || cleanId.includes('WAREHOUSE')) {
+      return 'فرع المخازن (النجف الأشرف)';
+    }
+    if (cleanId === 'HQ-01' || cleanId === 'BR-HQ-01') {
+      return 'المقر الرئيسي (النجف الأشرف)';
+    }
+
+    const found = (branches || []).find((b: any) => 
+      String(b.branch_id).trim().toUpperCase() === cleanId || 
+      String(b.branch_code).trim().toUpperCase() === cleanId
+    );
+    return found?.name_ar || `فرع ${bId}`;
+  };
+
+  const currentActiveBranchName = useMemo(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      return resolveBranchName(currentUser.assigned_branch_id);
+    }
+    return resolveBranchName(selectedBranchId);
+  }, [selectedBranchId, branches, isRestrictedBranch, currentUser]);
+
+  useEffect(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      setPlanBranchId(currentUser.assigned_branch_id);
+    } else {
+      const active = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'TRD-01';
+      setPlanBranchId(active);
+    }
+  }, [selectedBranchId, isRestrictedBranch, currentUser]);
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -182,12 +248,57 @@ export default function InstallmentsPage() {
     }
   };
 
+  const loadInstallmentsData = async () => {
+    let localPlans: any[] = [];
+    const stored = localStorage.getItem('rtco_inventory_installments');
+    if (stored) {
+      try {
+        localPlans = JSON.parse(stored);
+      } catch {}
+    }
+
+    try {
+      const res = await fetch(`/api/admin/system?action=GET_INSTALLMENTS`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.installments)) {
+        const mergedPlans = data.installments.map((remotePlan: any) => {
+          const match = localPlans.find((lp) => lp.id === remotePlan.id);
+          const bId = remotePlan.branch_id || remotePlan.branchId || match?.branch_id || match?.branchId || 'TRD-01';
+          return {
+            ...remotePlan,
+            branch_id: bId,
+            branch_name: resolveBranchName(bId)
+          };
+        });
+
+        localPlans.forEach((lp) => {
+          if (!mergedPlans.some((mp: any) => mp.id === lp.id)) {
+            const bId = lp.branch_id || lp.branchId || 'TRD-01';
+            mergedPlans.unshift({
+              ...lp,
+              branch_id: bId,
+              branch_name: resolveBranchName(bId)
+            });
+          }
+        });
+
+        setPlans(mergedPlans);
+        localStorage.setItem('rtco_inventory_installments', JSON.stringify(mergedPlans));
+      } else {
+        setPlans(localPlans);
+      }
+    } catch {
+      setPlans(localPlans);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
 
     loadSettings();
+    loadInstallmentsData();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -195,7 +306,6 @@ export default function InstallmentsPage() {
         const u = JSON.parse(raw);
         setCurrentUser(u);
 
-        // التحقق من الجلسة الحصرية لمنع الدخول المزدوج
         if (u.user_id && u.session_token) {
           fetch(`/api/auth?action=VERIFY_SESSION&user_id=${encodeURIComponent(u.user_id)}&session_token=${encodeURIComponent(u.session_token)}`)
             .then(res => res.json())
@@ -210,32 +320,6 @@ export default function InstallmentsPage() {
         }
       } catch {}
     }
-
-    // جلب الأقساط حصراً من قاعدة البيانات النشطة أولاً وتصفيرها إذا كانت القاعدة جديدة وفارغة
-    fetch('/api/admin/system?action=GET_INSTALLMENTS', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.success && Array.isArray(data.installments)) {
-          setPlans(data.installments);
-          localStorage.setItem('rtco_inventory_installments', JSON.stringify(data.installments));
-        } else {
-          setPlans([]);
-          localStorage.removeItem('rtco_inventory_installments');
-        }
-      })
-      .catch(() => {
-        // في حال انقطاع الاتصال فقط نحاول قراءة المخزن المحلي
-        const stored = localStorage.getItem('rtco_inventory_installments');
-        if (stored) {
-          try {
-            setPlans(JSON.parse(stored));
-          } catch {
-            setPlans([]);
-          }
-        } else {
-          setPlans([]);
-        }
-      });
   }, []);
 
   const isSuperAdmin = useMemo(() => {
@@ -296,10 +380,44 @@ export default function InstallmentsPage() {
     };
   }, [itemLines, profitRate, downPayment, monthsCount]);
 
-  const handleCreatePlan = async (e: React.FormEvent) => {
+  // فتح نافذة التعديل لعقد تقسيط
+  const handleEditPlan = (plan: any) => {
+    if (!canEdit) {
+      alert('ليس لديك صلاحية لتعديل عقود التقسيط.');
+      return;
+    }
+    setEditingPlanId(plan.id);
+    setPlanBranchId(plan.branch_id || (isRestrictedBranch ? currentUser.assigned_branch_id : 'TRD-01'));
+    setCustomerType(plan.customerType || 'INDIVIDUAL');
+    setCustomerName(plan.customerName || '');
+    setCustomerPhone(plan.customerPhone || '');
+    setCustomerIdCard(plan.customerIdCard || '');
+    setCustomerAddress(plan.customerAddress || 'النجف الأشرف');
+
+    if (Array.isArray(plan.items) && plan.items.length > 0) {
+      setItemLines(plan.items);
+    } else {
+      setItemLines([{ itemName: plan.goodsDescription || '', qty: 1, unit: 'قطعة', price: Number(plan.cashPrice) || 0, total: Number(plan.cashPrice) || 0 }]);
+    }
+
+    setProfitRate(String(plan.profitRate || '10'));
+    setDownPayment(String(plan.downPayment || '0'));
+    setMonthsCount(String(plan.monthsCount || '10'));
+    setStartDate(plan.startDate || new Date().toISOString().substring(0, 10));
+    setGuarantorName(plan.guarantorName || '');
+    setGuarantorPhone(plan.guarantorPhone || '');
+
+    setShowNewPlanModal(true);
+  };
+
+  const handleCreateOrUpdatePlan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canAdd) {
+    if (!editingPlanId && !canAdd) {
       alert('ليس لديك صلاحية فتح عقود تقسيط');
+      return;
+    }
+    if (editingPlanId && !canEdit) {
+      alert('ليس لديك صلاحية تعديل عقود التقسيط');
       return;
     }
 
@@ -311,27 +429,47 @@ export default function InstallmentsPage() {
 
     const { sumCashPrice, totalInstallmentPrice, remainingToPay, monthlyInstallment } = calculationPreview;
 
-    const installmentsSchedule = [];
     const baseDate = new Date(startDate);
+    const existingPlan = editingPlanId ? plans.find(p => p.id === editingPlanId) : null;
 
-    for (let i = 1; i <= Number(monthsCount); i++) {
-      const dueDate = new Date(baseDate);
-      dueDate.setMonth(dueDate.getMonth() + i);
+    let installmentsSchedule = [];
+    if (editingPlanId && existingPlan && Array.isArray(existingPlan.installments)) {
+      installmentsSchedule = existingPlan.installments.map((inst: any, idx: number) => ({
+        ...inst,
+        installmentNumber: idx + 1,
+        amount: monthlyInstallment
+      }));
+    } else {
+      for (let i = 1; i <= Number(monthsCount); i++) {
+        const dueDate = new Date(baseDate);
+        dueDate.setMonth(dueDate.getMonth() + i);
 
-      installmentsSchedule.push({
-        installmentNumber: i,
-        amount: monthlyInstallment,
-        dueDate: dueDate.toISOString().substring(0, 10),
-        status: 'UNPAID',
-        paidAt: null,
-        voucherNo: null
-      });
+        installmentsSchedule.push({
+          installmentNumber: i,
+          amount: monthlyInstallment,
+          dueDate: dueDate.toISOString().substring(0, 10),
+          status: 'UNPAID',
+          paidAt: null,
+          voucherNo: null
+        });
+      }
     }
 
     const goodsDescriptionSummary = validLines.map(l => `${l.itemName} (${l.qty} ${l.unit})`).join(' + ');
+    
+    let assignedBranchId = planBranchId;
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      assignedBranchId = currentUser.assigned_branch_id;
+    } else if (!assignedBranchId || assignedBranchId === 'ALL') {
+      assignedBranchId = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'TRD-01';
+    }
 
-    const newPlan = {
-      id: `INST-${Date.now().toString().slice(-6)}`,
+    const assignedBranchName = resolveBranchName(assignedBranchId);
+
+    const planPayload = {
+      id: editingPlanId || `INST-${Date.now().toString().slice(-6)}`,
+      branch_id: assignedBranchId,
+      branch_name: assignedBranchName,
       customerType,
       customerName: customerName.trim(),
       customerPhone: customerPhone.trim(),
@@ -343,34 +481,38 @@ export default function InstallmentsPage() {
       profitRate: Number(profitRate),
       totalInstallmentPrice,
       downPayment: Number(downPayment),
-      remainingBalance: remainingToPay,
-      totalPaid: Number(downPayment),
+      remainingBalance: editingPlanId && existingPlan ? Math.max(0, totalInstallmentPrice - (Number(existingPlan.totalPaid) || 0)) : remainingToPay,
+      totalPaid: editingPlanId && existingPlan ? Number(existingPlan.totalPaid) || Number(downPayment) : Number(downPayment),
       monthsCount: Number(monthsCount),
       monthlyInstallment,
       startDate,
       guarantorName: guarantorName.trim(),
       guarantorPhone: guarantorPhone.trim(),
-      status: 'ACTIVE',
+      status: editingPlanId && existingPlan ? existingPlan.status : 'ACTIVE',
       installments: installmentsSchedule,
-      createdAt: new Date().toISOString()
+      createdAt: existingPlan?.createdAt || new Date().toISOString()
     };
 
-    const updated = [newPlan, ...plans];
+    const updated = editingPlanId
+      ? plans.map(p => p.id === editingPlanId ? planPayload : p)
+      : [planPayload, ...plans];
+
     setPlans(updated);
     localStorage.setItem('rtco_inventory_installments', JSON.stringify(updated));
 
-    await syncInstallmentToCloud(newPlan);
+    await syncInstallmentToCloud(planPayload);
 
     await pushSystemNotification(
-      `عقد تقسيط جديد: ${newPlan.id}`,
-      `تم فتح خطة بيع بالتقسيط للعميل (${newPlan.customerName}) لبضاعة (${newPlan.goodsDescription}) بإجمالي ${formatNum(newPlan.totalInstallmentPrice)} د.ع`,
+      `${editingPlanId ? 'تعديل عقد تقسيط' : 'عقد تقسيط جديد'}: ${planPayload.id}`,
+      `تم ${editingPlanId ? 'تعديل' : 'فتح'} خطة بيع بالتقسيط في فرع (${planPayload.branch_name}) للعميل (${planPayload.customerName}) لبضاعة (${planPayload.goodsDescription}) بإجمالي ${formatNum(planPayload.totalInstallmentPrice)} د.ع`,
       'INSTALLMENTS',
       '/inventory/installments',
-      'ADD'
+      editingPlanId ? 'UPDATE' : 'ADD'
     );
 
     setShowNewPlanModal(false);
-    setSelectedPlanForPrint(newPlan);
+    setEditingPlanId(null);
+    setSelectedPlanForPrint(planPayload);
   };
 
   const handlePayInstallment = async (planId: string, instIndex: number) => {
@@ -396,9 +538,12 @@ export default function InstallmentsPage() {
         const newPaid = (Number(p.totalPaid) || 0) + Number(inst.amount);
         const newRemaining = Math.max(0, (Number(p.totalInstallmentPrice) || 0) - newPaid);
 
+        const currentPlanBranchName = p.branch_name || resolveBranchName(p.branch_id);
+
         voucherData = {
           voucherNo: vNo,
           customerName: p.customerName,
+          branchName: currentPlanBranchName,
           amount: inst.amount,
           amountWords: numberToArabicWords(inst.amount),
           goodsDescription: p.goodsDescription,
@@ -412,6 +557,7 @@ export default function InstallmentsPage() {
 
         modifiedPlan = {
           ...p,
+          branch_name: currentPlanBranchName,
           totalPaid: newPaid,
           remainingBalance: newRemaining,
           status: newRemaining === 0 ? 'COMPLETED' : 'ACTIVE',
@@ -433,7 +579,7 @@ export default function InstallmentsPage() {
     if (voucherData) {
       await pushSystemNotification(
         `قبض قسط شهري: ${voucherData.voucherNo}`,
-        `تم تسديد القسط رقم (${voucherData.installmentNumber}) للعميل (${voucherData.customerName}) بمبلغ ${formatNum(voucherData.amount)} د.ع`,
+        `تم تسديد القسط رقم (${voucherData.installmentNumber}) للعميل (${voucherData.customerName}) بمبلغ ${formatNum(voucherData.amount)} د.ع في (${voucherData.branchName})`,
         'INSTALLMENTS',
         '/inventory/installments',
         'UPDATE'
@@ -475,6 +621,7 @@ export default function InstallmentsPage() {
 
         modifiedPlan = {
           ...p,
+          branch_name: p.branch_name || resolveBranchName(p.branch_id),
           totalPaid: newPaid,
           remainingBalance: newRemaining,
           status: 'ACTIVE',
@@ -561,6 +708,34 @@ export default function InstallmentsPage() {
   };
 
   const mergedClientsDisplay = useMemo(() => {
+    let sourcePlans = plans;
+
+    // حصر العرض بفرع الموظف المقيد أو الفرع المختار بدقة
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      const assignedId = String(currentUser.assigned_branch_id).trim().toUpperCase();
+      const assignedName = resolveBranchName(assignedId).trim();
+      sourcePlans = sourcePlans.filter(p => {
+        const pBId = String(p.branch_id || '').trim().toUpperCase();
+        const pBName = String(p.branch_name || '').trim();
+        return pBId === assignedId || (pBName && pBName.includes(assignedName)) || (assignedId === 'TRD-01' && (pBName.includes('التجارة') || pBId.includes('TRD')));
+      });
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      const activeBId = String(selectedBranchId).trim().toUpperCase();
+      const activeBName = currentActiveBranchName.trim();
+
+      sourcePlans = sourcePlans.filter(p => {
+        const pBId = String(p.branch_id || '').trim().toUpperCase();
+        const pBName = String(p.branch_name || '').trim();
+
+        return (
+          pBId === activeBId ||
+          (pBName && pBName.includes(activeBName)) ||
+          (pBName && pBName.includes(activeBId)) ||
+          (activeBId === 'TRD-01' && (pBName.includes('التجارة') || pBId.includes('TRD')))
+        );
+      });
+    }
+
     const map = new Map<string, {
       clientId: string;
       customerName: string;
@@ -575,7 +750,7 @@ export default function InstallmentsPage() {
       plans: any[];
     }>();
 
-    plans.forEach(p => {
+    sourcePlans.forEach(p => {
       const key = p.customerName.trim().toLowerCase();
       if (!map.has(key)) {
         map.set(key, {
@@ -620,14 +795,41 @@ export default function InstallmentsPage() {
     }
 
     return result;
-  }, [plans, searchQuery, clientTypeFilter]);
+  }, [plans, searchQuery, clientTypeFilter, selectedBranchId, currentActiveBranchName, isRestrictedBranch, currentUser]);
 
   const totals = useMemo(() => {
-    const totalVolume = plans.reduce((acc, p) => acc + (Number(p.totalInstallmentPrice) || 0), 0);
-    const totalCollected = plans.reduce((acc, p) => acc + (Number(p.totalPaid) || 0), 0);
-    const totalPending = plans.reduce((acc, p) => acc + (Number(p.remainingBalance) || 0), 0);
+    let sourcePlans = plans;
+
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      const assignedId = String(currentUser.assigned_branch_id).trim().toUpperCase();
+      const assignedName = resolveBranchName(assignedId).trim();
+      sourcePlans = sourcePlans.filter(p => {
+        const pBId = String(p.branch_id || '').trim().toUpperCase();
+        const pBName = String(p.branch_name || '').trim();
+        return pBId === assignedId || (pBName && pBName.includes(assignedName)) || (assignedId === 'TRD-01' && (pBName.includes('التجارة') || pBId.includes('TRD')));
+      });
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      const activeBId = String(selectedBranchId).trim().toUpperCase();
+      const activeBName = currentActiveBranchName.trim();
+
+      sourcePlans = sourcePlans.filter(p => {
+        const pBId = String(p.branch_id || '').trim().toUpperCase();
+        const pBName = String(p.branch_name || '').trim();
+
+        return (
+          pBId === activeBId ||
+          (pBName && pBName.includes(activeBName)) ||
+          (pBName && pBName.includes(activeBId)) ||
+          (activeBId === 'TRD-01' && (pBName.includes('التجارة') || pBId.includes('TRD')))
+        );
+      });
+    }
+
+    const totalVolume = sourcePlans.reduce((acc, p) => acc + (Number(p.totalInstallmentPrice) || 0), 0);
+    const totalCollected = sourcePlans.reduce((acc, p) => acc + (Number(p.totalPaid) || 0), 0);
+    const totalPending = sourcePlans.reduce((acc, p) => acc + (Number(p.remainingBalance) || 0), 0);
     return { totalVolume, totalCollected, totalPending };
-  }, [plans]);
+  }, [plans, selectedBranchId, currentActiveBranchName, isRestrictedBranch, currentUser]);
 
   const toggleExpandClient = (clientId: string) => {
     setExpandedClients(prev => ({
@@ -667,11 +869,14 @@ export default function InstallmentsPage() {
               margin: 0 !important;
               padding: 0 !important;
               width: 210mm !important;
+              height: 297mm !important;
             }
-            .print-hidden-element {
+            header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
               display: none !important;
+              visibility: hidden !important;
             }
             .print-paper-sheet {
+              box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
@@ -679,10 +884,14 @@ export default function InstallmentsPage() {
               margin: 0 !important;
               width: 210mm !important;
               max-width: 210mm !important;
-              min-height: 297mm !important;
+              height: 296mm !important;
+              max-height: 296mm !important;
+              overflow: hidden !important;
               page-break-after: always !important;
+              page-break-inside: avoid !important;
             }
             .print-voucher-sheet {
+              box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
@@ -690,12 +899,16 @@ export default function InstallmentsPage() {
               margin: 0 !important;
               width: 210mm !important;
               max-width: 210mm !important;
+              height: 296mm !important;
+              max-height: 296mm !important;
+              overflow: hidden !important;
               page-break-after: always !important;
+              page-break-inside: avoid !important;
             }
           }
         `}</style>
 
-        {/* الترويسة الرئيسية المحسنة بتصميم متناسق ومؤطر */}
+        {/* الترويسة الرئيسية */}
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
             
@@ -723,7 +936,7 @@ export default function InstallmentsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  {companySettings.company_name} • تجميع فواتير ومواد العميل في حساب موحد مع إرسال التنبيهات وإصدار الوصولات
+                  {companySettings.company_name} • نطاق العرض: <strong className="text-amber-400">{currentActiveBranchName}</strong>
                 </p>
               </div>
             </div>
@@ -732,6 +945,7 @@ export default function InstallmentsPage() {
               {canAdd && (
                 <button
                   onClick={() => {
+                    setEditingPlanId(null);
                     setItemLines([{ itemName: '', qty: 1, unit: 'قطعة', price: 0, total: 0 }]);
                     setShowNewPlanModal(true);
                   }}
@@ -821,7 +1035,7 @@ export default function InstallmentsPage() {
         <div className="max-w-7xl mx-auto space-y-6 mt-4 print:hidden print-hidden-element">
           {mergedClientsDisplay.length === 0 ? (
             <div className="bg-slate-900 border border-slate-800 p-10 rounded-3xl text-center text-slate-500 text-xs">
-              لا توجد عقود تقسيط مسجلة مطابقة للبحث. اضغط على "فتح عقد تقسيط جديد" للبدء.
+              لا توجد عقود تقسيط مسجلة مطابقة للبحث لهذا الفرع. اضغط على "فتح عقد تقسيط جديد" للبدء.
             </div>
           ) : (
             mergedClientsDisplay.map((client) => {
@@ -919,11 +1133,12 @@ export default function InstallmentsPage() {
                     <div className="space-y-4 pt-2">
                       {client.plans.map((plan: any) => {
                         const paidCount = plan.installments.filter((i: any) => i.status === 'PAID').length;
+                        const planBranchStr = resolveBranchName(plan.branch_id || plan.branchId);
 
                         return (
                           <div key={plan.id} className="bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 space-y-3">
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-2.5">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span 
                                   className="font-mono text-xs font-black px-2 py-0.5 rounded border"
                                   style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
@@ -936,19 +1151,36 @@ export default function InstallmentsPage() {
                                 <span className="text-[11px] text-slate-500 font-mono">
                                   (القسط: {formatNum(plan.monthlyInstallment)} د.ع | المستحق: {paidCount}/{plan.monthsCount})
                                 </span>
+
+                                {/* اسم الفرع في البطاقة مأطر بصورة أنيقة ومستقلة */}
+                                <span className="inline-flex items-center px-3 py-1 rounded-lg bg-slate-900 border border-amber-500/40 text-amber-300 font-bold text-xs shadow-xs">
+                                  {planBranchStr}
+                                </span>
                               </div>
 
                               <div className="flex items-center gap-2">
                                 <button
                                   onClick={async () => {
                                     await loadSettings();
-                                    setSelectedPlanForPrint(plan);
+                                    setSelectedPlanForPrint({
+                                      ...plan,
+                                      branch_name: planBranchStr
+                                    });
                                   }}
                                   className="px-3 py-1 bg-slate-800 hover:bg-slate-700 font-bold rounded-lg text-xs flex items-center gap-1 border border-slate-700 cursor-pointer"
                                   style={{ color: primaryCol }}
                                 >
                                   <Printer className="w-3.5 h-3.5" /> طباعة هذا العقد A4
                                 </button>
+                                {canEdit && (
+                                  <button
+                                    onClick={() => handleEditPlan(plan)}
+                                    className="p-1 bg-slate-800 hover:bg-sky-600 text-sky-400 hover:text-white rounded-lg transition cursor-pointer"
+                                    title="تعديل هذا العقد"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
                                 {canDelete && (
                                   <button
                                     onClick={() => handleDeletePlan(plan.id)}
@@ -1026,20 +1258,47 @@ export default function InstallmentsPage() {
           )}
         </div>
 
-        {/* نافذة فتح عقد تقسيط جديد */}
+        {/* نافذة فتح / تعديل عقد تقسيط */}
         {showNewPlanModal && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-3xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <CreditCard className="w-5 h-5" style={{ color: primaryCol }} /> فتح عقد بيع بالتقسيط (دمج مواد متعددة لنفس الجهة)
+                  <CreditCard className="w-5 h-5" style={{ color: primaryCol }} /> 
+                  {editingPlanId ? 'تعديل عقد البيع بالتقسيط' : 'فتح عقد بيع بالتقسيط (دمج مواد متعددة لنفس الجهة)'}
                 </h3>
-                <button onClick={() => setShowNewPlanModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <button onClick={() => { setShowNewPlanModal(false); setEditingPlanId(null); }} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleCreatePlan} className="space-y-4 text-xs">
+              <form onSubmit={handleCreateOrUpdatePlan} className="space-y-4 text-xs">
+                {/* اختيار الفرع صراحة */}
+                <div className="bg-slate-950 p-3 rounded-2xl border border-amber-500/30">
+                  <label className="block text-amber-400 mb-1 font-bold">الفرع الصادر منه العقد رسمياً *</label>
+                  {isRestrictedBranch ? (
+                    <div className="w-full bg-slate-900 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-bold flex items-center justify-between">
+                      <span>📍 {currentActiveBranchName}</span>
+                      <span className="text-[10px] bg-slate-950 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                        <Lock className="w-2.5 h-2.5 text-amber-400" /> مقيد
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={planBranchId}
+                      onChange={(e) => setPlanBranchId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold outline-none cursor-pointer"
+                    >
+                      <option value="TRD-01">فرع التجارة العامة (النجف الأشرف)</option>
+                      <option value="CNT-01">فرع المقاولات العامة (النجف الأشرف)</option>
+                      <option value="FLT-01">فرع النقل العام (النجف الأشرف)</option>
+                      <option value="EST-01">فرع الاستثمارات العقارية (النجف الأشرف)</option>
+                      <option value="STR-01">فرع المخازن (النجف الأشرف)</option>
+                      <option value="HQ-01">المقر الرئيسي (النجف الأشرف)</option>
+                    </select>
+                  )}
+                </div>
+
                 <div className="bg-slate-950 p-3 rounded-2xl border border-slate-800 space-y-2">
                   <label className="block text-slate-300 font-bold">جهة الشراء:</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -1149,7 +1408,7 @@ export default function InstallmentsPage() {
                           <select
                             value={line.unit}
                             onChange={(e) => handleUpdateItemLine(idx, 'unit', e.target.value)}
-                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none"
+                            className="w-full bg-slate-800 border border-slate-700 rounded-lg p-2 text-white text-xs outline-none cursor-pointer"
                           >
                             <option value="قطعة">قطعة</option>
                             <option value="جهاز">جهاز</option>
@@ -1257,13 +1516,13 @@ export default function InstallmentsPage() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button type="button" onClick={() => setShowNewPlanModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
+                  <button type="button" onClick={() => { setShowNewPlanModal(false); setEditingPlanId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button 
                     type="submit" 
                     className="px-6 py-2.5 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer"
                     style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
-                    اعتماد وجدولة الأقساط للمواد المدمجة
+                    {editingPlanId ? 'حفظ تعديلات العقد' : 'اعتماد وجدولة الأقساط للمواد المدمجة'}
                   </button>
                 </div>
               </form>
@@ -1271,7 +1530,7 @@ export default function InstallmentsPage() {
           </div>
         )}
 
-        {/* سند قبض القسط A4 */}
+        {/* سند قبض القسط A4 مع تثبيت اسم الفرع بدقة */}
         {receiptVoucherForPrint && (
           <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
             <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden print-hidden-element shadow-xl">
@@ -1296,6 +1555,10 @@ export default function InstallmentsPage() {
                   <div className="w-full border-b pb-4 mb-4">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                    <div className="text-left font-mono text-xs mt-2">
+                      <span className="font-bold text-slate-900 font-sans">الفرع المعتمد: </span>
+                      <strong className="text-amber-800 font-sans">{receiptVoucherForPrint.branchName}</strong>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
@@ -1323,6 +1586,7 @@ export default function InstallmentsPage() {
                       </div>
                       <p className="text-[11px] font-bold text-slate-800 mt-2 font-mono">رقم الوصل: <span style={{ color: primaryCol }}>{receiptVoucherForPrint.voucherNo}</span></p>
                       <p className="text-[11px] text-slate-500">التاريخ: {receiptVoucherForPrint.date}</p>
+                      <p className="text-[12px] font-black text-amber-900 mt-1 font-sans">الفرع: {receiptVoucherForPrint.branchName}</p>
                     </div>
                   </div>
                 )}
@@ -1349,23 +1613,24 @@ export default function InstallmentsPage() {
                     <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
                   <div>
-                    <p className="font-bold text-slate-700">ختم الشركة المعتمد</p>
+                    <p className="font-bold text-slate-700">ختم الفرع المعتمد</p>
                     <div className="border-b border-dashed border-slate-400 w-32 mx-auto mt-8"></div>
                   </div>
                 </div>
 
                 <div className="border-t border-slate-300 pt-2 text-center text-[10px] text-slate-500 font-mono">
-                  {companySettings.company_name} - {companySettings.address} • هاتف: {companySettings.phone_primary}
+                  {companySettings.company_name} - {receiptVoucherForPrint.branchName} • هاتف: {companySettings.phone_primary}
                 </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* وثيقة العقد وجدول الأقساط A4 مع الباركود السحابي المباشر */}
+        {/* وثيقة العقد وجدول الأقساط A4 مع الباركود وتثبيت اسم الفرع */}
         {selectedPlanForPrint && (() => {
           const verificationUrl = getVerificationUrl(selectedPlanForPrint.id);
-          const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
+          const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(verificationUrl)}`;
+          const planBranchDisplay = resolveBranchName(selectedPlanForPrint.branch_id || selectedPlanForPrint.branchId);
 
           return (
             <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static">
@@ -1384,171 +1649,199 @@ export default function InstallmentsPage() {
 
               <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
                 <div 
-                  className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-950 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 font-sans my-auto"
+                  className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-950 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 font-sans my-auto min-h-[1080px] max-h-[1115px] flex flex-col justify-between"
                   style={{ borderColor: primaryCol }}
                 >
                   
-                  {/* رأس ورقة التقسيط */}
-                  {hasLetterhead ? (
-                    <div className="w-full border-b pb-3 mb-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center border-b-2 pb-3" style={{ borderColor: primaryCol }}>
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                          {hasLogo ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
-                          ) : (
-                            <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
-                          )}
+                  <div className="space-y-4">
+                    {/* رأس ورقة التقسيط الأصلي دون أي مساس */}
+                    {hasLetterhead ? (
+                      <div className="w-full border-b pb-3 mb-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center border-b-2 pb-3" style={{ borderColor: primaryCol }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                            {hasLogo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                            ) : (
+                              <Image src="/logo.png" alt="شركة البرج المتألق" width={58} height={58} className="object-contain" priority />
+                            )}
+                          </div>
+                          <div>
+                            <span 
+                              className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-0.5"
+                              style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                            >
+                              قسم التجارة العامة • سجل الأقساط
+                            </span>
+                            <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                            <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                          </div>
                         </div>
-                        <div>
-                          <span 
-                            className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded border inline-block mb-0.5"
-                            style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                        <div className="text-left font-mono text-xs">
+                          <div 
+                            className="border-2 px-3 py-1 font-black rounded-lg inline-block text-white"
+                            style={{ backgroundColor: primaryCol, borderColor: primaryCol }}
                           >
-                            قسم التجارة العامة • سجل الأقساط
-                          </span>
-                          <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
-                          <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                            عقد رقم: {selectedPlanForPrint.id}
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
                         </div>
                       </div>
-                      <div className="text-left font-mono text-xs">
-                        <div 
-                          className="border-2 px-3 py-1 font-black rounded-lg inline-block text-white"
-                          style={{ backgroundColor: primaryCol, borderColor: primaryCol }}
-                        >
-                          عقد رقم: {selectedPlanForPrint.id}
-                        </div>
-                        <p className="text-[11px] text-slate-600 mt-1">التاريخ: {selectedPlanForPrint.startDate}</p>
+                    )}
+
+                    {/* شريط توثيق العقد والفرع تحت الهيدر مباشرة: في اليمين العدد، في المنتصف اسم الفرع مأطر بمفرده، وفي اليسار التاريخ */}
+                    <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+                      {/* اليمين: العدد ورقم العقد */}
+                      <div className="flex items-center gap-1.5" dir="rtl">
+                        <span className="text-slate-500 font-medium">العدد :</span>
+                        <span className="font-mono text-slate-950 text-sm tracking-wide">
+                          ت/ {selectedPlanForPrint.id} / 2026
+                        </span>
+                      </div>
+
+                      {/* المنتصف: اسم الفرع مأطر بمفرده فقط بدون أي إضافات */}
+                      <div className="flex items-center justify-center">
+                        <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-slate-300 text-slate-950 font-black text-xs shadow-xs">
+                          {planBranchDisplay}
+                        </span>
+                      </div>
+
+                      {/* اليسار: التاريخ */}
+                      <div className="flex items-center gap-1.5" dir="rtl">
+                        <span className="text-slate-500 font-medium">التاريخ :</span>
+                        <span className="font-mono text-slate-950 text-sm tracking-wider">{selectedPlanForPrint.startDate}</span>
                       </div>
                     </div>
-                  )}
 
-                  {/* بيانات المشتري والحساب */}
-                  <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
-                    <div className="space-y-1">
-                      <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>معلومات المشتري:</strong>
-                      <p>الاسم: <strong className="text-slate-950">{selectedPlanForPrint.customerName}</strong></p>
-                      <p>الهاتف: <span className="font-mono">{selectedPlanForPrint.customerPhone}</span></p>
-                      <p>الهوية / السجل: <span className="font-mono">{selectedPlanForPrint.customerIdCard || '---'}</span></p>
-                      <p>العنوان: {selectedPlanForPrint.customerAddress}</p>
+                    {/* بيانات المشتري والحساب */}
+                    <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3.5 rounded-2xl border border-slate-200 text-xs">
+                      <div className="space-y-1">
+                        <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>معلومات المشتري:</strong>
+                        <p>الاسم: <strong className="text-slate-950">{selectedPlanForPrint.customerName}</strong></p>
+                        <p>الهاتف: <span className="font-mono">{selectedPlanForPrint.customerPhone}</span></p>
+                        <p>الهوية / السجل: <span className="font-mono">{selectedPlanForPrint.customerIdCard || '---'}</span></p>
+                        <p>العنوان: {selectedPlanForPrint.customerAddress}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>ملخص الحساب:</strong>
+                        <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono" style={{ color: primaryCol }}>{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
+                        <p>المقدمة المستلمة: <strong className="font-mono text-slate-950">{formatNum(selectedPlanForPrint.downPayment)} د.ع</strong></p>
+                        <p>المتبقي بالأقساط: <strong className="font-mono text-rose-700">{formatNum(selectedPlanForPrint.remainingBalance)} د.ع</strong></p>
+                        <p>الكفيل الضامن: {selectedPlanForPrint.guarantorName || 'بدون كفيل'} ({selectedPlanForPrint.guarantorPhone || '---'})</p>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <strong className="block border-b border-slate-200 pb-1" style={{ color: primaryCol }}>ملخص الحساب:</strong>
-                      <p>المبلغ الإجمالي مع الفائدة: <strong className="font-mono" style={{ color: primaryCol }}>{formatNum(selectedPlanForPrint.totalInstallmentPrice)} د.ع</strong></p>
-                      <p>المقدمة المستلمة: <strong className="font-mono text-slate-950">{formatNum(selectedPlanForPrint.downPayment)} د.ع</strong></p>
-                      <p>المتبقي بالأقساط: <strong className="font-mono text-rose-700">{formatNum(selectedPlanForPrint.remainingBalance)} د.ع</strong></p>
-                      <p>الكفيل الضامن: {selectedPlanForPrint.guarantorName || 'بدون كفيل'} ({selectedPlanForPrint.guarantorPhone || '---'})</p>
-                    </div>
-                  </div>
 
-                  {/* قائمة المواد والبضائع */}
-                  {selectedPlanForPrint.items && selectedPlanForPrint.items.length > 0 && (
+                    {/* قائمة المواد والبضائع */}
+                    {selectedPlanForPrint.items && selectedPlanForPrint.items.length > 0 && (
+                      <div>
+                        <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>قائمة المواد والبضائع المدمجة بالعقد:</strong>
+                        <div className="border border-slate-300 rounded-xl overflow-hidden">
+                          <table className="w-full text-right text-xs">
+                            <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
+                              <tr>
+                                <th className="p-2">المادة</th>
+                                <th className="p-2 text-center">الكمية</th>
+                                <th className="p-2">سعر الوحدة</th>
+                                <th className="p-2 text-left">الإجمالي النقدي</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-200 font-mono text-[11px]">
+                              {selectedPlanForPrint.items.map((it: any, iIdx: number) => (
+                                <tr key={iIdx}>
+                                  <td className="p-2 font-sans font-bold text-slate-950">{it.itemName}</td>
+                                  <td className="p-2 text-center">{it.qty} {it.unit}</td>
+                                  <td className="p-2">{formatNum(it.price)} د.ع</td>
+                                  <td className="p-2 text-left font-bold" style={{ color: primaryCol }}>{formatNum(it.total)} د.ع</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* جدول استحقاق الأقساط */}
                     <div>
-                      <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>قائمة المواد والبضائع المدمجة بالعقد:</strong>
+                      <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>جدول استحقاق الأقساط الشهرية:</strong>
                       <div className="border border-slate-300 rounded-xl overflow-hidden">
-                        <table className="w-full text-right text-xs">
+                        <table className="w-full text-right text-xs font-mono">
                           <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
                             <tr>
-                              <th className="p-2">المادة</th>
-                              <th className="p-2 text-center">الكمية</th>
-                              <th className="p-2">سعر الوحدة</th>
-                              <th className="p-2 text-left">الإجمالي النقدي</th>
+                              <th className="p-2 text-center">القسط</th>
+                              <th className="p-2">المبلغ المطلوب</th>
+                              <th className="p-2">تاريخ الاستحقاق</th>
+                              <th className="p-2 text-center">حالة السداد</th>
+                              <th className="p-2 text-center">تاريخ السداد / الوصل</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-200 font-mono text-[11px]">
-                            {selectedPlanForPrint.items.map((it: any, iIdx: number) => (
-                              <tr key={iIdx}>
-                                <td className="p-2 font-sans font-bold text-slate-950">{it.itemName}</td>
-                                <td className="p-2 text-center">{it.qty} {it.unit}</td>
-                                <td className="p-2">{formatNum(it.price)} د.ع</td>
-                                <td className="p-2 text-left font-bold" style={{ color: primaryCol }}>{formatNum(it.total)} د.ع</td>
+                          <tbody className="divide-y divide-slate-200 text-[11px]">
+                            {selectedPlanForPrint.installments.map((inst: any) => (
+                              <tr key={inst.installmentNumber}>
+                                <td className="p-1.5 text-center font-bold">#{inst.installmentNumber}</td>
+                                <td className="p-1.5 font-black text-slate-900">{formatNum(inst.amount)} د.ع</td>
+                                <td className="p-1.5 text-slate-600">{inst.dueDate}</td>
+                                <td className="p-1.5 text-center font-sans">
+                                  {inst.status === 'PAID' ? (
+                                    <span className="text-emerald-700 font-bold">تم السداد ✓</span>
+                                  ) : (
+                                    <span className="font-bold" style={{ color: primaryCol }}>مستحق</span>
+                                  )}
+                                </td>
+                                <td className="p-1.5 text-center text-slate-500 text-[10px]">
+                                  {inst.voucherNo ? `${inst.voucherNo} (${inst.paidAt})` : '---'}
+                                </td>
                               </tr>
                             ))}
                           </tbody>
                         </table>
                       </div>
                     </div>
-                  )}
-
-                  {/* جدول استحقاق الأقساط */}
-                  <div>
-                    <strong className="text-xs font-bold block mb-1" style={{ color: primaryCol }}>جدول استحقاق الأقساط الشهرية:</strong>
-                    <div className="border border-slate-300 rounded-xl overflow-hidden">
-                      <table className="w-full text-right text-xs font-mono">
-                        <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300 text-[11px]">
-                          <tr>
-                            <th className="p-2 text-center">القسط</th>
-                            <th className="p-2">المبلغ المطلوب</th>
-                            <th className="p-2">تاريخ الاستحقاق</th>
-                            <th className="p-2 text-center">حالة السداد</th>
-                            <th className="p-2 text-center">تاريخ السداد / الوصل</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-slate-200 text-[11px]">
-                          {selectedPlanForPrint.installments.map((inst: any) => (
-                            <tr key={inst.installmentNumber}>
-                              <td className="p-1.5 text-center font-bold">#{inst.installmentNumber}</td>
-                              <td className="p-1.5 font-black text-slate-900">{formatNum(inst.amount)} د.ع</td>
-                              <td className="p-1.5 text-slate-600">{inst.dueDate}</td>
-                              <td className="p-1.5 text-center font-sans">
-                                {inst.status === 'PAID' ? (
-                                  <span className="text-emerald-700 font-bold">تم السداد ✓</span>
-                                ) : (
-                                  <span className="font-bold" style={{ color: primaryCol }}>مستحق</span>
-                                )}
-                              </td>
-                              <td className="p-1.5 text-center text-slate-500 text-[10px]">
-                                {inst.voucherNo ? `${inst.voucherNo} (${inst.paidAt})` : '---'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
                   </div>
 
                   {/* منطقة التواقيع والباركود التوثيقي */}
-                  <div className="grid grid-cols-4 gap-4 pt-4 text-center text-xs items-end border-t border-slate-200">
-                    <div>
-                      <p className="font-bold text-slate-950 text-xs">توقيع المشتري</p>
-                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
-                    </div>
-
-                    <div>
-                      <p className="font-bold text-slate-950 text-xs">توقيع الكفيل الضامن</p>
-                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
-                    </div>
-
-                    {/* الباركود السحابي */}
-                    <div className="flex flex-col items-center justify-center">
-                      <div className="w-18 h-18 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img 
-                          src={qrCodeApiUrl} 
-                          alt="باركود التحقق الإلكتروني وسجل الأقساط" 
-                          className="w-full h-full object-contain"
-                        />
+                  <div className="space-y-3 pt-2">
+                    <div className="grid grid-cols-4 gap-4 pt-3 text-center text-xs items-end border-t border-slate-200">
+                      <div>
+                        <p className="font-bold text-slate-950 text-xs">توقيع المشتري</p>
+                        <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
                       </div>
-                      <span className="font-mono text-[9px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
-                        <Globe className="w-2.5 h-2.5" /> امسح لسجل الأقساط أونلاين
-                      </span>
+
+                      <div>
+                        <p className="font-bold text-slate-950 text-xs">توقيع الكفيل الضامن</p>
+                        <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                      </div>
+
+                      {/* الباركود السحابي */}
+                      <div className="flex flex-col items-center justify-center">
+                        <div className="w-16 h-16 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={qrCodeApiUrl} 
+                            alt="باركود التحقق الإلكتروني وسجل الأقساط" 
+                            className="w-full h-full object-contain"
+                          />
+                        </div>
+                        <span className="font-mono text-[8px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
+                          <Globe className="w-2.5 h-2.5" /> امسح للتحقق أونلاين
+                        </span>
+                      </div>
+
+                      <div>
+                        <p className="font-bold text-slate-950 text-xs">مصادقة إدارة الفرع</p>
+                        <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                      </div>
                     </div>
 
-                    <div>
-                      <p className="font-bold text-slate-950 text-xs">مصادقة إدارة الشركة</p>
-                      <div className="border-b-2 border-dashed border-slate-400 w-24 mx-auto mt-6"></div>
+                    {/* ذيل الورقة */}
+                    <div className="text-center text-[9px] text-slate-600 font-semibold border-t border-slate-200 pt-1.5 flex items-center justify-between font-mono">
+                      <span>{companySettings.company_name} - {planBranchDisplay}</span>
+                      <span>هاتف الإدارة: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
                     </div>
-                  </div>
-
-                  {/* ذيل الورقة */}
-                  <div className="text-center text-[10px] text-slate-500 font-semibold border-t border-slate-200 pt-2 flex items-center justify-between font-mono">
-                    <span>{companySettings.company_name} - {companySettings.address}</span>
-                    <span>هاتف الإدارة: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
                   </div>
 
                 </div>

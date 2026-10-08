@@ -3,20 +3,57 @@ import { query } from '@/lib/db';
 
 async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
   try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
     await query(`
-      INSERT INTO system_notifications (sector, action_type, title, message, link)
-      VALUES ($1, $2, $3, $4, $5)
-    `, [sector, action_type, title, message, link]);
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
   } catch (e) {
-    console.error("Log Notification Error:", e);
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
   }
 }
 
+// خريطة مسميات الفروع المعتمدة
+const BRANCH_NAMES_MAP: Record<string, string> = {
+  'BR-HQ-01': 'المقر الرئيسي (النجف الأشرف)',
+  'BR-CONST-02': 'فرع المقاولات والمشاريع الهندسية',
+  'BR-TRADE-03': 'فرع التجارة العامة والمخازن',
+  'BR-TRANS-04': 'فرع النقل العام واللوجستيات',
+  'BR-RE-05': 'فرع الاستثمارات والتطوير العقاري',
+  'ALL': 'كافة الفروع (عرض المنظومة الموحدة)'
+};
+
 async function initRealEstateTables() {
-  // 1. إنشاء جدول الوحدات إذا لم يكن موجوداً
+  await query(`CREATE EXTENSION IF NOT EXISTS "pgcrypto";`);
+
+  // التأكد من وجود هيكل جدول الفروع فقط دون زرع أي بيانات قسرية
+  await query(`
+    CREATE TABLE IF NOT EXISTS branches (
+      branch_id VARCHAR(50) PRIMARY KEY,
+      branch_code VARCHAR(50),
+      name_ar VARCHAR(255) NOT NULL,
+      branch_type VARCHAR(100),
+      manager_name VARCHAR(150),
+      phone VARCHAR(50),
+      city VARCHAR(100) DEFAULT 'النجف الأشرف',
+      address VARCHAR(255),
+      status VARCHAR(50) DEFAULT 'ACTIVE',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
+  await query(`ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;`).catch(() => {});
+
   await query(`
     CREATE TABLE IF NOT EXISTS real_estate_units (
       unit_id VARCHAR(50) PRIMARY KEY,
+      branch_id VARCHAR(50) DEFAULT 'BR-RE-05',
       unit_code VARCHAR(50),
       title VARCHAR(255),
       unit_name VARCHAR(255),
@@ -38,8 +75,8 @@ async function initRealEstateTables() {
     );
   `);
 
-  // 2. تحديث وإضافة الأعمدة إن كان الجدول قديماً
   await query(`
+    ALTER TABLE real_estate_units ADD COLUMN IF NOT EXISTS branch_id VARCHAR(50) DEFAULT 'BR-RE-05';
     ALTER TABLE real_estate_units ADD COLUMN IF NOT EXISTS unit_code VARCHAR(50);
     ALTER TABLE real_estate_units ADD COLUMN IF NOT EXISTS title VARCHAR(255);
     ALTER TABLE real_estate_units ADD COLUMN IF NOT EXISTS unit_name VARCHAR(255);
@@ -60,7 +97,6 @@ async function initRealEstateTables() {
     ALTER TABLE real_estate_units ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
   `);
 
-  // 3. فك قيود NOT NULL عن الأعمدة السابقة لتجنب أي تعارض
   await query(`
     DO $$ 
     BEGIN 
@@ -83,7 +119,6 @@ async function initRealEstateTables() {
     END $$;
   `);
 
-  // 4. جدول الأقساط
   await query(`
     CREATE TABLE IF NOT EXISTS real_estate_installments (
       installment_id VARCHAR(50) PRIMARY KEY,
@@ -98,12 +133,32 @@ async function initRealEstateTables() {
   `);
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await initRealEstateTables();
 
+    const { searchParams } = new URL(req.url);
+    const branchFilter = searchParams.get('branch_id');
+    const isSpecificBranch = branchFilter && branchFilter !== 'ALL' && branchFilter.trim() !== '';
+
+    let unitsSql = `
+      SELECT 
+        u.*, 
+        u.unit_id::text AS unit_id,
+        u.branch_id::text AS branch_id,
+        COALESCE(b.name_ar, 'فرع الشركة') AS branch_name
+      FROM real_estate_units u
+      LEFT JOIN branches b ON TRIM(u.branch_id::text) = TRIM(b.branch_id::text)
+    `;
+    const unitsParams: any[] = [];
+    if (isSpecificBranch) {
+      unitsSql += ` WHERE TRIM(u.branch_id::text) = TRIM($1)`;
+      unitsParams.push(String(branchFilter));
+    }
+    unitsSql += ` ORDER BY u.created_at DESC`;
+
     const [unitsRes, instRes] = await Promise.all([
-      query(`SELECT *, unit_id::text AS unit_id FROM real_estate_units ORDER BY created_at DESC`),
+      query(unitsSql, unitsParams),
       query(`SELECT *, installment_id::text AS installment_id, unit_id::text AS unit_id FROM real_estate_installments ORDER BY due_date ASC`)
     ]);
 
@@ -114,9 +169,11 @@ export async function GET() {
       const uInst = installments.filter((i: any) => String(i.unit_id) === String(u.unit_id));
       const totalPaid = uInst.filter((i: any) => i.is_paid).reduce((acc: number, curr: any) => acc + Number(curr.amount || 0), 0);
       const totalRemaining = uInst.filter((i: any) => !i.is_paid).reduce((acc: number, curr: any) => acc + Number(curr.amount || 0), 0);
+      const mappedBranchName = u.branch_name || BRANCH_NAMES_MAP[u.branch_id] || 'فرع الشركة';
 
       return {
         ...u,
+        branch_name: mappedBranchName,
         title: u.title || u.unit_name || 'وحدة عقارية',
         property_type: u.property_type || u.unit_type || 'شقة سكنية',
         area_sqm: u.area_sqm || u.area || 0,
@@ -141,8 +198,13 @@ export async function POST(req: Request) {
 
     // 1. إضافة وحدة عقارية جديدة
     if (action === 'ADD_UNIT') {
-      const { unit_id, id, unit_code, title, property_type, area_sqm, price, city, location, notes } = body;
+      const { unit_id, id, branch_id, unit_code, title, property_type, area_sqm, price, city, location, notes } = body;
       const finalUnitId = String(unit_id || id || `UNT-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
+      
+      const finalBranchId = branch_id && String(branch_id).trim() !== '' && String(branch_id).trim() !== 'ALL'
+        ? String(branch_id).trim()
+        : null;
+
       const code = String(unit_code || `UNIT-${Date.now().toString().slice(-4)}`).trim().toUpperCase();
       const selectedType = property_type || 'شقة سكنية';
       const numPrice = Number(price) || 0;
@@ -152,6 +214,7 @@ export async function POST(req: Request) {
       const res = await query(`
         INSERT INTO real_estate_units (
           unit_id,
+          branch_id,
           unit_code, 
           title, 
           unit_name,
@@ -168,10 +231,11 @@ export async function POST(req: Request) {
           total_paid,
           total_remaining
         )
-        VALUES ($1, $2, $3, $3, $4, $4, $5, $5, $6, $6, $7, $8, $9, 'AVAILABLE', 0, $6)
+        VALUES ($1, $2, $3, $4, $4, $5, $5, $6, $6, $7, $7, $8, $9, $10, 'AVAILABLE', 0, $7)
         RETURNING *
       `, [
         finalUnitId,
+        finalBranchId,
         code,
         unitTitle,
         selectedType,
@@ -182,15 +246,18 @@ export async function POST(req: Request) {
         notes || ''
       ]);
 
+      const bRes = finalBranchId ? await query(`SELECT name_ar FROM branches WHERE branch_id::text = $1`, [finalBranchId]) : { rows: [] };
+      const bName = bRes.rows[0]?.name_ar || 'فرع الشركة';
+
       await logNotification(
         'REAL_ESTATE',
         'ADD',
-        `إدراج وحدة عقارية: ${unitTitle}`,
-        `تم إضافة وحدة عقارية (${unitTitle} - ${selectedType}) برمز (${code}) بمساحة ${numArea} م² وسعر ${numPrice.toLocaleString('en-US')} د.ع في (${location || city || 'النجف'})`,
+        `إدراج وحدة عقارية: ${unitTitle} (${bName})`,
+        `تم إضافة وحدة عقارية (${unitTitle} - ${selectedType}) في (${bName}) برمز (${code}) بمساحة ${numArea} م² وسعر ${numPrice.toLocaleString('en-US')} د.ع`,
         '/real-estate'
       );
 
-      return NextResponse.json({ success: true, unit: res.rows[0] });
+      return NextResponse.json({ success: true, unit: { ...res.rows[0], branch_name: bName } });
     }
 
     // 2. حجز أو بيع وحدة وتقسيم الأقساط
@@ -213,10 +280,12 @@ export async function POST(req: Request) {
         WHERE unit_id::text = $5::text
       `, [buyer_name, buyer_phone, downPay, remainingPrice, String(unit_id)]);
 
-      // حذف أي أقساط سابقة إن وجدت لتجنب التكرار
+      const unitInfo = await query(`SELECT title, unit_name, unit_code, branch_id FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unit_id)]);
+      const uName = unitInfo.rows[0]?.title || unitInfo.rows[0]?.unit_name || unitInfo.rows[0]?.unit_code || 'وحدة عقارية';
+      const uBranchId = unitInfo.rows[0]?.branch_id || null;
+
       await query(`DELETE FROM real_estate_installments WHERE unit_id::text = $1::text`, [String(unit_id)]);
 
-      // قيد الدفعة الأولى (المقدمة) إن وجدت
       if (downPay > 0) {
         const firstInstId = `INST-DP-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
         await query(`
@@ -230,20 +299,19 @@ export async function POST(req: Request) {
           const voucherNotes = JSON.stringify({
             sector: 'REAL_ESTATE',
             partyAr: buyer_name,
-            forReasonAr: `دفعة مقدمة لشراء وحدة عقارية`,
+            forReasonAr: `دفعة مقدمة لشراء وحدة عقارية (${uName})`,
             method: 'CASH'
           });
 
           await query(`
-            INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-            VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-          `, [vId, vNum, downPay, voucherNotes]);
+            INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, created_by, issue_date)
+            VALUES ($1, $2, $3, 'RECEIPT', $4, $4, $5, 'POSTED', 'قسم الاستثمار العقاري', CURRENT_DATE)
+          `, [vId, uBranchId, vNum, downPay, voucherNotes]);
         } catch (vErr) {
           console.error('Voucher creation notice:', vErr);
         }
       }
 
-      // جدولة الأقساط الشهرية بطريقة حساب تواريخ آمنة متوافقة مع كل نسخ PostgreSQL
       const baseDate = new Date();
       for (let i = 1; i <= count; i++) {
         const instId = `INST-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`;
@@ -256,9 +324,6 @@ export async function POST(req: Request) {
           VALUES ($1, $2, $3, $4::date, FALSE)
         `, [instId, String(unit_id), `القسط الشهري رقم (${i})`, instAmount, dueDateStr]);
       }
-
-      const unitInfo = await query(`SELECT title, unit_name, unit_code FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unit_id)]);
-      const uName = unitInfo.rows[0]?.title || unitInfo.rows[0]?.unit_name || unitInfo.rows[0]?.unit_code || 'وحدة عقارية';
 
       await logNotification(
         'REAL_ESTATE',
@@ -282,7 +347,7 @@ export async function POST(req: Request) {
         WHERE installment_id::text = $1::text
       `, [String(installment_id)]);
 
-      // تحديث إجمالي المدفوع والمتبقي على الوحدة العقارية
+      let uBranchId = null;
       if (unit_id) {
         await query(`
           UPDATE real_estate_units
@@ -290,6 +355,11 @@ export async function POST(req: Request) {
               total_remaining = GREATEST(0, COALESCE(total_remaining, 0) - $1)
           WHERE unit_id::text = $2::text
         `, [Number(amount) || 0, String(unit_id)]);
+
+        const uData = await query(`SELECT branch_id FROM real_estate_units WHERE unit_id::text = $1::text`, [String(unit_id)]).catch(() => ({ rows: [] }));
+        if (uData.rows[0]?.branch_id) {
+          uBranchId = uData.rows[0].branch_id;
+        }
       }
 
       try {
@@ -303,9 +373,9 @@ export async function POST(req: Request) {
         });
 
         await query(`
-          INSERT INTO vouchers (voucher_id, voucher_number, voucher_type, amount, total_amount, notes, status, issue_date)
-          VALUES ($1, $2, 'RECEIPT', $3, $3, $4, 'POSTED', CURRENT_DATE)
-        `, [vId, vNum, Number(amount) || 0, voucherNotes]);
+          INSERT INTO vouchers (voucher_id, branch_id, voucher_number, voucher_type, amount, total_amount, notes, status, created_by, issue_date)
+          VALUES ($1, $2, $3, 'RECEIPT', $4, $4, $5, 'POSTED', 'قسم الاستثمار العقاري', CURRENT_DATE)
+        `, [vId, uBranchId, vNum, Number(amount) || 0, voucherNotes]);
       } catch (vErr) {
         console.error('Voucher creation notice:', vErr);
       }

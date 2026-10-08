@@ -26,9 +26,11 @@ import {
   FileText,
   FileCheck,
   Home,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -37,6 +39,7 @@ function formatNum(val: number | string): string {
 
 export default function RealEstatePage() {
   const router = useRouter();
+  const { selectedBranchId } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
@@ -70,6 +73,17 @@ export default function RealEstatePage() {
   const [downPayment, setDownPayment] = useState('40000000');
   const [installmentsCount, setInstallmentsCount] = useState('12');
 
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -84,9 +98,18 @@ export default function RealEstatePage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (branchFilterId?: string) => {
     try {
-      const res = await fetch('/api/real-estate', { cache: 'no-store' });
+      let activeBranch = branchFilterId !== undefined ? branchFilterId : selectedBranchId;
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        activeBranch = currentUser.assigned_branch_id;
+      }
+
+      const url = activeBranch && activeBranch !== 'ALL'
+        ? `/api/real-estate?branch_id=${encodeURIComponent(activeBranch)}`
+        : '/api/real-estate';
+
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data.units) setUnits(data.units);
     } catch (err) {
@@ -103,8 +126,11 @@ export default function RealEstatePage() {
         setCurrentUser(JSON.parse(raw));
       } catch {}
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData(selectedBranchId);
+  }, [selectedBranchId, isRestrictedBranch]);
 
   const canAdd = useMemo(() => {
     return hasPermission(currentUser, 'realestate', 'add');
@@ -126,11 +152,19 @@ export default function RealEstatePage() {
     }
     setLoading(true);
     try {
+      let finalBranch = 'BR-RE-05';
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        finalBranch = currentUser.assigned_branch_id;
+      } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+        finalBranch = selectedBranchId;
+      }
+
       const res = await fetch('/api/real-estate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'ADD_UNIT',
+          branch_id: finalBranch,
           unit_code: unitCode,
           title,
           property_type: propertyType,
@@ -147,7 +181,7 @@ export default function RealEstatePage() {
         setShowAddModal(false);
         setUnitCode('');
         setTitle('');
-        await loadData();
+        await loadData(finalBranch);
       } else {
         alert(data.error || 'فشلت إضافة الوحدة');
       }
@@ -313,7 +347,7 @@ export default function RealEstatePage() {
               <button 
                 onClick={() => {
                   loadSettings();
-                  loadData();
+                  loadData(selectedBranchId);
                 }} 
                 className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer active:scale-95 shadow-sm"
                 title="تحديث البيانات"
@@ -421,7 +455,7 @@ export default function RealEstatePage() {
                   {/* رأس بطاقة العقار */}
                   <div className="p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span 
                           className="font-mono font-bold text-xs px-2 py-0.5 rounded border"
                           style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
@@ -429,6 +463,12 @@ export default function RealEstatePage() {
                           {u.unit_code}
                         </span>
                         <h3 className="text-base font-bold text-white">{u.title}</h3>
+                        
+                        {/* وسم الفرع التابع له العقار */}
+                        <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40 font-sans">
+                          🏢 {u.branch_name || 'فرع الاستثمارات والتطوير العقاري'}
+                        </span>
+
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                           isSold ? 'bg-sky-500/10 text-sky-400 border border-sky-500/30' : 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
                         }`}>

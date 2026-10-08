@@ -60,52 +60,47 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
   useEffect(() => {
     let isMounted = true;
 
-    const checkAuthAndSession = () => {
-      const raw = localStorage.getItem('erp_user');
-      if (!raw) {
-        if (isMounted) {
-          setAuthorized(false);
-          router.replace('/login');
-        }
-        return;
-      }
-
+    const verifySecureSession = async () => {
       try {
-        const user = JSON.parse(raw);
+        // التحقق السري والآمن من السيرفر مباشرة (منع التلاعب نهائياً)
+        const res = await fetch('/api/auth/verify');
+        const data = await res.json();
         
-        // التحقق من حالة الحساب (نشط أو موقوف)
-        if (user.status && user.status !== 'ACTIVE' && user.status !== 'active') {
-          localStorage.removeItem('erp_user');
+        if (!res.ok || data.valid === false) {
+          // إذا كان التوكن مزيفاً، امسح كل شيء واطرد المتلاعب إلى شاشة الدخول
+          localStorage.clear();
           if (isMounted) {
             setAuthorized(false);
-            router.replace('/login');
+            window.location.href = '/login';
           }
           return;
         }
 
+        // إذا كان الدخول سليماً 100%، نقوم بمزامنة الواجهة بصمت
+        const user = data.user;
+        localStorage.setItem('erp_user', JSON.stringify(user));
+        
         if (isMounted) {
-          // التحقق من الصلاحية وفقاً للنظام
           if (hasPermission(user, moduleName, requiredAction)) {
             setAuthorized(true);
           } else {
             setAuthorized(false);
           }
         }
-      } catch {
-        localStorage.removeItem('erp_user');
+      } catch (error) {
+        localStorage.clear();
         if (isMounted) {
           setAuthorized(false);
-          router.replace('/login');
+          window.location.href = '/login';
         }
       }
     };
 
-    checkAuthAndSession();
+    verifySecureSession();
 
-    // الاستماع للتغيرات في الجلسات من تبويبات أخرى
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'erp_user') {
-        checkAuthAndSession();
+        verifySecureSession();
       }
     };
 
@@ -114,14 +109,14 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
       isMounted = false;
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [router, moduleName, requiredAction]);
+  }, [moduleName, requiredAction]);
 
   if (authorized === null) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 font-cairo">
         <div className="flex flex-col items-center gap-3">
           <div className="w-10 h-10 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-          <span className="text-xs">جاري التحقق من أذونات الدخول الحديثة...</span>
+          <span className="text-xs">جاري التحقق الآمن والمشفر...</span>
         </div>
       </div>
     );
@@ -141,13 +136,13 @@ export default function AuthGuard({ children, moduleName, requiredAction = 'view
           <div className="flex gap-2 pt-2">
             <Link
               href="/"
-              className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition"
+              className="flex-1 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
             >
               الرئيسية
             </Link>
             <Link
               href="/login"
-              className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition"
+              className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-bold rounded-xl transition cursor-pointer"
             >
               تبديل الحساب
             </Link>

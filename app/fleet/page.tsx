@@ -34,9 +34,11 @@ import {
   CheckCircle2,
   Timer,
   Home,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -76,6 +78,7 @@ function openGoogleMapsDirections(origin: string, destination: string) {
 
 export default function FleetPage() {
   const router = useRouter();
+  const { selectedBranchId } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
@@ -149,6 +152,17 @@ export default function FleetPage() {
   // تقرير الطباعة
   const [showReportModal, setShowReportModal] = useState(false);
 
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -163,9 +177,18 @@ export default function FleetPage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (branchFilterId?: string) => {
     try {
-      const res = await fetch('/api/fleet', { cache: 'no-store' });
+      let activeBranch = branchFilterId !== undefined ? branchFilterId : selectedBranchId;
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        activeBranch = currentUser.assigned_branch_id;
+      }
+
+      const url = activeBranch && activeBranch !== 'ALL'
+        ? `/api/fleet?branch_id=${encodeURIComponent(activeBranch)}`
+        : '/api/fleet';
+
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data.vehicles) setVehicles(data.vehicles);
       if (data.trips) setTrips(data.trips);
@@ -194,9 +217,13 @@ export default function FleetPage() {
     }
     loadData();
 
-    const interval = setInterval(loadData, 60000);
+    const interval = setInterval(() => loadData(selectedBranchId), 60000);
     return () => clearInterval(interval);
   }, [router]);
+
+  useEffect(() => {
+    loadData(selectedBranchId);
+  }, [selectedBranchId, isRestrictedBranch]);
 
   const handleLogout = () => {
     localStorage.removeItem('erp_user');
@@ -227,11 +254,19 @@ export default function FleetPage() {
     }
     setLoading(true);
     try {
+      let finalBranch = 'BR-TRANS-04';
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        finalBranch = currentUser.assigned_branch_id;
+      } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+        finalBranch = selectedBranchId;
+      }
+
       const res = await fetch('/api/fleet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'ADD_VEHICLE',
+          branch_id: finalBranch,
           vehicle_name: vehicleName,
           plate_number: plateNumber,
           vehicle_type: vehicleType,
@@ -253,7 +288,7 @@ export default function FleetPage() {
         setVehicleName('');
         setPlateNumber('');
         setCurrentMileage('');
-        await loadData();
+        await loadData(finalBranch);
       } else {
         alert(data.error || 'فشلت إضافة المركبة');
       }
@@ -328,12 +363,20 @@ export default function FleetPage() {
     setLoading(true);
     try {
       const rentalCostToSend = truckSourceType === 'EXTERNAL' ? (Number(externalRentalCost) || 0) : 0;
+      
+      let finalBranch = 'BR-TRANS-04';
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        finalBranch = currentUser.assigned_branch_id;
+      } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+        finalBranch = selectedBranchId;
+      }
 
       const res = await fetch('/api/fleet', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'CREATE_TRIP',
+          branch_id: finalBranch,
           truck_source_type: truckSourceType,
           vehicle_id: truckSourceType === 'INTERNAL' ? selectedVehicleForTrip : null,
           external_truck_info: externalTruckInfo,
@@ -360,7 +403,7 @@ export default function FleetPage() {
         setExternalTruckInfo('');
         setExternalDriverName('');
         setManifestUrl('');
-        await loadData();
+        await loadData(finalBranch);
       } else {
         alert(data.error || 'فشل تسجيل الرحلة');
       }
@@ -670,7 +713,7 @@ export default function FleetPage() {
             {/* الطرف الأيسر: شارة المستخدم وأزرار التنقل السريع */}
             <div className="flex items-center gap-2.5 flex-nowrap shrink-0 self-end xl:self-auto overflow-x-auto">
               <button
-                onClick={loadData}
+                onClick={() => loadData(selectedBranchId)}
                 className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-emerald-400 transition cursor-pointer active:scale-95 shadow-sm"
                 title="تحديث البيانات لحظياً"
               >
@@ -1052,8 +1095,14 @@ export default function FleetPage() {
                     <div className="space-y-4">
                       <div className="flex items-start justify-between">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <h3 className="text-base font-bold text-white">{v.vehicle_name}</h3>
+                            
+                            {/* وسم الفرع التابع له الشاحنة */}
+                            <span className="px-2.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40 font-sans">
+                              🏢 {v.branch_name || 'فرع النقل العام واللوجستيات'}
+                            </span>
+
                             <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${statusBadge}`}>
                               {statusTitle}
                             </span>
@@ -1500,7 +1549,7 @@ export default function FleetPage() {
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <Wrench className="w-4 h-4 text-purple-400" /> سجل قيود الصيانة وتكاليف الوقود المستقلة
                   </h3>
-                  <p className="text-[12px] text-slate-400 mt-0.5">تُخصم هذه المبالغ حصراً من إيرادات النقل العام لاحتساب صافي الربح</p>
+                  <p className="text-[12px] text-slate-400 mt-0.5">تُخصم هذه المبالغ حصراً من إيرادات النقل لاحتساب صافي الربح</p>
                 </div>
                 {canManageVouchers && (
                   <button

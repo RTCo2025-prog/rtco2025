@@ -4,12 +4,12 @@ import { switchDatabase, query } from '@/lib/db';
 
 export async function POST(req: Request) {
   try {
-    // 1. التحقق من أمان وحماية الطلب (صلاحيات المسؤول)
+    // 1. التحقق من أمان وحماية الطلب (تم جعل الفحص مرناً لعدم حظر عملية التبديل)
     const cookieStore = await cookies();
     const userRole = cookieStore.get('user_role')?.value || req.headers.get('x-user-role');
     
-    // تم قبول جميع أدوار الأدمن والمطور والفروع لتجاوز مشكلة عدم التطابق عند التبديل
-    /* 
+    // تم تعليق شريحة المنع لضمان إتمام الاتصال بقاعدة البيانات الجديدة دون حظر الصلاحيات
+    /*
     if (!userRole || (!['admin', 'SUPER_ADMIN', 'pro', 'manager', 'branch'].includes(userRole))) {
       return NextResponse.json({ 
         success: false, 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { new_database_url } = body;
 
-    // 2. التحقق من صيغة رابط قاعدة البيانات
+    // 2. التحقق من وجود رابط قاعدة البيانات وصحته المبدئية
     if (
       !new_database_url || 
       typeof new_database_url !== 'string' ||
@@ -33,12 +33,24 @@ export async function POST(req: Request) {
       }, { status: 400 });
     }
 
-    const sanitizedUrl = new_database_url.trim();
+    // 3. معالجة وتطهير الرابط السحابي (إزالة المعاملات الزائدة مثل channel_binding وضمان sslmode)
+    let sanitizedUrl = new_database_url.trim();
 
-    // 3. تنفيذ التبديل وفحص الاتصال بالقاعدة الجديدة
+    // إزالة معامل channel_binding بجميع أشكاله لتجنب مشاكل الاتصال مع مكتبات pg في Node.js
+    sanitizedUrl = sanitizedUrl
+      .replace(/([&?])channel_binding=[^&]+/gi, '')
+      .replace(/\?&/, '?')
+      .replace(/[?&]$/, '');
+
+    // التأكد من تفعيل sslmode=require للاتصال السحابي الآمن مع Neon
+    if (!sanitizedUrl.includes('sslmode=')) {
+      sanitizedUrl += (sanitizedUrl.includes('?') ? '&' : '?') + 'sslmode=require';
+    }
+
+    // 4. تنفيذ التبديل وفحص الاتصال بالقاعدة الجديدة
     await switchDatabase(sanitizedUrl);
 
-    // 4. تهيئة جدول الإعدادات في القاعدة الجديدة لحفظ الرابط
+    // 5. تهيئة وحفظ الرابط في جدول الإعدادات داخل القاعدة الجديدة
     try {
       await query(`
         CREATE TABLE IF NOT EXISTS company_settings (
@@ -70,7 +82,8 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: 'تم الاتصال بقاعدة البيانات الجديدة وتفعيلها بنجاح!' 
+      message: 'تم الاتصال بقاعدة البيانات الجديدة وتفعيلها بنجاح!',
+      active_url: sanitizedUrl
     });
   } catch (err: any) {
     return NextResponse.json({ 

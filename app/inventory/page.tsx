@@ -26,9 +26,11 @@ import {
   FileText,
   CreditCard,
   Home,
-  Sparkles
+  Sparkles,
+  Lock
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -36,6 +38,7 @@ function formatNum(val: number | string): string {
 }
 
 export default function InventoryPage() {
+  const { selectedBranchId, branches } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
@@ -89,6 +92,49 @@ export default function InventoryPage() {
   // إذن مخزني رسمي للطباعة A4
   const [printedReceipt, setPrintedReceipt] = useState<any | null>(null);
 
+  // التحقق الدقيق مما إذا كان الموظف مقيداً بفرع محدد
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
+  const resolveBranchName = (bId?: string): string => {
+    if (!bId || bId === 'ALL' || bId === 'BR-HQ-01') {
+      return 'المقر الرئيسي (النجف الأشرف)';
+    }
+    const cleanId = String(bId).trim().toUpperCase();
+    if (cleanId === 'TRD-01' || cleanId === 'BR-TRADE-03' || cleanId.includes('TRD') || cleanId.includes('TRADE')) {
+      return 'فرع التجارة العامة';
+    }
+    if (cleanId === 'CNT-01' || cleanId === 'BR-CONST-02' || cleanId.includes('CNT') || cleanId.includes('CONST')) {
+      return 'فرع المقاولات العامة';
+    }
+    if (cleanId === 'FLT-01' || cleanId === 'BR-TRANS-04' || cleanId.includes('FLT') || cleanId.includes('TRANS')) {
+      return 'فرع النقل العام';
+    }
+    if (cleanId === 'EST-01' || cleanId === 'BR-RE-05' || cleanId.includes('EST') || cleanId.includes('RE')) {
+      return 'فرع الاستثمارات العقارية';
+    }
+    if (cleanId === 'STR-01' || cleanId.includes('STR') || cleanId.includes('WAREHOUSE')) {
+      return 'فرع المخازن';
+    }
+    if (cleanId === 'HQ-01' || cleanId === 'BR-HQ-01') {
+      return 'المقر الرئيسي';
+    }
+
+    const found = (branches || []).find((b: any) => 
+      String(b.branch_id).trim().toUpperCase() === cleanId || 
+      String(b.branch_code).trim().toUpperCase() === cleanId
+    );
+    return found?.name_ar || `فرع ${bId}`;
+  };
+
   const loadSettings = async () => {
     try {
       const res = await fetch('/api/settings', { cache: 'no-store' });
@@ -103,10 +149,19 @@ export default function InventoryPage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (branchFilterId?: string) => {
     setLoading(true);
     try {
-      const res = await fetch('/api/inventory', { cache: 'no-store' });
+      let activeBranch = branchFilterId !== undefined ? branchFilterId : selectedBranchId;
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        activeBranch = currentUser.assigned_branch_id;
+      }
+
+      const url = activeBranch && activeBranch !== 'ALL'
+        ? `/api/inventory?branch_id=${encodeURIComponent(activeBranch)}`
+        : '/api/inventory';
+
+      const res = await fetch(url, { cache: 'no-store' });
       const data = await res.json();
       if (data.success) {
         setItems(data.items || []);
@@ -130,8 +185,11 @@ export default function InventoryPage() {
         setCurrentUser(JSON.parse(raw));
       } catch {}
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData(selectedBranchId);
+  }, [selectedBranchId, isRestrictedBranch]);
 
   const canAdd = useMemo(() => {
     return hasPermission(currentUser, 'inventory', 'add');
@@ -217,11 +275,19 @@ export default function InventoryPage() {
     }
     setLoading(true);
     try {
+      let finalBranch = 'BR-TRADE-03';
+      if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+        finalBranch = currentUser.assigned_branch_id;
+      } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+        finalBranch = selectedBranchId;
+      }
+
       const res = await fetch('/api/inventory', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'ADD_ITEM',
+          branch_id: finalBranch,
           item_code: itemCode,
           name: itemName,
           category,
@@ -241,7 +307,7 @@ export default function InventoryPage() {
         setItemName('');
         setUnitCost('');
         setSellingPrice('');
-        await loadData();
+        await loadData(finalBranch);
       } else {
         alert(data.error || 'فشلت إضافة المادة');
       }
@@ -265,6 +331,13 @@ export default function InventoryPage() {
 
     setLoading(true);
     const projObj = projects.find(p => p.project_id === targetProjectId);
+    
+    let finalBranch = selectedItemForTrans.branch_id || 'BR-TRADE-03';
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      finalBranch = currentUser.assigned_branch_id;
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      finalBranch = selectedBranchId;
+    }
 
     try {
       const res = await fetch('/api/inventory', {
@@ -272,6 +345,7 @@ export default function InventoryPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'RECORD_TRANSACTION',
+          branch_id: finalBranch,
           item_id: selectedItemForTrans.item_id,
           trans_type: transType,
           purpose: transType === 'IN' ? 'PURCHASE' : isExternalSale ? 'COMMERCIAL_SALE' : 'PROJECT_ISSUE',
@@ -294,7 +368,7 @@ export default function InventoryPage() {
         setIsExternalSale(true);
         setPartyName('');
         setTransNotes('');
-        await loadData();
+        await loadData(finalBranch);
       } else {
         alert(data.error || 'فشلت العملية');
       }
@@ -407,7 +481,7 @@ export default function InventoryPage() {
               </Link>
 
               <button 
-                onClick={loadData} 
+                onClick={() => loadData(selectedBranchId)} 
                 className="p-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-slate-400 hover:text-amber-400 transition cursor-pointer active:scale-95 shadow-sm" 
                 title="تحديث البيانات"
               >
@@ -650,6 +724,7 @@ export default function InventoryPage() {
                     <tr>
                       <th className="p-3.5">الرمز</th>
                       <th className="p-3.5">اسم الصنف / المادة</th>
+                      <th className="p-3.5">الفرع</th>
                       <th className="p-3.5">التصنيف</th>
                       <th className="p-3.5">الرصيد المتاح</th>
                       <th className="p-3.5">سعر التكلفة</th>
@@ -661,7 +736,7 @@ export default function InventoryPage() {
                   <tbody className="divide-y divide-slate-800/80 font-mono text-[13px]">
                     {filteredItems.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-8 text-slate-500 font-sans">لا توجد بضائع أو أصناف مسجلة مطابقة للبحث.</td>
+                        <td colSpan={9} className="text-center py-8 text-slate-500 font-sans">لا توجد بضائع أو أصناف مسجلة مطابقة للبحث.</td>
                       </tr>
                     ) : (
                       filteredItems.map((item) => {
@@ -681,6 +756,11 @@ export default function InventoryPage() {
                                   <AlertTriangle className="w-3 h-3" /> يحتاج طلب
                                 </span>
                               )}
+                            </td>
+                            <td className="p-3.5 font-sans">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-950 text-sky-400 border border-sky-500/30">
+                                📍 {item.branch_name || 'فرع التجارة والمخازن'}
+                              </span>
                             </td>
                             <td className="p-3.5 text-slate-300 font-sans">{item.category}</td>
                             <td className="p-3.5 font-bold text-emerald-400 text-sm">
@@ -917,129 +997,158 @@ export default function InventoryPage() {
           </div>
         )}
 
-        {/* مستند إذن الصرف / الاستلام المخزني الرسمي للطباعة A4 */}
-        {printedReceipt && (
-          <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
-            <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
-              <button 
-                onClick={() => window.print()} 
-                className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-[14px] flex items-center gap-2 transition cursor-pointer shadow-lg"
-                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
-              >
-                <Printer className="w-4 h-4" /> طباعة الإذن المخزني الرسمي (A4)
-              </button>
-              <button onClick={() => setPrintedReceipt(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+        {/* مستند إذن الصرف / الاستلام المخزني الرسمي للطباعة A4 مع شريط التوثيق والفرع المعتمد */}
+        {printedReceipt && (() => {
+          const transBranchName = resolveBranchName(printedReceipt.branch_id);
 
-            <div className="w-full max-w-3xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-6">
-              
-              {hasLetterhead ? (
-                <div className="w-full border-b pb-3 mb-4">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
-                </div>
-              ) : (
-                <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
-                      {hasLogo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
-                      ) : (
-                        <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" />
-                      )}
+          return (
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
+              <div className="w-full max-w-3xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
+                <button 
+                  onClick={() => window.print()} 
+                  className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-[14px] flex items-center gap-2 transition cursor-pointer shadow-lg"
+                  style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+                >
+                  <Printer className="w-4 h-4" /> طباعة الإذن المخزني الرسمي (A4)
+                </button>
+                <button onClick={() => setPrintedReceipt(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="w-full max-w-3xl bg-white text-slate-900 rounded-3xl p-8 md:p-12 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4">
+                
+                {/* 1. الترويسة الأصلية للشركة دون المساس بها */}
+                {hasLetterhead ? (
+                  <div className="w-full border-b pb-3 mb-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center border-b-2 pb-5" style={{ borderColor: primaryCol }}>
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200">
+                        {hasLogo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                        ) : (
+                          <Image src="/logo.png" alt="شركة البرج المتألق" width={64} height={64} className="object-contain" />
+                        )}
+                      </div>
+                      <div>
+                        <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                        <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h1 className="text-2xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
-                      <p className="text-xs text-slate-600 font-bold">{companySettings.tagline}</p>
-                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                    <div className="text-left font-mono">
+                      <div 
+                        className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                        style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                      >
+                        {printedReceipt.trans_type === 'IN' ? 'إذن استلام وتوريد مخزني (GRN)' : 'إذن صرف مواد وبضائع (Goods Issue)'}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-left font-mono">
-                    <div 
-                      className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
-                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
-                    >
-                      {printedReceipt.trans_type === 'IN' ? 'إذن استلام وتوريد مخزني (GRN)' : 'إذن صرف مواد وبضائع (Goods Issue)'}
-                    </div>
-                    <p className="text-[12px] text-slate-700 mt-2 font-bold font-mono">رقم الإذن: <span style={{ color: primaryCol }}>{printedReceipt.trans_code}</span></p>
-                    <p className="text-[11px] text-slate-500 mt-0.5">التاريخ: {String(printedReceipt.created_at || '').substring(0, 10)}</p>
+                )}
+
+                {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع مأطر، اليسار التاريخ */}
+                <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+                  {/* اليمين: العدد ورقم الإذن */}
+                  <div className="flex items-center gap-1.5" dir="rtl">
+                    <span className="text-slate-500 font-bold">العدد :</span>
+                    <span className="font-mono text-slate-950 text-sm tracking-wide">
+                      {printedReceipt.trans_code || printedReceipt.trans_id}
+                    </span>
+                  </div>
+
+                  {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
+                  <div className="flex items-center justify-center">
+                    <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                      {transBranchName}
+                    </span>
+                  </div>
+
+                  {/* اليسار: التاريخ */}
+                  <div className="flex items-center gap-1.5" dir="rtl">
+                    <span className="text-slate-500 font-bold">التاريخ :</span>
+                    <span className="font-mono text-slate-950 text-sm tracking-wider">
+                      {String(printedReceipt.created_at || '').substring(0, 10)}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-[14px] font-semibold">
-                <div>
-                  <span className="text-slate-500 block text-xs">الجهة المستلمة / المورد / المشروع:</span>
-                  <span className="text-slate-950 font-bold">
-                    {printedReceipt.project_name ? `مشروع مقاولة: ${printedReceipt.project_name}` : printedReceipt.supplier_or_recipient || '---'}
-                  </span>
+                <div className="grid grid-cols-2 gap-4 bg-slate-50 border border-slate-200 p-4 rounded-2xl text-[14px] font-semibold">
+                  <div>
+                    <span className="text-slate-500 block text-xs">الجهة المستلمة / المورد / المشروع:</span>
+                    <span className="text-slate-950 font-bold">
+                      {printedReceipt.project_name ? `مشروع مقاولة: ${printedReceipt.project_name}` : printedReceipt.supplier_or_recipient || '---'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-xs">نوع ومسار العملية:</span>
+                    <span className="text-slate-950 font-bold">
+                      {printedReceipt.trans_type === 'IN' 
+                        ? 'شراء وتوريد للمخزن المركزي' 
+                        : printedReceipt.purpose === 'PROJECT_ISSUE' || printedReceipt.project_id
+                        ? 'صرف مباشر لموقع المشروع الإنشائي' 
+                        : 'بيع تجاري خارجي'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-slate-500 block text-xs">نوع ومسار العملية:</span>
-                  <span className="text-slate-950 font-bold">
-                    {printedReceipt.trans_type === 'IN' 
-                      ? 'شراء وتوريد للمخزن المركزي' 
-                      : printedReceipt.purpose === 'PROJECT_ISSUE' || printedReceipt.project_id
-                      ? 'صرف مباشر لموقع المشروع الإنشائي' 
-                      : 'بيع تجاري خارجي'}
-                  </span>
-                </div>
-              </div>
 
-              <div className="border border-slate-200 rounded-2xl overflow-hidden">
-                <table className="w-full text-right font-mono text-[13px]">
-                  <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold text-xs">
-                    <tr>
-                      <th className="p-3">رمز الصنف</th>
-                      <th className="p-3">اسم المادة والمواصفات</th>
-                      <th className="p-3">الكمية المسلمة</th>
-                      <th className="p-3">سعر الوحدة</th>
-                      <th className="p-3">المبلغ الإجمالي</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    <tr>
-                      <td className="p-3 font-bold" style={{ color: primaryCol }}>{printedReceipt.item_code}</td>
-                      <td className="p-3 font-bold font-sans text-slate-950">{printedReceipt.item_name || printedReceipt.name}</td>
-                      <td className="p-3 font-black text-slate-950">{formatNum(printedReceipt.quantity)} {printedReceipt.unit}</td>
-                      <td className="p-3 text-slate-800">{formatNum(printedReceipt.unit_price)} د.ع</td>
-                      <td className="p-3 font-black" style={{ color: primaryCol }}>{formatNum(printedReceipt.total_amount)} د.ع</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                <div className="border border-slate-200 rounded-2xl overflow-hidden">
+                  <table className="w-full text-right font-mono text-[13px]">
+                    <thead className="bg-slate-100 border-b border-slate-200 text-slate-700 font-bold text-xs">
+                      <tr>
+                        <th className="p-3">رمز الصنف</th>
+                        <th className="p-3">اسم المادة والمواصفات</th>
+                        <th className="p-3">الكمية المسلمة</th>
+                        <th className="p-3">سعر الوحدة</th>
+                        <th className="p-3">المبلغ الإجمالي</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      <tr>
+                        <td className="p-3 font-bold" style={{ color: primaryCol }}>{printedReceipt.item_code}</td>
+                        <td className="p-3 font-bold font-sans text-slate-950">{printedReceipt.item_name || printedReceipt.name}</td>
+                        <td className="p-3 font-black text-slate-950">{formatNum(printedReceipt.quantity)} {printedReceipt.unit}</td>
+                        <td className="p-3 text-slate-800">{formatNum(printedReceipt.unit_price)} د.ع</td>
+                        <td className="p-3 font-black" style={{ color: primaryCol }}>{formatNum(printedReceipt.total_amount)} د.ع</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
 
-              {printedReceipt.notes && (
-                <div className="text-[13px] text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                  <strong>البيان والملاحظات: </strong> {printedReceipt.notes}
-                </div>
-              )}
+                {printedReceipt.notes && (
+                  <div className="text-[13px] text-slate-600 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
+                    <strong>البيان والملاحظات: </strong> {printedReceipt.notes}
+                  </div>
+                )}
 
-              <div className="grid grid-cols-3 gap-8 pt-12 text-center border-t border-slate-200 text-xs">
-                <div>
-                  <p className="font-bold text-slate-700">أمين المخزن المختص</p>
-                  <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
+                <div className="grid grid-cols-3 gap-8 pt-12 text-center border-t border-slate-200 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-700">أمين المخزن المختص</p>
+                    <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-700">المستلم الميداني / العميل</p>
+                    <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-700">مصادقة الإدارة العامة</p>
+                    <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-slate-700">المستلم الميداني / العميل</p>
-                  <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-700">مصادقة الإدارة العامة</p>
-                  <div className="border-b border-dashed border-slate-400 w-36 mx-auto mt-8"></div>
-                </div>
-              </div>
 
-              <div className="mt-8 pt-3 border-t text-[10px] text-slate-500 flex justify-between font-mono">
-                <span>{companySettings.company_name} - {companySettings.address}</span>
-                <span>هاتف: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
+                <div className="mt-8 pt-3 border-t text-[10px] text-slate-500 flex justify-between font-mono">
+                  <span>{companySettings.company_name} - {transBranchName}</span>
+                  <span>هاتف: {companySettings.phone_primary} {companySettings.phone_secondary && `| ${companySettings.phone_secondary}`}</span>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* نافذة تعريف صنف جديد */}
         {showAddModal && canAdd && (

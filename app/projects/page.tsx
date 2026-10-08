@@ -45,6 +45,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 function formatNum(val: number | string): string {
   const n = Number(val) || 0;
@@ -70,6 +71,7 @@ function parseVoucherNotes(notes: string) {
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const { selectedBranchId } = useBranch();
   const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
@@ -224,11 +226,25 @@ export default function ProjectsPage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (branchFilterId?: string) => {
     try {
+      // الأولوية لفرع الموظف المقيد به
+      let activeBranch = branchFilterId !== undefined ? branchFilterId : selectedBranchId;
+      if (currentUser?.assigned_branch_id && currentUser.assigned_branch_id !== 'ALL') {
+        activeBranch = currentUser.assigned_branch_id;
+      }
+
+      const projUrl = activeBranch && activeBranch !== 'ALL'
+        ? `/api/projects?branch_id=${encodeURIComponent(activeBranch)}`
+        : '/api/projects';
+
+      const vouchUrl = activeBranch && activeBranch !== 'ALL'
+        ? `/api/vouchers?branch_id=${encodeURIComponent(activeBranch)}`
+        : '/api/vouchers';
+
       const [resP, resV] = await Promise.all([
-        fetch('/api/projects', { cache: 'no-store' }).catch(() => null),
-        fetch('/api/vouchers', { cache: 'no-store' }).catch(() => null)
+        fetch(projUrl, { cache: 'no-store' }).catch(() => null),
+        fetch(vouchUrl, { cache: 'no-store' }).catch(() => null)
       ]);
 
       if (resV && resV.ok) {
@@ -264,9 +280,13 @@ export default function ProjectsPage() {
       router.push('/login');
       return;
     }
-
-    loadData();
   }, [router]);
+
+  useEffect(() => {
+    if (mounted) {
+      loadData(selectedBranchId);
+    }
+  }, [selectedBranchId, mounted]);
 
   const handleLogout = () => {
     localStorage.removeItem('erp_user');
@@ -710,10 +730,24 @@ export default function ProjectsPage() {
     setLoading(true);
     setMessage('');
     try {
+      // الأولوية القصوى: فرع الموظف المقيد به أولاً (أحمد = BR-CONST-02)، ثم الفرع النشط بالسياق
+      let targetBranch = 'BR-CONST-02';
+      if (currentUser?.assigned_branch_id && currentUser.assigned_branch_id !== 'ALL') {
+        targetBranch = currentUser.assigned_branch_id;
+      } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+        targetBranch = selectedBranchId;
+      } else {
+        const storedBranch = typeof window !== 'undefined' ? localStorage.getItem('rtco_selected_branch_id') : null;
+        if (storedBranch && storedBranch !== 'ALL') {
+          targetBranch = storedBranch;
+        }
+      }
+
       const res = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          branch_id: targetBranch,
           project_name: projectName.trim(),
           client_name: clientName.trim(),
           location: location.trim(),
@@ -737,7 +771,7 @@ export default function ProjectsPage() {
         setCompletionRate('0');
         setNotes('');
         setExpectedEndDate('');
-        await loadData();
+        await loadData(targetBranch);
       } else {
         setMessage(`خطأ: ${data.error || 'فشل تسجيل المشروع'}`);
       }
@@ -1353,7 +1387,7 @@ export default function ProjectsPage() {
                   <input type="date" value={expectedEndDate} onChange={(e) => setExpectedEndDate(e.target.value)} className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-white font-mono" />
                 </div>
               </div>
-              <button type="submit" disabled={loading || !permissions.canCreateProject} className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition text-[14px] mt-2 shadow-lg shadow-amber-500/20">
+              <button type="submit" disabled={loading || !permissions.canCreateProject} className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition text-[14px] mt-2 shadow-lg shadow-amber-500/20 cursor-pointer">
                 {loading ? 'جاري التسجيل...' : 'حفظ وتسجيل المشروع'}
               </button>
             </form>
@@ -1387,6 +1421,11 @@ export default function ProjectsPage() {
                 const costRatio = contract > 0 ? (project.total_site_costs / contract) * 100 : 0;
                 const isCostAlert = costRatio >= 80;
 
+                // قراءة وتحديد اسم الفرع الحقيقي المعروض على البطاقة
+                const displayBranchName = project.branch_id === 'BR-CONST-02'
+                  ? 'فرع المقاولات والمشاريع الهندسية'
+                  : (project.branch_name || 'فرع المقاولات والمشاريع الهندسية');
+
                 return (
                   <div key={project.project_id} className="bg-slate-900 border border-slate-800 p-5 rounded-3xl hover:border-slate-700 transition space-y-4 shadow-xl">
                     
@@ -1394,6 +1433,12 @@ export default function ProjectsPage() {
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3 className="text-base font-bold text-white">{project.project_name}</h3>
+                          
+                          {/* شارة الفرع التابع له المشروع */}
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/40">
+                            🏢 {displayBranchName}
+                          </span>
+
                           <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
                             isCompleted ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                             : isSuspended ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'

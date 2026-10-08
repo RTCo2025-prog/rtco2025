@@ -1,11 +1,30 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+async function logNotification(sector: string, action_type: string, title: string, message: string, link: string) {
+  try {
+    const notifId = `NTF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    await query(`
+      INSERT INTO system_notifications (notification_id, sector, action_type, title, message, link, is_read)
+      VALUES ($1, $2, $3, $4, $5, $6, FALSE)
+    `, [notifId, sector, action_type, title, message, link]);
+  } catch (e) {
+    try {
+      await query(`
+        INSERT INTO system_notifications (sector, action_type, title, message, link)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [sector, action_type, title, message, link]);
+    } catch (err2) {
+      console.error("Log Notification Error:", err2);
+    }
+  }
+}
+
 async function initBranchesTable() {
   await query(`
     CREATE TABLE IF NOT EXISTS branches (
       branch_id VARCHAR(50) PRIMARY KEY,
-      branch_code VARCHAR(50) UNIQUE NOT NULL,
+      branch_code VARCHAR(50),
       name_ar VARCHAR(255) NOT NULL,
       branch_type VARCHAR(100) NOT NULL,
       manager_name VARCHAR(150),
@@ -29,19 +48,18 @@ async function initBranchesTable() {
     ALTER TABLE branches ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
   `);
 
-  // بذر الفروع الأساسية للشركة إن كان الجدول فارغاً
-  const countRes = await query(`SELECT count(*) FROM branches`);
-  if (Number(countRes.rows[0]?.count || 0) === 0) {
-    await query(`
-      INSERT INTO branches (branch_id, branch_code, name_ar, branch_type, manager_name, phone, city, address)
-      VALUES 
-        ('BR-HQ-01', 'HQ-01', 'الإدارة العامة - شركة البرج المتألق', 'الإدارة المركزية والمقر العام', 'الإدارة العليا', '07868006699', 'النجف الأشرف', 'حي الفرات'),
-        ('BR-CNT-01', 'CNT-01', 'فرع المقاولات العامة والإنشاءات', 'تنفيذ المشاريع الإنشائية والهندسية', 'المهندس المقيم', '07800000001', 'النجف الأشرف', 'المدينة القديمة'),
-        ('BR-TRD-01', 'TRD-01', 'فرع التجارة العامة والتجهيزات', 'استيراد وتوريد المواد الأولية', 'مدير المشتريات', '07800000002', 'النجف الأشرف', 'حي الحرفيين'),
-        ('BR-FLT-01', 'FLT-01', 'فرع النقل العام واللوجستيات', 'حركة الأسطول والنقل البري', 'كابتن الأسطول', '07800000003', 'النجف الأشرف', 'ساحة الآليات المركزية'),
-        ('BR-EST-01', 'EST-01', 'فرع التطوير والاستثمار العقاري', 'إدارة العقارات والوحدات السكنية', 'مسؤول الاستثمار', '07800000004', 'النجف الأشرف', 'شارع الكوفة');
-    `);
-  }
+  // إزالة قيد NOT NULL عن branch_code لضمان عدم حدوث تعارض أثناء الحفظ
+  await query(`
+    DO $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'branches' AND column_name = 'branch_code'
+      ) THEN
+        ALTER TABLE branches ALTER COLUMN branch_code DROP NOT NULL;
+      END IF;
+    END $$;
+  `).catch(() => {});
 }
 
 export async function GET() {
@@ -60,7 +78,7 @@ export async function GET() {
         COALESCE(status, 'ACTIVE') AS status,
         created_at
       FROM branches 
-      ORDER BY branch_code ASC
+      ORDER BY created_at ASC
     `);
 
     return NextResponse.json({ success: true, branches: res.rows || [] });
@@ -75,17 +93,21 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { branch_id, id, branch_code, name_ar, branch_type, manager_name, phone, city, address } = body;
 
-    const cleanCode = String(branch_code || '').trim().toUpperCase();
+    const cleanCode = String(branch_code || 'BR-01').trim().toUpperCase();
     const finalBranchId = String(branch_id || id || `BR-${Date.now()}-${Math.floor(Math.random() * 1000)}`);
-
-    const exist = await query(`SELECT branch_id FROM branches WHERE branch_code = $1`, [cleanCode]);
-    if (exist.rows.length > 0) {
-      return NextResponse.json({ error: `رمز الفرع (${cleanCode}) مسجل مسبقاً` }, { status: 400 });
-    }
 
     const res = await query(`
       INSERT INTO branches (branch_id, branch_code, name_ar, branch_type, manager_name, phone, city, address, status)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'ACTIVE')
+      ON CONFLICT (branch_id) DO UPDATE SET
+        branch_code = EXCLUDED.branch_code,
+        name_ar = EXCLUDED.name_ar,
+        branch_type = EXCLUDED.branch_type,
+        manager_name = EXCLUDED.manager_name,
+        phone = EXCLUDED.phone,
+        city = EXCLUDED.city,
+        address = EXCLUDED.address,
+        status = EXCLUDED.status
       RETURNING *
     `, [
       finalBranchId,
@@ -98,6 +120,14 @@ export async function POST(req: Request) {
       address || 'المركز الرئيسي'
     ]);
 
+    await logNotification(
+      'BRANCHES',
+      'ADD',
+      `افتتاح فرع جديد: ${name_ar}`,
+      `تم تسجيل فرع جديد (${name_ar}) برمز (${cleanCode}) في مدينة (${city || 'النجف الأشرف'}) بإدارة (${manager_name || 'غير محدد'})`,
+      '/branches'
+    );
+
     return NextResponse.json({ success: true, branch: res.rows[0] });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -107,7 +137,7 @@ export async function POST(req: Request) {
 export async function PATCH(req: Request) {
   try {
     const body = await req.json();
-    const { branch_id, name_ar, branch_type, manager_name, phone, city, address, status } = body;
+    const { branch_id, branch_code, name_ar, branch_type, manager_name, phone, city, address, status } = body;
 
     if (!branch_id) {
       return NextResponse.json({ error: 'معرف الفرع مفقود' }, { status: 400 });
@@ -121,9 +151,21 @@ export async function PATCH(req: Request) {
           phone = COALESCE($4, phone),
           city = COALESCE($5, city),
           address = COALESCE($6, address),
-          status = COALESCE($7, status)
-      WHERE branch_id::text = $8::text
-    `, [name_ar, branch_type, manager_name, phone, city, address, status, String(branch_id)]);
+          status = COALESCE($7, status),
+          branch_code = COALESCE($8, branch_code)
+      WHERE branch_id::text = $9::text
+    `, [name_ar, branch_type, manager_name, phone, city, address, status, branch_code, String(branch_id)]);
+
+    const branchInfo = await query(`SELECT name_ar, branch_code FROM branches WHERE branch_id::text = $1::text`, [String(branch_id)]);
+    const bName = branchInfo.rows[0]?.name_ar || name_ar || 'فرع الشركة';
+
+    await logNotification(
+      'BRANCHES',
+      'UPDATE',
+      `تحديث بيانات فرع: ${bName}`,
+      `تم تحديث بيانات الفرع (${bName}) وحالته التشغيلية إلى (${status || 'نشط'})`,
+      '/branches'
+    );
 
     return NextResponse.json({ success: true });
   } catch (err: any) {
@@ -134,13 +176,25 @@ export async function PATCH(req: Request) {
 export async function DELETE(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
-    const branchId = searchParams.get('id');
+    const branchId = searchParams.get('id') || searchParams.get('branch_id');
 
     if (!branchId) {
       return NextResponse.json({ error: 'معرف الفرع مطلوب' }, { status: 400 });
     }
 
+    const branchInfo = await query(`SELECT name_ar, branch_code FROM branches WHERE branch_id::text = $1::text`, [String(branchId)]);
+    const bName = branchInfo.rows[0]?.name_ar || 'فرع';
+
     await query(`DELETE FROM branches WHERE branch_id::text = $1::text`, [String(branchId)]);
+
+    await logNotification(
+      'BRANCHES',
+      'DELETE',
+      `إلغاء فرع: ${bName}`,
+      `تم حذف الفرع (${bName}) من السجل الإداري للفروع المعتمدة`,
+      '/branches'
+    );
+
     return NextResponse.json({ success: true });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

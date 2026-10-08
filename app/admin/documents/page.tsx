@@ -11,6 +11,7 @@ import {
   PlusCircle, 
   Search, 
   Trash2, 
+  Edit3,
   Calendar, 
   Send, 
   Inbox, 
@@ -39,12 +40,16 @@ import {
   Plus, 
   FileCode, 
   Zap, 
-  Home
+  Home,
+  Lock
 } from 'lucide-react';
 import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+import { useBranch } from '@/context/BranchContext';
 
 interface OfficialDoc {
   id: string;
+  branch_id?: string;
+  branch_name?: string;
   type: 'OUTGOING' | 'INCOMING' | 'INTERNAL_ORDER';
   priority: 'NORMAL' | 'URGENT' | 'TOP_SECRET';
   status: 'PENDING' | 'COMPLETED' | 'ARCHIVED';
@@ -139,6 +144,7 @@ async function syncDocToCloud(doc: OfficialDoc) {
 }
 
 export default function AdministrativeDocumentsPage() {
+  const { selectedBranchId, branches } = useBranch();
   const [currentUser, setCurrentUser] = useState<any | null>(null);
   const [companySettings, setCompanySettings] = useState<any>({
     company_name: 'شركة البرج المتألق',
@@ -164,6 +170,12 @@ export default function AdministrativeDocumentsPage() {
   const [showOutgoingModal, setShowOutgoingModal] = useState(false);
   const [showIncomingModal, setShowIncomingModal] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
+
+  // حالة التعديل
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+
+  // الفرع المختار للوثيقة
+  const [docBranchId, setDocBranchId] = useState<string>('BR-HQ-01');
 
   // حقول الصادر
   const [outDocNumber, setOutDocNumber] = useState('');
@@ -214,6 +226,43 @@ export default function AdministrativeDocumentsPage() {
   const [selectedDocForPrint, setSelectedDocForPrint] = useState<OfficialDoc | null>(null);
   const [viewScannedImage, setViewScannedImage] = useState<string | null>(null);
 
+  // فحص ما إذا كان المستخدم الحالي مقيداً بفرع محدد
+  const isRestrictedBranch = useMemo(() => {
+    return Boolean(
+      currentUser && 
+      !currentUser.is_super_admin && 
+      currentUser.role !== 'ADMIN' && 
+      currentUser.username !== 'admin' && 
+      currentUser.assigned_branch_id && 
+      currentUser.assigned_branch_id !== 'ALL'
+    );
+  }, [currentUser]);
+
+  // دالة تحديد اسم الفرع الصحيح
+  const resolveBranchName = (bId?: string): string => {
+    if (!bId || bId === 'ALL') {
+      return 'المقر الرئيسي (عرض المنظومة الموحدة)';
+    }
+    const found = (branches || []).find((b: any) => String(b.branch_id).trim() === String(bId).trim());
+    return found?.name_ar || `فرع ${bId}`;
+  };
+
+  const currentActiveBranchName = useMemo(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      return resolveBranchName(currentUser.assigned_branch_id);
+    }
+    return resolveBranchName(selectedBranchId);
+  }, [selectedBranchId, branches, isRestrictedBranch, currentUser]);
+
+  useEffect(() => {
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      setDocBranchId(currentUser.assigned_branch_id);
+    } else {
+      const active = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'BR-HQ-01';
+      setDocBranchId(active);
+    }
+  }, [selectedBranchId, isRestrictedBranch, currentUser]);
+
   const generateCode = (prefix: 'ص' | 'و' | 'أ.إ') => {
     return `${prefix}/${Math.floor(100 + Math.random() * 900)} / ${new Date().getFullYear()}`;
   };
@@ -232,12 +281,54 @@ export default function AdministrativeDocumentsPage() {
     }
   };
 
+  const loadDocumentsData = async () => {
+    let localDocs: OfficialDoc[] = [];
+    const stored = localStorage.getItem('rtco_official_documents');
+    if (stored) {
+      try {
+        localDocs = JSON.parse(stored);
+      } catch {}
+    }
+
+    try {
+      const res = await fetch(`/api/admin/system?action=GET_OFFICIAL_DOCS`, { cache: 'no-store' });
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.documents)) {
+        const mergedDocs = data.documents.map((remoteDoc: OfficialDoc) => {
+          const match = localDocs.find((ld) => ld.id === remoteDoc.id || ld.docNumber === remoteDoc.docNumber);
+          if (match && match.branch_id) {
+            return {
+              ...remoteDoc,
+              branch_id: match.branch_id,
+              branch_name: match.branch_name
+            };
+          }
+          return remoteDoc;
+        });
+
+        localDocs.forEach((ld) => {
+          if (!mergedDocs.some((md: OfficialDoc) => md.id === ld.id)) {
+            mergedDocs.unshift(ld);
+          }
+        });
+
+        setDocuments(mergedDocs);
+        localStorage.setItem('rtco_official_documents', JSON.stringify(mergedDocs.slice(0, 50)));
+      } else {
+        setDocuments(localDocs);
+      }
+    } catch {
+      setDocuments(localDocs);
+    }
+  };
+
   useEffect(() => {
     if (typeof window !== 'undefined') {
       setSiteOrigin(window.location.origin);
     }
 
     loadSettings();
+    loadDocumentsData();
 
     const raw = localStorage.getItem('erp_user');
     if (raw) {
@@ -264,35 +355,6 @@ export default function AdministrativeDocumentsPage() {
       } catch {}
     }
 
-    // جلب الوثائق والكتب الرسمية من قاعدة البيانات النشطة حصراً وتحديث الكاش
-    fetch('/api/admin/system?action=GET_OFFICIAL_DOCS', { cache: 'no-store' })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.success && Array.isArray(data.documents)) {
-          setDocuments(data.documents);
-          try {
-            const lightList = data.documents.slice(0, 30);
-            localStorage.setItem('rtco_official_documents', JSON.stringify(lightList));
-          } catch {}
-        } else {
-          setDocuments([]);
-          localStorage.removeItem('rtco_official_documents');
-        }
-      })
-      .catch(() => {
-        // في حال انقطاع الاتصال المؤقت فقط نحاول استرجاع المخزن
-        const stored = localStorage.getItem('rtco_official_documents');
-        if (stored) {
-          try {
-            setDocuments(JSON.parse(stored));
-          } catch {
-            setDocuments([]);
-          }
-        } else {
-          setDocuments([]);
-        }
-      });
-
     setOutDocNumber(generateCode('ص'));
     setInDocNumber(generateCode('و'));
     setOrderDocNumber(generateCode('أ.إ'));
@@ -304,6 +366,10 @@ export default function AdministrativeDocumentsPage() {
 
   const canAdd = useMemo(() => {
     return Boolean(isSuperAdmin || hasPermission(currentUser, 'admin_docs', 'add'));
+  }, [currentUser, isSuperAdmin]);
+
+  const canEdit = useMemo(() => {
+    return Boolean(isSuperAdmin || hasPermission(currentUser, 'admin_docs', 'edit'));
   }, [currentUser, isSuperAdmin]);
 
   const canDelete = useMemo(() => {
@@ -514,6 +580,7 @@ export default function AdministrativeDocumentsPage() {
   }, [companySettings]);
 
   const handleApplyTemplate = (tpl: any) => {
+    setEditingDocId(null);
     if (activeTab === 'OUTGOING') {
       setOutDocNumber(generateCode('ص'));
       setOutRecipient(tpl.recipient || '');
@@ -540,6 +607,54 @@ export default function AdministrativeDocumentsPage() {
       setInMainLetterUrl('');
       setInScannedUrls([]);
       setShowIncomingModal(true);
+    }
+  };
+
+  const handleEditDocument = (doc: OfficialDoc) => {
+    if (!canEdit) {
+      alert('ليس لديك صلاحية لتعديل الوثائق والمخاطبات الرسمية.');
+      return;
+    }
+    setEditingDocId(doc.id);
+    setDocBranchId(doc.branch_id || (isRestrictedBranch ? currentUser.assigned_branch_id : 'BR-HQ-01'));
+
+    if (doc.type === 'OUTGOING') {
+      setOutDocNumber(doc.docNumber || '');
+      setOutDocDate(doc.docDate || new Date().toISOString().substring(0, 10));
+      setOutPriority(doc.priority || 'NORMAL');
+      setOutRecipient(doc.partyName || '');
+      setOutSubject(doc.subject || '');
+      setOutContent(doc.content || '');
+      setOutAttachments(doc.attachments || 'لا يوجد');
+      setOutCarbonCopy(doc.carbonCopy || '');
+      setOutSignatoryTitle(doc.signatoryTitle || 'المدير المفوض');
+      setOutSignatoryName(doc.signatoryName || 'عامر الطرفي');
+      setOutScannedUrls(doc.scannedFileUrls || []);
+      setShowOutgoingModal(true);
+    } else if (doc.type === 'INCOMING') {
+      setInDocNumber(doc.docNumber || '');
+      setInDocDate(doc.docDate || new Date().toISOString().substring(0, 10));
+      setInSenderNumber(doc.senderDocNumber || '');
+      setInSenderDate(doc.senderDocDate || new Date().toISOString().substring(0, 10));
+      setInSenderName(doc.partyName || '');
+      setInSubject(doc.subject || '');
+      setInPriority(doc.priority || 'NORMAL');
+      setInAttachments(doc.attachments || 'لا يوجد');
+      setInMainLetterUrl(doc.mainLetterUrl || '');
+      setInScannedUrls(doc.scannedFileUrls || []);
+      setInNotes(doc.notes || '');
+      setShowIncomingModal(true);
+    } else if (doc.type === 'INTERNAL_ORDER') {
+      setOrderDocNumber(doc.docNumber || '');
+      setOrderDocDate(doc.docDate || new Date().toISOString().substring(0, 10));
+      setOrderRecipient(doc.partyName || '');
+      setOrderSubject(doc.subject || '');
+      setOrderContent(doc.content || '');
+      setOrderAttachments(doc.attachments || 'لا يوجد');
+      setOrderSignatoryTitle(doc.signatoryTitle || 'المدير المفوض');
+      setOrderSignatoryName(doc.signatoryName || 'عامر الطرفي');
+      setOrderScannedUrls(doc.scannedFileUrls || []);
+      setShowOrderModal(true);
     }
   };
 
@@ -585,7 +700,7 @@ export default function AdministrativeDocumentsPage() {
 
   const safeSaveToStorage = (updatedDocs: OfficialDoc[]) => {
     try {
-      const lightStorageList = updatedDocs.slice(0, 30);
+      const lightStorageList = updatedDocs.slice(0, 50);
       localStorage.setItem('rtco_official_documents', JSON.stringify(lightStorageList));
       setDocuments(updatedDocs);
       return true;
@@ -602,8 +717,21 @@ export default function AdministrativeDocumentsPage() {
       return;
     }
 
-    const newDoc: OfficialDoc = {
-      id: `OUT-${Date.now()}`,
+    const existingDoc = editingDocId ? documents.find(d => d.id === editingDocId) : null;
+    
+    let assignedBranchId = docBranchId;
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      assignedBranchId = currentUser.assigned_branch_id;
+    } else if (!assignedBranchId || assignedBranchId === 'ALL') {
+      assignedBranchId = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'BR-HQ-01';
+    }
+
+    const assignedBranchName = resolveBranchName(assignedBranchId);
+
+    const docPayload: OfficialDoc = {
+      id: editingDocId || `OUT-${Date.now()}`,
+      branch_id: assignedBranchId,
+      branch_name: assignedBranchName,
       type: 'OUTGOING',
       priority: outPriority,
       status: 'COMPLETED',
@@ -617,22 +745,26 @@ export default function AdministrativeDocumentsPage() {
       signatoryTitle: outSignatoryTitle.trim(),
       signatoryName: outSignatoryName.trim(),
       scannedFileUrls: outScannedUrls,
-      createdAt: new Date().toISOString()
+      createdAt: existingDoc?.createdAt || new Date().toISOString()
     };
 
-    const updated = [newDoc, ...documents];
+    const updated = editingDocId 
+      ? documents.map(d => d.id === editingDocId ? docPayload : d)
+      : [docPayload, ...documents];
+
     if (safeSaveToStorage(updated)) {
-      await syncDocToCloud(newDoc);
+      await syncDocToCloud(docPayload);
       await pushSystemNotification(
-        `كتاب صادر رسمي: ${newDoc.docNumber}`,
-        `تم إصدار كتاب رسمي موجه إلى (${newDoc.partyName}) بموضوع: ${newDoc.subject}`,
+        editingDocId ? `تعديل كتاب صادر: ${docPayload.docNumber}` : `كتاب صادر رسمي: ${docPayload.docNumber}`,
+        `تم ${editingDocId ? 'تعديل' : 'إصدار'} كتاب رسمي في (${docPayload.branch_name}) موجه إلى (${docPayload.partyName}) بموضوع: ${docPayload.subject}`,
         'ADMIN_DOCS',
         '/admin/documents',
-        'ADD'
+        editingDocId ? 'UPDATE' : 'ADD'
       );
 
       setShowOutgoingModal(false);
-      setSelectedDocForPrint(newDoc);
+      setEditingDocId(null);
+      setSelectedDocForPrint(docPayload);
       setOutDocNumber(generateCode('ص'));
       setOutRecipient('');
       setOutSubject('');
@@ -652,8 +784,21 @@ export default function AdministrativeDocumentsPage() {
       return;
     }
 
-    const newDoc: OfficialDoc = {
-      id: `INC-${Date.now()}`,
+    const existingDoc = editingDocId ? documents.find(d => d.id === editingDocId) : null;
+    
+    let assignedBranchId = docBranchId;
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      assignedBranchId = currentUser.assigned_branch_id;
+    } else if (!assignedBranchId || assignedBranchId === 'ALL') {
+      assignedBranchId = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'BR-HQ-01';
+    }
+
+    const assignedBranchName = resolveBranchName(assignedBranchId);
+
+    const docPayload: OfficialDoc = {
+      id: editingDocId || `INC-${Date.now()}`,
+      branch_id: assignedBranchId,
+      branch_name: assignedBranchName,
       type: 'INCOMING',
       priority: inPriority,
       status: 'COMPLETED',
@@ -667,22 +812,26 @@ export default function AdministrativeDocumentsPage() {
       mainLetterUrl: inMainLetterUrl,
       scannedFileUrls: inScannedUrls,
       notes: inNotes.trim(),
-      createdAt: new Date().toISOString()
+      createdAt: existingDoc?.createdAt || new Date().toISOString()
     };
 
-    const updated = [newDoc, ...documents];
+    const updated = editingDocId 
+      ? documents.map(d => d.id === editingDocId ? docPayload : d)
+      : [docPayload, ...documents];
+
     if (safeSaveToStorage(updated)) {
-      await syncDocToCloud(newDoc);
+      await syncDocToCloud(docPayload);
       await pushSystemNotification(
-        `كتاب وارد جديد: ${newDoc.docNumber}`,
-        `ورد كتاب رسمي من (${newDoc.partyName}) برقم كتابهم (${newDoc.senderDocNumber}) بموضوع: ${newDoc.subject}`,
+        editingDocId ? `تعديل كتاب وارد: ${docPayload.docNumber}` : `كتاب وارد جديد: ${docPayload.docNumber}`,
+        `تم ${editingDocId ? 'تعديل' : 'تسجيل'} كتاب وارد لـ (${docPayload.branch_name}) من (${docPayload.partyName}) برقم كتابهم (${docPayload.senderDocNumber}) بموضوع: ${docPayload.subject}`,
         'ADMIN_DOCS',
         '/admin/documents',
-        'ADD'
+        editingDocId ? 'UPDATE' : 'ADD'
       );
 
       setShowIncomingModal(false);
-      setSelectedDocForPrint(newDoc);
+      setEditingDocId(null);
+      setSelectedDocForPrint(docPayload);
       setInDocNumber(generateCode('و'));
       setInSenderName('');
       setInSenderNumber('');
@@ -700,8 +849,21 @@ export default function AdministrativeDocumentsPage() {
       return;
     }
 
-    const newDoc: OfficialDoc = {
-      id: `ORD-${Date.now()}`,
+    const existingDoc = editingDocId ? documents.find(d => d.id === editingDocId) : null;
+    
+    let assignedBranchId = docBranchId;
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      assignedBranchId = currentUser.assigned_branch_id;
+    } else if (!assignedBranchId || assignedBranchId === 'ALL') {
+      assignedBranchId = selectedBranchId && selectedBranchId !== 'ALL' ? selectedBranchId : 'BR-HQ-01';
+    }
+
+    const assignedBranchName = resolveBranchName(assignedBranchId);
+
+    const docPayload: OfficialDoc = {
+      id: editingDocId || `ORD-${Date.now()}`,
+      branch_id: assignedBranchId,
+      branch_name: assignedBranchName,
       type: 'INTERNAL_ORDER',
       priority: 'NORMAL',
       status: 'COMPLETED',
@@ -714,22 +876,26 @@ export default function AdministrativeDocumentsPage() {
       signatoryTitle: orderSignatoryTitle.trim(),
       signatoryName: orderSignatoryName.trim(),
       scannedFileUrls: orderScannedUrls,
-      createdAt: new Date().toISOString()
+      createdAt: existingDoc?.createdAt || new Date().toISOString()
     };
 
-    const updated = [newDoc, ...documents];
+    const updated = editingDocId 
+      ? documents.map(d => d.id === editingDocId ? docPayload : d)
+      : [docPayload, ...documents];
+
     if (safeSaveToStorage(updated)) {
-      await syncDocToCloud(newDoc);
+      await syncDocToCloud(docPayload);
       await pushSystemNotification(
-        `أمر إداري داخلي: ${newDoc.docNumber}`,
-        `تم إصدار أمر إداري جديد بموضوع: ${newDoc.subject}`,
+        editingDocId ? `تعديل أمر إداري: ${docPayload.docNumber}` : `أمر إداري داخلي: ${docPayload.docNumber}`,
+        `تم ${editingDocId ? 'تعديل' : 'إصدار'} أمر إداري في (${docPayload.branch_name}) بموضوع: ${docPayload.subject}`,
         'ADMIN_DOCS',
         '/admin/documents',
-        'ADD'
+        editingDocId ? 'UPDATE' : 'ADD'
       );
 
       setShowOrderModal(false);
-      setSelectedDocForPrint(newDoc);
+      setEditingDocId(null);
+      setSelectedDocForPrint(docPayload);
       setOrderDocNumber(generateCode('أ.إ'));
       setOrderSubject('م / أمر إداري');
       setOrderContent('');
@@ -767,11 +933,90 @@ export default function AdministrativeDocumentsPage() {
     }
   };
 
-  // دالة تصدير ملف إكسل رسمي متعدد الأوراق بنظام XML SpreadsheetML الحقيقي
+  const currentTabDocs = useMemo(() => {
+    let sourceDocs = documents.filter(d => d.type === activeTab);
+
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      const assignedId = String(currentUser.assigned_branch_id).trim();
+      const assignedName = resolveBranchName(assignedId).trim();
+      sourceDocs = sourceDocs.filter(d => {
+        const docBId = String(d.branch_id || '').trim();
+        const docBName = String(d.branch_name || '').trim();
+        return docBId === assignedId || (docBName && docBName.includes(assignedName));
+      });
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      const activeBId = String(selectedBranchId).trim();
+      const activeBName = currentActiveBranchName.trim();
+
+      sourceDocs = sourceDocs.filter(d => {
+        const docBId = String(d.branch_id || '').trim();
+        const docBName = String(d.branch_name || '').trim();
+
+        return (
+          docBId === activeBId ||
+          (docBName && docBName.includes(activeBName)) ||
+          (docBName && docBName.includes(activeBId))
+        );
+      });
+    }
+
+    if (!searchQuery.trim()) return sourceDocs;
+
+    const q = searchQuery.toLowerCase().trim();
+    return sourceDocs.filter(d => 
+      d.docNumber.toLowerCase().includes(q) ||
+      d.subject.toLowerCase().includes(q) ||
+      d.partyName.toLowerCase().includes(q) ||
+      (d.senderDocNumber && d.senderDocNumber.toLowerCase().includes(q))
+    );
+  }, [documents, activeTab, searchQuery, selectedBranchId, currentActiveBranchName, isRestrictedBranch, currentUser]);
+
+  const counts = useMemo(() => {
+    let sourceDocs = documents;
+
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      const assignedId = String(currentUser.assigned_branch_id).trim();
+      const assignedName = resolveBranchName(assignedId).trim();
+      sourceDocs = sourceDocs.filter(d => {
+        const docBId = String(d.branch_id || '').trim();
+        const docBName = String(d.branch_name || '').trim();
+        return docBId === assignedId || (docBName && docBName.includes(assignedName));
+      });
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      const activeBId = String(selectedBranchId).trim();
+      const activeBName = currentActiveBranchName.trim();
+
+      sourceDocs = sourceDocs.filter(d => {
+        const docBId = String(d.branch_id || '').trim();
+        const docBName = String(d.branch_name || '').trim();
+
+        return (
+          docBId === activeBId ||
+          (docBName && docBName.includes(activeBName)) ||
+          (docBName && docBName.includes(activeBId))
+        );
+      });
+    }
+
+    return {
+      outgoing: sourceDocs.filter(d => d.type === 'OUTGOING').length,
+      incoming: sourceDocs.filter(d => d.type === 'INCOMING').length,
+      internal: sourceDocs.filter(d => d.type === 'INTERNAL_ORDER').length
+    };
+  }, [documents, selectedBranchId, currentActiveBranchName, isRestrictedBranch, currentUser]);
+
   const exportActiveTabExcel = () => {
-    const outgoingDocs = documents.filter(d => d.type === 'OUTGOING');
-    const incomingDocs = documents.filter(d => d.type === 'INCOMING');
-    const orderDocs = documents.filter(d => d.type === 'INTERNAL_ORDER');
+    let sourceDocs = documents;
+
+    if (isRestrictedBranch && currentUser?.assigned_branch_id) {
+      sourceDocs = sourceDocs.filter(d => String(d.branch_id || '') === String(currentUser.assigned_branch_id));
+    } else if (selectedBranchId && selectedBranchId !== 'ALL') {
+      sourceDocs = sourceDocs.filter(d => String(d.branch_id || '') === String(selectedBranchId));
+    }
+
+    const outgoingDocs = sourceDocs.filter(d => d.type === 'OUTGOING');
+    const incomingDocs = sourceDocs.filter(d => d.type === 'INCOMING');
+    const orderDocs = sourceDocs.filter(d => d.type === 'INTERNAL_ORDER');
 
     const primaryColor = companySettings.primary_color || '#d97706';
 
@@ -791,7 +1036,7 @@ export default function AdministrativeDocumentsPage() {
       rowsXml += `
         <Row ss:Height="32">
           <Cell ss:MergeAcross="${headers.length - 1}" ss:StyleID="sCompanyHeader">
-            <Data ss:Type="String">${escapeXml(companySettings.company_name)} ${escapeXml(companySettings.tagline)}</Data>
+            <Data ss:Type="String">${escapeXml(companySettings.company_name)} - ${escapeXml(currentActiveBranchName)}</Data>
           </Cell>
         </Row>
       `;
@@ -960,11 +1205,6 @@ export default function AdministrativeDocumentsPage() {
    <Alignment ss:Horizontal="Right" ss:Vertical="Center" />
    <Font ss:FontName="Segoe UI" ss:Size="14" ss:Color="#0F172A" />
    <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-   </Borders>
   </Style>
   <Style ss:ID="sDataCenter">
    <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
@@ -980,11 +1220,6 @@ export default function AdministrativeDocumentsPage() {
    <Alignment ss:Horizontal="Center" ss:Vertical="Center" />
    <Font ss:FontName="Segoe UI" ss:Size="14" ss:Bold="1" ss:Color="${primaryColor}" />
    <Interior ss:Color="#F8FAFC" ss:Pattern="Solid" />
-   <Borders>
-    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-    <Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-    <Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#E2E8F0" />
-   </Borders>
   </Style>
  </Styles>
  ${buildXmlWorksheet('سجل الكتب الصادرة', 'سجل الكتب الرسمية الصادرة للشركة', outgoingHeaders, outgoingRows)}
@@ -1001,28 +1236,6 @@ export default function AdministrativeDocumentsPage() {
     link.click();
     document.body.removeChild(link);
   };
-
-  const currentTabDocs = useMemo(() => {
-    return documents.filter(d => {
-      if (d.type !== activeTab) return false;
-      if (!searchQuery.trim()) return true;
-      const q = searchQuery.toLowerCase().trim();
-      return (
-        d.docNumber.toLowerCase().includes(q) ||
-        d.subject.toLowerCase().includes(q) ||
-        d.partyName.toLowerCase().includes(q) ||
-        (d.senderDocNumber && d.senderDocNumber.toLowerCase().includes(q))
-      );
-    });
-  }, [documents, activeTab, searchQuery]);
-
-  const counts = useMemo(() => {
-    return {
-      outgoing: documents.filter(d => d.type === 'OUTGOING').length,
-      incoming: documents.filter(d => d.type === 'INCOMING').length,
-      internal: documents.filter(d => d.type === 'INTERNAL_ORDER').length
-    };
-  }, [documents]);
 
   const scrollToSection = (id: string) => {
     const el = document.getElementById(id);
@@ -1062,31 +1275,40 @@ export default function AdministrativeDocumentsPage() {
               margin: 0 !important;
               padding: 0 !important;
               width: 210mm !important;
+              height: 297mm !important;
             }
-            .print-hidden-element {
+            header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
               display: none !important;
+              visibility: hidden !important;
             }
             .print-official-sheet {
+              box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
               margin: 0 !important;
               width: 210mm !important;
               max-width: 210mm !important;
-              min-height: 297mm !important;
+              height: 296mm !important;
+              max-height: 296mm !important;
               padding: 0 !important;
+              overflow: hidden !important;
               page-break-after: always !important;
+              page-break-inside: avoid !important;
             }
             .print-attachment-sheet {
+              box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
               margin: 0 !important;
               width: 210mm !important;
               max-width: 210mm !important;
-              min-height: 297mm !important;
+              height: 296mm !important;
+              min-height: 296mm !important;
               page-break-before: always !important;
               page-break-after: always !important;
+              page-break-inside: avoid !important;
               display: flex !important;
               flex-direction: column !important;
               justify-content: flex-start !important;
@@ -1121,7 +1343,7 @@ export default function AdministrativeDocumentsPage() {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 font-medium">
-                  {companySettings.company_name} • الصادر والوارد والأوامر الإدارية مع المزامنة السحابية الفورية
+                  {companySettings.company_name} • نطاق العرض: <strong className="text-amber-400">{currentActiveBranchName}</strong>
                 </p>
               </div>
             </div>
@@ -1131,6 +1353,7 @@ export default function AdministrativeDocumentsPage() {
                 <>
                   <button
                     onClick={() => {
+                      setEditingDocId(null);
                       setOutDocNumber(generateCode('ص'));
                       setOutScannedUrls([]);
                       setShowOutgoingModal(true);
@@ -1145,6 +1368,7 @@ export default function AdministrativeDocumentsPage() {
 
                   <button
                     onClick={() => {
+                      setEditingDocId(null);
                       setInDocNumber(generateCode('و'));
                       setInMainLetterUrl('');
                       setInScannedUrls([]);
@@ -1157,6 +1381,7 @@ export default function AdministrativeDocumentsPage() {
 
                   <button
                     onClick={() => {
+                      setEditingDocId(null);
                       setOrderDocNumber(generateCode('أ.إ'));
                       setOrderScannedUrls([]);
                       setShowOrderModal(true);
@@ -1187,7 +1412,7 @@ export default function AdministrativeDocumentsPage() {
           </div>
         </div>
 
-        {/* شريط النماذج */}
+        {/* شريط النماذج التخصصية الجاهزة */}
         <div className="max-w-7xl mx-auto mt-6 print:hidden print-hidden-element bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800 p-4 rounded-3xl space-y-3 shadow-xl">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <span className="text-xs font-bold text-amber-400 flex items-center gap-2">
@@ -1311,12 +1536,13 @@ export default function AdministrativeDocumentsPage() {
                 {currentTabDocs.length === 0 ? (
                   <tr>
                     <td colSpan={activeTab === 'INCOMING' ? 9 : 7} className="p-10 text-center text-slate-500 font-sans">
-                      لا توجد وثائق مسجلة في هذا السجل حالياً.
+                      لا توجد وثائق مسجلة في هذا السجل للفرع المختار حالياً.
                     </td>
                   </tr>
                 ) : (
                   currentTabDocs.map((doc) => {
                     const totalPages = (doc.mainLetterUrl ? 1 : 0) + (doc.scannedFileUrls ? doc.scannedFileUrls.length : 0);
+                    const docBranchDisplay = doc.branch_name || resolveBranchName(doc.branch_id);
 
                     return (
                       <tr key={doc.id} className="hover:bg-slate-800/40 transition">
@@ -1330,7 +1556,12 @@ export default function AdministrativeDocumentsPage() {
                           </>
                         )}
 
-                        <td className="p-3.5 font-bold text-white max-w-[180px] truncate">{doc.partyName}</td>
+                        <td className="p-3.5 font-bold text-white max-w-[180px] truncate">
+                          {doc.partyName}
+                          <span className="block text-[10px] text-amber-400 font-bold mt-0.5">
+                            ({docBranchDisplay})
+                          </span>
+                        </td>
                         <td className="p-3.5 text-slate-300 font-semibold max-w-[220px] truncate">{doc.subject}</td>
                         <td className="p-3.5 text-slate-400 max-w-[140px] truncate">{doc.attachments || 'لا يوجد'}</td>
 
@@ -1356,6 +1587,17 @@ export default function AdministrativeDocumentsPage() {
                             >
                               <Printer className="w-3.5 h-3.5" /> تصفح ومعاينة
                             </button>
+
+                            {canEdit && (
+                              <button
+                                onClick={() => handleEditDocument(doc)}
+                                className="p-1.5 bg-sky-500/10 hover:bg-sky-600 text-sky-400 hover:text-white rounded-xl border border-sky-500/30 transition cursor-pointer"
+                                title="تعديل الكتاب"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+
                             {canDelete && (
                               <button
                                 onClick={() => handleDeleteDocument(doc.id)}
@@ -1376,7 +1618,7 @@ export default function AdministrativeDocumentsPage() {
           </div>
         </div>
 
-        {/* نافذة إنشاء كتاب صادر */}
+        {/* نافذة إنشاء / تعديل كتاب صادر */}
         {showOutgoingModal && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
@@ -1384,16 +1626,44 @@ export default function AdministrativeDocumentsPage() {
                 <div className="flex items-center gap-2">
                   <Send className="w-5 h-5" style={{ color: companySettings.primary_color || '#d97706' }} />
                   <div>
-                    <h3 className="text-base font-bold text-white">تحرير كتاب صادر رسمي (إرفاق صور ومستندات متعددة)</h3>
+                    <h3 className="text-base font-bold text-white">
+                      {editingDocId ? 'تعديل كتاب صادر رسمي' : 'تحرير كتاب صادر رسمي (إرفاق صور ومستندات متعددة)'}
+                    </h3>
                     <p className="text-[11px] text-slate-400">ستطبع المرفقات في صفحات ثانية ولاحقة مستقلة وبدقة عالية وكبيرة</p>
                   </div>
                 </div>
-                <button onClick={() => setShowOutgoingModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <button onClick={() => { setShowOutgoingModal(false); setEditingDocId(null); }} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveOutgoing} className="space-y-4 text-xs">
+                {/* اختيار الفرع المعتمد رسمياً */}
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-amber-500/30">
+                  <label className="block text-amber-400 mb-1 font-bold">الفرع الصادر منه الكتاب رسمياً *</label>
+                  {isRestrictedBranch ? (
+                    <div className="w-full bg-slate-900 border border-amber-500/40 rounded-xl p-2.5 text-amber-300 font-bold flex items-center justify-between">
+                      <span>📍 {currentActiveBranchName}</span>
+                      <span className="text-[10px] bg-slate-950 border border-amber-500/30 text-amber-400 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                        <Lock className="w-2.5 h-2.5 text-amber-400" /> مقيد
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={docBranchId}
+                      onChange={(e) => setDocBranchId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold outline-none cursor-pointer"
+                    >
+                      <option value="BR-HQ-01">المقر الرئيسي (النجف الأشرف)</option>
+                      {(branches || []).filter((b: any) => b.branch_id !== 'BR-HQ-01').map((b: any) => (
+                        <option key={b.branch_id} value={b.branch_id}>
+                          {b.name_ar || `فرع ${b.branch_id}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">عدد كتاب الصادر *</label>
@@ -1580,13 +1850,13 @@ export default function AdministrativeDocumentsPage() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button type="button" onClick={() => setShowOutgoingModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
+                  <button type="button" onClick={() => { setShowOutgoingModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button 
                     type="submit" 
                     className="px-6 py-2.5 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer"
                     style={{ background: `linear-gradient(90deg, ${companySettings.primary_color || '#d97706'}, ${companySettings.secondary_color || '#ea580c'})` }}
                   >
-                    اعتماد وإصدار الكتاب الصادر مع المرفقات
+                    {editingDocId ? 'حفظ التعديلات' : 'اعتماد وإصدار الكتاب الصادر مع المرفقات'}
                   </button>
                 </div>
               </form>
@@ -1594,7 +1864,7 @@ export default function AdministrativeDocumentsPage() {
           </div>
         )}
 
-        {/* نافذة تسجيل كتاب وارد */}
+        {/* نافذة إنشاء / تعديل كتاب وارد */}
         {showIncomingModal && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
@@ -1602,16 +1872,44 @@ export default function AdministrativeDocumentsPage() {
                 <div className="flex items-center gap-2">
                   <Inbox className="w-5 h-5 text-sky-400" />
                   <div>
-                    <h3 className="text-base font-bold text-white">تسجيل كتاب وارد (الكتاب الرئيسي + المرفقات المتعددة)</h3>
+                    <h3 className="text-base font-bold text-white">
+                      {editingDocId ? 'تعديل كتاب وارد' : 'تسجيل كتاب وارد (الكتاب الرئيسي + المرفقات المتعددة)'}
+                    </h3>
                     <p className="text-[11px] text-slate-400">سيدرج الكتاب الرئيسي داخل إطار الصفحة الأولى، وتدرج كافة المرفقات في الصفحات اللاحقة</p>
                   </div>
                 </div>
-                <button onClick={() => setShowIncomingModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <button onClick={() => { setShowIncomingModal(false); setEditingDocId(null); }} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveIncoming} className="space-y-4 text-xs">
+                {/* اختيار الفرع المعتمد رسمياً */}
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-sky-500/30">
+                  <label className="block text-sky-400 mb-1 font-bold">الفرع الوارد إليه الكتاب رسمياً *</label>
+                  {isRestrictedBranch ? (
+                    <div className="w-full bg-slate-900 border border-sky-500/40 rounded-xl p-2.5 text-sky-300 font-bold flex items-center justify-between">
+                      <span>📍 {currentActiveBranchName}</span>
+                      <span className="text-[10px] bg-slate-950 border border-sky-500/30 text-sky-400 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                        <Lock className="w-2.5 h-2.5 text-sky-400" /> مقيد
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={docBranchId}
+                      onChange={(e) => setDocBranchId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold outline-none cursor-pointer"
+                    >
+                      <option value="BR-HQ-01">المقر الرئيسي (النجف الأشرف)</option>
+                      {(branches || []).filter((b: any) => b.branch_id !== 'BR-HQ-01').map((b: any) => (
+                        <option key={b.branch_id} value={b.branch_id}>
+                          {b.name_ar || `فرع ${b.branch_id}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 space-y-2.5">
                   <span className="font-bold block text-xs" style={{ color: companySettings.primary_color || '#d97706' }}>بيانات قيد الوارد لدى {companySettings.company_name}:</span>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1851,9 +2149,9 @@ export default function AdministrativeDocumentsPage() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button type="button" onClick={() => setShowIncomingModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
+                  <button type="button" onClick={() => { setShowIncomingModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
-                    حفظ وأرشفة الكتاب الوارد
+                    {editingDocId ? 'حفظ التعديلات' : 'حفظ وأرشفة الكتاب الوارد'}
                   </button>
                 </div>
               </form>
@@ -1861,7 +2159,7 @@ export default function AdministrativeDocumentsPage() {
           </div>
         )}
 
-        {/* نافذة إنشاء أمر إداري */}
+        {/* نافذة إنشاء / تعديل أمر إداري */}
         {showOrderModal && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
             <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
@@ -1869,16 +2167,44 @@ export default function AdministrativeDocumentsPage() {
                 <div className="flex items-center gap-2">
                   <Bookmark className="w-5 h-5 text-emerald-400" />
                   <div>
-                    <h3 className="text-base font-bold text-white">إصدار أمر إداري داخلي</h3>
+                    <h3 className="text-base font-bold text-white">
+                      {editingDocId ? 'تعديل أمر إداري داخلي' : 'إصدار أمر إداري داخلي'}
+                    </h3>
                     <p className="text-[11px] text-slate-400">تشكيل لجان، استلام مواقع، وتكليف مهندسين</p>
                   </div>
                 </div>
-                <button onClick={() => setShowOrderModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
+                <button onClick={() => { setShowOrderModal(false); setEditingDocId(null); }} className="text-slate-400 hover:text-white cursor-pointer">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               <form onSubmit={handleSaveOrder} className="space-y-4 text-xs">
+                {/* اختيار الفرع المعتمد رسمياً */}
+                <div className="bg-slate-950 p-3.5 rounded-2xl border border-emerald-500/30">
+                  <label className="block text-emerald-400 mb-1 font-bold">الفرع الصادر منه الأمر الإداري *</label>
+                  {isRestrictedBranch ? (
+                    <div className="w-full bg-slate-900 border border-emerald-500/40 rounded-xl p-2.5 text-emerald-300 font-bold flex items-center justify-between">
+                      <span>📍 {currentActiveBranchName}</span>
+                      <span className="text-[10px] bg-slate-950 border border-emerald-500/30 text-emerald-400 px-2 py-0.5 rounded-md flex items-center gap-1 font-mono">
+                        <Lock className="w-2.5 h-2.5 text-emerald-400" /> مقيد
+                      </span>
+                    </div>
+                  ) : (
+                    <select
+                      value={docBranchId}
+                      onChange={(e) => setDocBranchId(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white font-bold outline-none cursor-pointer"
+                    >
+                      <option value="BR-HQ-01">المقر الرئيسي (النجف الأشرف)</option>
+                      {(branches || []).filter((b: any) => b.branch_id !== 'BR-HQ-01').map((b: any) => (
+                        <option key={b.branch_id} value={b.branch_id}>
+                          {b.name_ar || `فرع ${b.branch_id}`}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">العدد (رقم الأمر الإداري) *</label>
@@ -2026,9 +2352,9 @@ export default function AdministrativeDocumentsPage() {
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
-                  <button type="button" onClick={() => setShowOrderModal(false)} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
+                  <button type="button" onClick={() => { setShowOrderModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
-                    اعتماد وإصدار الأمر الإداري A4
+                    {editingDocId ? 'حفظ التعديلات' : 'اعتماد وإصدار الأمر الإداري A4'}
                   </button>
                 </div>
               </form>
@@ -2071,6 +2397,8 @@ export default function AdministrativeDocumentsPage() {
 
           const primaryCol = companySettings.primary_color || '#d97706';
           const secondaryCol = companySettings.secondary_color || '#ea580c';
+
+          const docBranchOfficialName = doc.branch_name || resolveBranchName(doc.branch_id);
 
           return (
             <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible">
@@ -2118,36 +2446,36 @@ export default function AdministrativeDocumentsPage() {
                 </div>
               </div>
 
-              {/* ورقة الطباعة A4 */}
+              {/* ورقة الطباعة A4 الموحدة والمضبوطة هندسياً */}
               <div className="w-full max-w-[210mm] overflow-x-auto pb-6">
                 <div className="w-full min-w-[720px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
                   <div 
                     id="page-first"
-                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1120px] border border-slate-300 print:border-none print:m-0 print:p-0"
+                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1080px] max-h-[1115px] border border-slate-300 print:border-none print:m-0 print:p-0"
                   >
                     {/* العلامة المائية */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
-                      <div className="w-[480px] h-[480px] rounded-full border-[6px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-20 relative p-6">
+                      <div className="w-[460px] h-[460px] rounded-full border-[5px] border-[#e2e8f0] flex flex-col items-center justify-center opacity-15 relative p-6">
                         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                           {hasLogo ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img 
                               src={companySettings.logo_url} 
                               alt="العلامة المائية للشركة" 
-                              className="w-[280px] h-[280px] object-contain grayscale opacity-60" 
+                              className="w-[260px] h-[260px] object-contain grayscale opacity-60" 
                             />
                           ) : (
                             <Image 
                               src="/logo.png" 
                               alt="شركة البرج المتألق" 
-                              width={270} 
-                              height={270} 
+                              width={250} 
+                              height={250} 
                               className="object-contain grayscale opacity-60" 
                               priority 
                             />
                           )}
                         </div>
-                        <div className="text-center mt-52 text-[#64748b] text-[11px] font-bold tracking-wider">
+                        <div className="text-center mt-52 text-[#64748b] text-[10px] font-bold tracking-wider">
                           {companySettings.company_name}
                         </div>
                       </div>
@@ -2155,43 +2483,43 @@ export default function AdministrativeDocumentsPage() {
 
                     <div className="relative z-10 flex flex-col flex-1">
                       
-                      {/* ترويسة الصفحة A4 */}
+                      {/* ترويسة الصفحة A4 الرسمية الأصلية الفخمة دون نصوص إضافية مشوهة */}
                       {hasLetterhead ? (
                         <div className="w-full border-b border-slate-200">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img 
                             src={companySettings.letterhead_url} 
                             alt="ترويسة الشركة الرسمية" 
-                            className="w-full max-h-[160px] object-contain"
+                            className="w-full max-h-[150px] object-contain"
                           />
                         </div>
                       ) : (
                         <>
-                          <div className="h-6 w-full" style={{ backgroundColor: secondaryCol }}></div>
-                          <div className="px-10 pt-4 pb-3 flex items-center justify-between border-b border-slate-200">
+                          <div className="h-5 w-full" style={{ backgroundColor: secondaryCol }}></div>
+                          <div className="px-10 pt-3 pb-2 flex items-center justify-between border-b border-slate-200">
                             <div className="text-right flex-1 font-sans">
                               <h1 className="text-xl md:text-2xl font-black tracking-wide leading-none" style={{ color: primaryCol }}>
                                 {companySettings.company_name}
                               </h1>
-                              <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1.5 leading-snug whitespace-pre-line">
+                              <p className="text-[10px] font-black text-slate-900 tracking-wide mt-1 leading-snug whitespace-pre-line">
                                 {companySettings.tagline || 'للمقاولات العامة والاستثمارات العقارية\nوالتجارة العامة والنقل العام'}
                               </p>
                             </div>
 
-                            <div className="w-20 h-20 relative flex items-center justify-center shrink-0 mx-4">
+                            <div className="w-18 h-18 relative flex items-center justify-center shrink-0 mx-4">
                               {hasLogo ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img 
                                   src={companySettings.logo_url} 
                                   alt="شعار الشركة" 
-                                  className="w-[75px] h-[75px] object-contain" 
+                                  className="w-[70px] h-[70px] object-contain" 
                                 />
                               ) : (
                                 <Image 
                                   src="/logo.png" 
                                   alt="شعار شركة البرج المتألق" 
-                                  width={75} 
-                                  height={75} 
+                                  width={70} 
+                                  height={70} 
                                   className="object-contain" 
                                   priority 
                                 />
@@ -2209,15 +2537,17 @@ export default function AdministrativeDocumentsPage() {
                         </>
                       )}
 
-                      {/* شريط العدد والتاريخ */}
-                      <div className="mx-10 mt-3 bg-[#e4e4e7] px-6 py-2 rounded-sm flex items-center justify-between font-black text-xs text-slate-900 border border-slate-300">
+                      {/* شريط العدد والتاريخ واسم الفرع في السند الرسمي الأنيق */}
+                      <div className="mx-10 mt-2 bg-[#e4e4e7] px-5 py-1.5 rounded-sm flex items-center justify-between font-black text-xs text-slate-900 border border-slate-300">
                         <div className="flex items-center gap-2">
                           <span className="text-slate-900 font-bold">{isIncoming ? 'تاريخ استلام الوارد :' : 'التاريخ :'}</span>
                           <span className="font-mono text-sm tracking-widest">{doc.docDate}</span>
                         </div>
 
-                        <div className="border bg-white px-3 py-0.5 rounded text-[11px] font-black" style={{ borderColor: primaryCol, color: primaryCol }}>
+                        <div className="border bg-white px-2.5 py-0.5 rounded text-[10px] font-black" style={{ borderColor: primaryCol, color: primaryCol }}>
                           {isIncoming ? 'سجل الكتب الواردة' : isOrder ? 'أمر إداري داخلي' : 'كتاب صادر رسمي'}
+                          <span className="mx-1 text-slate-400">|</span>
+                          <span className="text-slate-800 font-bold">{docBranchOfficialName}</span>
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -2227,42 +2557,42 @@ export default function AdministrativeDocumentsPage() {
                       </div>
 
                       {isIncoming && (
-                        <div className="mx-10 mt-3 p-3 bg-slate-50 border border-slate-300 rounded-xl grid grid-cols-2 gap-4 text-xs font-semibold">
+                        <div className="mx-10 mt-2 p-2.5 bg-slate-50 border border-slate-300 rounded-xl grid grid-cols-2 gap-4 text-xs font-semibold">
                           <div>
-                            <span className="text-slate-500 block text-[11px]">عدد كتاب الجهة المرسلة:</span>
-                            <strong className="font-mono text-slate-950 text-sm">{doc.senderDocNumber || '---'}</strong>
+                            <span className="text-slate-500 block text-[10px]">عدد كتاب الجهة المرسلة:</span>
+                            <strong className="font-mono text-slate-950 text-xs">{doc.senderDocNumber || '---'}</strong>
                           </div>
                           <div>
-                            <span className="text-slate-500 block text-[11px]">تاريخ كتاب الجهة المرسلة:</span>
-                            <strong className="font-mono text-slate-950 text-sm">{doc.senderDocDate || '---'}</strong>
+                            <span className="text-slate-500 block text-[10px]">تاريخ كتاب الجهة المرسلة:</span>
+                            <strong className="font-mono text-slate-950 text-xs">{doc.senderDocDate || '---'}</strong>
                           </div>
                         </div>
                       )}
 
-                      <div className="px-14 py-4 space-y-4 flex-1 text-slate-900 flex flex-col">
-                        <div className="text-center font-black text-base text-slate-950 pt-2">
+                      <div className="px-12 py-3 space-y-3 flex-1 text-slate-900 flex flex-col">
+                        <div className="text-center font-black text-base text-slate-950 pt-1">
                           {isIncoming ? `من / ${doc.partyName}` : `إلى / ${doc.partyName}`}
                         </div>
 
-                        <div className="text-center font-black text-sm text-slate-900 pt-1">
+                        <div className="text-center font-black text-sm text-slate-900">
                           <span className="border-b-2 pb-0.5 px-4 inline-block" style={{ borderBottomColor: primaryCol }}>
                             {doc.subject}
                           </span>
                         </div>
 
                         {!isIncoming && doc.content && (
-                          <div className="text-[14px] leading-[2.6] font-medium text-slate-900 text-justify whitespace-pre-line pt-2">
+                          <div className="text-[13px] leading-[2.1] font-medium text-slate-900 text-justify whitespace-pre-line pt-1">
                             {doc.content}
                           </div>
                         )}
 
                         {isIncoming && doc.mainLetterUrl && (
-                          <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group min-h-[580px]">
+                          <div className="w-full flex-1 flex flex-col items-center justify-center p-1 relative group min-h-[500px]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img 
                               src={doc.mainLetterUrl} 
                               alt="الكتاب الوارد الرئيسي" 
-                              className="max-h-[640px] max-w-full w-auto h-auto object-contain rounded-xl border-2 border-slate-300 shadow-md"
+                              className="max-h-[560px] max-w-full w-auto h-auto object-contain rounded-xl border-2 border-slate-300 shadow-md"
                             />
                             <button
                               onClick={() => setViewScannedImage(doc.mainLetterUrl!)}
@@ -2275,32 +2605,32 @@ export default function AdministrativeDocumentsPage() {
 
                         {!isIncoming && (
                           <>
-                            <div className="text-center pt-6 text-base font-black text-slate-900">
+                            <div className="text-center pt-3 text-sm font-black text-slate-900">
                               ... مع فائق الشكر والتقدير
                             </div>
 
-                            <div className="flex justify-between items-end pt-4 px-2">
+                            <div className="flex justify-between items-end pt-2 px-2">
                               <div className="flex flex-col items-center">
-                                <div className="w-16 h-16 border border-slate-300 rounded-lg p-1 bg-white flex items-center justify-center shadow-sm">
+                                <div className="w-14 h-14 border border-slate-300 rounded-lg p-1 bg-white flex items-center justify-center shadow-sm">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img src={qrCodeApiUrl} alt="باركود التحقق" className="w-full h-full object-contain" />
                                 </div>
-                                <span className="font-mono text-[9px] text-slate-500 mt-1">DOC VERIFIED</span>
+                                <span className="font-mono text-[8px] text-slate-500 mt-0.5">DOC VERIFIED</span>
                               </div>
 
-                              <div className="text-center space-y-1 min-w-[220px]">
-                                <p className="font-black text-base text-slate-950">{doc.signatoryName}</p>
-                                <p className="text-xs font-bold text-slate-700">{doc.signatoryTitle}</p>
-                                <p className="text-[11px] text-slate-500">{companySettings.company_name}</p>
+                              <div className="text-center space-y-0.5 min-w-[200px]">
+                                <p className="font-black text-sm text-slate-950">{doc.signatoryName}</p>
+                                <p className="text-[11px] font-bold text-slate-700">{doc.signatoryTitle}</p>
+                                <p className="text-[10px] text-slate-500">{companySettings.company_name}</p>
                                 
-                                <div className="h-16 flex items-center justify-center relative">
+                                <div className="h-12 flex items-center justify-center relative">
                                   <div 
-                                    className="border-2 border-dashed rounded-full w-20 h-20 flex flex-col items-center justify-center rotate-[-12deg] p-1 pointer-events-none absolute"
+                                    className="border-2 border-dashed rounded-full w-16 h-16 flex flex-col items-center justify-center rotate-[-12deg] p-1 pointer-events-none absolute"
                                     style={{ borderColor: primaryCol, color: primaryCol }}
                                   >
-                                    <span className="text-[8px] font-black">{companySettings.company_name}</span>
-                                    <span className="text-[7px] font-bold">مصادق رسمياً</span>
-                                    <span className="text-[7px] font-mono">{doc.docDate}</span>
+                                    <span className="text-[7px] font-black">{companySettings.company_name}</span>
+                                    <span className="text-[6px] font-bold">مصادق رسمياً</span>
+                                    <span className="text-[6px] font-mono">{doc.docDate}</span>
                                   </div>
                                 </div>
                               </div>
@@ -2311,9 +2641,9 @@ export default function AdministrativeDocumentsPage() {
                       </div>
                     </div>
 
-                    {/* تذييل الصفحة المطبوعة */}
+                    {/* تذييل الصفحة المطبوعة المحكم بدقة ورقة A4 */}
                     <div className="relative z-10 w-full bg-white mt-auto">
-                      <div className="mx-10 pt-3 pb-2 border-t border-slate-300 text-[11px] text-slate-700 space-y-1 font-medium">
+                      <div className="mx-10 pt-2 pb-1 border-t border-slate-300 text-[10px] text-slate-700 space-y-0.5 font-medium">
                         <div className="flex items-center justify-between">
                           <p>
                             <strong>المرفقات: </strong> {doc.attachments || 'لا يوجد'} 
@@ -2335,23 +2665,23 @@ export default function AdministrativeDocumentsPage() {
                         )}
                       </div>
 
-                      <div className="px-10 pb-3 flex items-center justify-between text-xs font-bold text-slate-800 border-t border-slate-200 pt-2">
-                        <div className="flex items-center gap-1.5 font-mono text-[11px] text-slate-700 dir-ltr">
-                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                      <div className="px-10 pb-2 flex items-center justify-between text-[11px] font-bold text-slate-800 border-t border-slate-200 pt-1.5">
+                        <div className="flex items-center gap-1 font-mono text-[10px] text-slate-700 dir-ltr">
+                          <div className="w-5 h-5 rounded bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <Globe className="w-3.5 h-3.5" />
                           </div>
                           <span className="hover:underline">{companySettings.website || activeOrigin}</span>
                         </div>
 
-                        <div className="flex items-center gap-1.5 text-xs text-slate-800">
-                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-1 text-[11px] text-slate-800">
+                          <div className="w-5 h-5 rounded bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <MapPin className="w-3.5 h-3.5" />
                           </div>
                           <span>{companySettings.address}</span>
                         </div>
 
-                        <div className="flex items-center gap-1.5 font-mono text-xs text-slate-800">
-                          <div className="w-6 h-6 rounded-md bg-[#27272a] text-white flex items-center justify-center shrink-0">
+                        <div className="flex items-center gap-1 font-mono text-[11px] text-slate-800">
+                          <div className="w-5 h-5 rounded bg-[#27272a] text-white flex items-center justify-center shrink-0">
                             <Phone className="w-3.5 h-3.5" />
                           </div>
                           <span className="font-bold">
@@ -2361,16 +2691,16 @@ export default function AdministrativeDocumentsPage() {
                         </div>
                       </div>
 
-                      <div className="h-1 w-full mb-2" style={{ backgroundColor: primaryCol }}></div>
+                      <div className="h-1 w-full mb-1" style={{ backgroundColor: primaryCol }}></div>
 
-                      {/* الزخرفة السفلية باللونين المعتمدين من الإعدادات */}
-                      <div className="relative h-12 w-full">
+                      {/* الزخرفة السفلية */}
+                      <div className="relative h-9 w-full">
                         <div 
-                          className="absolute bottom-0 left-0 w-32 h-10 rounded-tr-[50px] opacity-90 transition-colors"
+                          className="absolute bottom-0 left-0 w-28 h-7 rounded-tr-[40px] opacity-90 transition-colors"
                           style={{ backgroundColor: secondaryCol }}
                         ></div>
                         <div 
-                          className="absolute bottom-0 right-0 w-36 h-12 rounded-tl-[70px] transition-colors"
+                          className="absolute bottom-0 right-0 w-32 h-9 rounded-tl-[55px] transition-colors"
                           style={{ backgroundColor: primaryCol }}
                         ></div>
                       </div>
@@ -2382,40 +2712,40 @@ export default function AdministrativeDocumentsPage() {
                     <div 
                       id={`att-${aIdx}`}
                       key={aIdx} 
-                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-10 border border-slate-300 flex flex-col justify-start items-center min-h-[1120px] print:border-none print:m-0"
+                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-8 border border-slate-300 flex flex-col justify-start items-center min-h-[1080px] max-h-[1115px] print:border-none print:m-0"
                     >
-                      <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 relative flex items-center justify-center">
+                      <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-2.5 mb-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-9 h-9 relative flex items-center justify-center">
                             {hasLogo ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={companySettings.logo_url} alt="شعار الشركة" className="w-full h-full object-contain" />
                             ) : (
-                              <Image src="/logo.png" alt="شركة البرج المتألق" width={40} height={40} className="object-contain" priority />
+                              <Image src="/logo.png" alt="شركة البرج المتألق" width={36} height={36} className="object-contain" priority />
                             )}
                           </div>
                           <div>
-                            <h4 className="font-black text-slate-900 text-sm">{companySettings.company_name}</h4>
-                            <p className="text-[10px] font-bold" style={{ color: primaryCol }}>ملف مرفق طي الوثيقة الرسمية</p>
+                            <h4 className="font-black text-slate-900 text-xs">{companySettings.company_name}</h4>
+                            <p className="text-[9px] font-bold" style={{ color: primaryCol }}>ملف مرفق طي الوثيقة الرسمية</p>
                           </div>
                         </div>
 
-                        <div className="text-left font-mono text-xs space-y-0.5">
-                          <span className="bg-slate-950 text-white px-2.5 py-0.5 rounded font-bold text-[10px]">
+                        <div className="text-left font-mono text-[11px] space-y-0.5">
+                          <span className="bg-slate-950 text-white px-2 py-0.5 rounded font-bold text-[9px]">
                             صفحة المرفق ({aIdx + 1} من {attachmentsList.length})
                           </span>
-                          <p className="text-[10px] text-slate-600 font-sans">
+                          <p className="text-[9px] text-slate-600 font-sans">
                             تابع للوثيقة: <strong className="font-mono text-slate-900">{doc.docNumber}</strong> بتاريخ: <strong className="font-mono">{doc.docDate}</strong>
                           </p>
                         </div>
                       </div>
 
-                      <div className="w-full flex-1 flex flex-col items-center justify-center p-2 relative group">
+                      <div className="w-full flex-1 flex flex-col items-center justify-center p-1 relative group">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img 
                           src={attUrl} 
                           alt={`مرفق ${aIdx + 1}`} 
-                          className="max-w-full max-h-[920px] w-auto h-auto object-contain border border-slate-200 rounded-xl shadow-lg"
+                          className="max-w-full max-h-[850px] w-auto h-auto object-contain border border-slate-200 rounded-xl shadow-lg"
                         />
                         
                         <button
@@ -2426,7 +2756,7 @@ export default function AdministrativeDocumentsPage() {
                         </button>
                       </div>
 
-                      <div className="w-full text-center text-[10px] text-slate-400 font-mono border-t border-slate-200 pt-3 mt-4 flex items-center justify-between">
+                      <div className="w-full text-center text-[9px] text-slate-400 font-mono border-t border-slate-200 pt-2 mt-2 flex items-center justify-between">
                         <span>وثيقة مؤرشفة إلكترونياً • نظام الأرشفة والوثائق المركزي</span>
                         <span>صفحة مرفق تابعة للمخاطبة</span>
                       </div>

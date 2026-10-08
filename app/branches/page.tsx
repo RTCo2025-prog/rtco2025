@@ -1,657 +1,435 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { 
-  Building2, 
-  ArrowLeft, 
-  PlusCircle, 
-  Search, 
-  MapPin, 
-  Phone, 
-  User, 
-  LogOut, 
-  X, 
-  RefreshCw, 
-  Trash2, 
-  Edit3, 
-  CheckCircle2, 
-  Briefcase, 
-  Layers, 
-  Activity, 
-  ShieldCheck,
-  Home,
-  Sparkles
-} from 'lucide-react';
-import AuthGuard, { hasPermission } from '@/components/AuthGuard';
+
+interface Branch {
+  branch_id: string;
+  branch_code: string;
+  name_ar: string;
+  branch_type: string;
+  manager_name: string;
+  phone: string;
+  city: string;
+  address: string;
+  status: string;
+  created_at?: string;
+}
 
 export default function BranchesPage() {
-  const router = useRouter();
-  const [currentUser, setCurrentUser] = useState<any | null>(null);
-  const [companySettings, setCompanySettings] = useState<any>({
-    company_name: 'شركة البرج المتألق',
-    primary_color: '#d97706',
-    secondary_color: '#ea580c'
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // نموذج إضافة / تعديل فرع
+  const [formData, setFormData] = useState({
+    branch_id: '',
+    branch_code: '',
+    name_ar: '',
+    branch_type: 'تنفيذ المشاريع الإنشائية والهندسية',
+    manager_name: '',
+    phone: '',
+    city: 'النجف الأشرف',
+    address: '',
+    status: 'ACTIVE'
   });
-  const [branches, setBranches] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
 
-  // نموذج إضافة فرع جديد
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [branchCode, setBranchCode] = useState('');
-  const [nameAr, setNameAr] = useState('');
-  const [branchType, setBranchType] = useState('');
-  const [managerName, setManagerName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [city, setCity] = useState('النجف الأشرف');
-  const [address, setAddress] = useState('');
-
-  // نموذج تعديل فرع
-  const [editingBranch, setEditingBranch] = useState<any | null>(null);
-  const [editNameAr, setEditNameAr] = useState('');
-  const [editBranchType, setEditBranchType] = useState('');
-  const [editManagerName, setEditManagerName] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editCity, setEditCity] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editStatus, setEditStatus] = useState('ACTIVE');
-
-  const loadSettings = async () => {
+  const fetchBranches = async () => {
     try {
-      const res = await fetch('/api/settings', { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.success && data.settings) {
-          setCompanySettings(data.settings);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
-
-  const loadData = async () => {
-    try {
-      const res = await fetch('/api/branches', { cache: 'no-store' });
+      setLoading(true);
+      const res = await fetch('/api/branches');
       const data = await res.json();
-      if (data.branches) setBranches(data.branches);
+      if (data.success) {
+        setBranches(data.branches || []);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Fetch branches error:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadSettings();
-
-    const raw = localStorage.getItem('erp_user');
-    if (raw) {
-      try {
-        setCurrentUser(JSON.parse(raw));
-      } catch {}
-    }
-    loadData();
+    fetchBranches();
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('erp_user');
-    router.push('/login');
+  const handleOpenAddModal = () => {
+    setFormData({
+      branch_id: '',
+      branch_code: `BR-0${branches.length + 1}`,
+      name_ar: '',
+      branch_type: 'تنفيذ المشاريع الإنشائية والهندسية',
+      manager_name: '',
+      phone: '',
+      city: 'النجف الأشرف',
+      address: '',
+      status: 'ACTIVE'
+    });
+    setShowModal(true);
   };
 
-  // استخراج الصلاحيات الدقيقة لقسم الفروع والقطاعات التشغيلية
-  const canAdd = useMemo(() => {
-    return hasPermission(currentUser, 'branches', 'add');
-  }, [currentUser]);
+  const handleOpenEditModal = (b: Branch) => {
+    setFormData({
+      branch_id: b.branch_id,
+      branch_code: b.branch_code,
+      name_ar: b.name_ar,
+      branch_type: b.branch_type,
+      manager_name: b.manager_name,
+      phone: b.phone,
+      city: b.city,
+      address: b.address,
+      status: b.status
+    });
+    setShowModal(true);
+  };
 
-  const canEdit = useMemo(() => {
-    return hasPermission(currentUser, 'branches', 'edit');
-  }, [currentUser]);
-
-  const canDelete = useMemo(() => {
-    return hasPermission(currentUser, 'branches', 'delete');
-  }, [currentUser]);
-
-  const handleAddBranch = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canAdd) {
-      alert('ليس لديك صلاحية إضافة فروع أو قطاعات جديدة');
+    if (!formData.name_ar || !formData.branch_code) {
+      alert('يرجى كتابة اسم الفرع وكود الفرع');
       return;
     }
-    setLoading(true);
+
     try {
+      setSaving(true);
+      const isEdit = Boolean(formData.branch_id);
+      const method = isEdit ? 'PATCH' : 'POST';
+
       const res = await fetch('/api/branches', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branch_code: branchCode,
-          name_ar: nameAr,
-          branch_type: branchType,
-          manager_name: managerName,
-          phone,
-          city,
-          address
-        })
+        body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setShowAddModal(false);
-        setBranchCode('');
-        setNameAr('');
-        setBranchType('');
-        setManagerName('');
-        setPhone('');
-        setAddress('');
-        await loadData();
+      const result = await res.json();
+      if (res.ok && (result.success || result.branch)) {
+        setShowModal(false);
+        fetchBranches();
       } else {
-        alert(data.error || 'فشلت إضافة الفرع');
+        alert(result.error || 'تعذر حفظ بيانات الفرع');
       }
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'حدث خطأ في الاتصال');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleSaveEdit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!canEdit) {
-      alert('ليس لديك صلاحية تعديل بيانات الفروع');
-      return;
-    }
-    if (!editingBranch) return;
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`هل أنت متأكد من حذف الفرع (${name})؟`)) return;
 
-    setLoading(true);
     try {
-      const res = await fetch('/api/branches', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branch_id: editingBranch.branch_id,
-          name_ar: editNameAr,
-          branch_type: editBranchType,
-          manager_name: editManagerName,
-          phone: editPhone,
-          city: editCity,
-          address: editAddress,
-          status: editStatus
-        })
+      const res = await fetch(`/api/branches?id=${encodeURIComponent(id)}`, {
+        method: 'DELETE'
       });
-
       const data = await res.json();
-      if (res.ok && data.success) {
-        setEditingBranch(null);
-        await loadData();
-      } else {
-        alert(data.error || 'فشل التعديل');
-      }
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDeleteBranch = async (b: any) => {
-    if (!canDelete) {
-      alert('ليس لديك صلاحية حذف الفروع');
-      return;
-    }
-    if (!confirm(`هل أنت متأكد من حذف فرع "${b.name_ar}"؟`)) return;
-
-    try {
-      const res = await fetch(`/api/branches?id=${b.branch_id}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        await loadData();
+      if (data.success) {
+        setBranches((prev) => prev.filter((b) => b.branch_id !== id));
       } else {
         alert(data.error || 'فشل حذف الفرع');
       }
     } catch (err: any) {
-      alert(err.message);
+      alert(err.message || 'خطأ أثناء الحذف');
     }
   };
 
-  const filteredBranches = useMemo(() => {
-    return branches.filter(b => {
-      const q = searchQuery.toLowerCase().trim();
-      const code = String(b.branch_code || '').toLowerCase();
-      const name = String(b.name_ar || '').toLowerCase();
-      const type = String(b.branch_type || '').toLowerCase();
-      const manager = String(b.manager_name || '').toLowerCase();
-      return !q || code.includes(q) || name.includes(q) || type.includes(q) || manager.includes(q);
-    });
-  }, [branches, searchQuery]);
-
-  const primaryCol = companySettings.primary_color || '#d97706';
-  const secondaryCol = companySettings.secondary_color || '#ea580c';
-
-  if (!currentUser) return null;
-
-  const roleClean = String(currentUser.role || '').toUpperCase();
-  const isSuperAdmin = currentUser?.is_super_admin || roleClean === 'ADMIN' || roleClean.includes('إدارة');
+  const filteredBranches = branches.filter((b) =>
+    (b.name_ar || '').includes(searchTerm) ||
+    (b.branch_code || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (b.manager_name || '').includes(searchTerm) ||
+    (b.city || '').includes(searchTerm)
+  );
 
   return (
-    <AuthGuard moduleName="branches" requiredAction="view">
-      <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-sans">
-        
-        {/* الترويسة الرئيسية */}
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between pb-6 border-b border-slate-800 gap-4">
+    <div className="min-h-screen bg-[#0b1320] text-slate-100 p-4 md:p-8 font-sans" dir="rtl">
+      {/* الشريط العلوي */}
+      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div>
           <div className="flex items-center gap-3">
-            <div 
-              className="p-3 rounded-2xl text-slate-950 font-black shadow-lg"
-              style={{ background: `linear-gradient(135deg, ${primaryCol}, ${secondaryCol})` }}
-            >
-              <Building2 className="w-6 h-6 text-slate-950" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-white">إدارة الفروع والقطاعات التشغيلية</h1>
-                <span 
-                  className="border text-[10px] font-mono px-2 py-0.5 rounded-full font-bold"
-                  style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
-                >
-                  Corporate Hierarchy
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">متابعة الفروع الإدارية والتجارية لـ {companySettings.company_name} والربط السحابي المباشر</p>
+            <span className="text-3xl">🏢</span>
+            <h1 className="text-2xl md:text-3xl font-bold text-white tracking-wide">
+              إدارة الفروع والمقرات الإدارية
+            </h1>
+          </div>
+          <p className="text-slate-400 text-sm mt-1">
+            متابعة الفروع المعتمدة لشركة البرج المتألق وتوزيع الهيكل التشغيلي
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <Link
+            href="/"
+            className="px-4 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 text-sm transition"
+          >
+            الرئيسية
+          </Link>
+          <button
+            onClick={handleOpenAddModal}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-bold shadow-lg shadow-amber-500/20 transition cursor-pointer"
+          >
+            <span>+</span>
+            <span>إضافة فرع جديد</span>
+          </button>
+        </div>
+      </div>
+
+      {/* بطاقات الإحصائيات */}
+      <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 my-6">
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-slate-400 text-xs font-medium">إجمالي الفروع المسجلة</div>
+            <div className="text-2xl font-black text-amber-400 mt-1">{branches.length} فرع</div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 text-xl font-bold">
+            🏢
+          </div>
+        </div>
+
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-slate-400 text-xs font-medium">الفروع النشطة</div>
+            <div className="text-2xl font-black text-emerald-400 mt-1">
+              {branches.filter((b) => b.status === 'ACTIVE').length} فرع
             </div>
           </div>
+          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 text-xl font-bold">
+            ✓
+          </div>
+        </div>
 
-          <div className="flex items-center gap-3 self-end md:self-auto">
-            <button
-              onClick={() => {
-                loadSettings();
-                loadData();
-              }}
-              className="p-2 bg-slate-900 border border-slate-800 rounded-xl text-slate-400 hover:text-white transition cursor-pointer"
-              title="تحديث البيانات"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
+        <div className="bg-slate-900/60 border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
+          <div>
+            <div className="text-slate-400 text-xs font-medium">المدينة الرئيسية</div>
+            <div className="text-2xl font-black text-blue-400 mt-1">النجف الأشرف</div>
+          </div>
+          <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-400 text-xl font-bold">
+            📍
+          </div>
+        </div>
+      </div>
 
-            <div className="flex items-center gap-2.5 bg-slate-900 border border-slate-800 px-3.5 py-1.5 rounded-2xl">
-              <div className="w-9 h-9 rounded-full overflow-hidden border bg-slate-800 flex items-center justify-center" style={{ borderColor: `${primaryCol}80` }}>
-                {currentUser.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={currentUser.avatar_url} alt={currentUser.full_name} className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-4 h-4" style={{ color: primaryCol }} />
-                )}
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-white leading-tight">{currentUser.full_name}</p>
-                <span 
-                  className="px-2 py-0.5 rounded text-[10px] font-bold border inline-block mt-0.5"
-                  style={{ backgroundColor: `${primaryCol}10`, color: primaryCol, borderColor: `${primaryCol}30` }}
-                >
-                  {isSuperAdmin ? 'الإدارة العليا' : currentUser.job_title || 'موظف قطاع'}
-                </span>
-              </div>
-              <button
-                onClick={handleLogout}
-                className="text-slate-400 hover:text-rose-400 p-1 rounded-lg hover:bg-slate-800 transition mr-1 cursor-pointer"
-                title="تسجيل الخروج"
+      {/* شريط البحث */}
+      <div className="max-w-7xl mx-auto mb-6">
+        <div className="relative">
+          <input
+            type="text"
+            placeholder="البحث باسم الفرع، الرمز، المسؤول، أو المدينة..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-amber-500/60 transition"
+          />
+        </div>
+      </div>
+
+      {/* قائمة الفروع */}
+      <div className="max-w-7xl mx-auto">
+        {loading ? (
+          <div className="text-center py-16 text-slate-500">جاري تحميل بيانات الفروع...</div>
+        ) : filteredBranches.length === 0 ? (
+          <div className="bg-slate-900/40 border border-slate-800/80 rounded-2xl p-12 text-center text-slate-400">
+            لا توجد فروع مطابقة لعملية البحث
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {filteredBranches.map((branch) => (
+              <div
+                key={branch.branch_id}
+                className="bg-slate-900/70 border border-slate-800/90 hover:border-slate-700/80 rounded-2xl p-5 flex flex-col justify-between transition-all shadow-md group"
               >
-                <LogOut className="w-4 h-4" />
+                <div>
+                  <div className="flex items-start justify-between gap-2 mb-3">
+                    <span className="px-2.5 py-1 text-xs font-mono font-bold rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                      {branch.branch_code}
+                    </span>
+                    <span
+                      className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                        branch.status === 'ACTIVE'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}
+                    >
+                      {branch.status === 'ACTIVE' ? 'نشط تشغيلياً' : 'متوقف'}
+                    </span>
+                  </div>
+
+                  <h3 className="text-lg font-bold text-white group-hover:text-amber-300 transition">
+                    {branch.name_ar}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">{branch.branch_type}</p>
+
+                  <div className="mt-4 pt-3 border-t border-slate-800/80 space-y-2 text-xs text-slate-300">
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">المسؤول:</span>
+                      <span className="font-medium text-slate-200">{branch.manager_name}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">الهاتف:</span>
+                      <span className="font-mono text-slate-200">{branch.phone}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-500">الموقع / العنوان:</span>
+                      <span className="text-slate-200">
+                        {branch.city} - {branch.address}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 pt-3 border-t border-slate-800/80 flex items-center justify-end gap-2">
+                  <button
+                    onClick={() => handleOpenEditModal(branch)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 font-medium transition cursor-pointer"
+                  >
+                    تعديل
+                  </button>
+                  <button
+                    onClick={() => handleDelete(branch.branch_id, branch.name_ar)}
+                    className="px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-xs text-rose-400 font-medium transition cursor-pointer"
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* نافذة الإضافة / التعديل */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#101928] border border-slate-700/80 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <h2 className="text-lg font-bold text-white">
+                {formData.branch_id ? 'تعديل بيانات الفرع' : 'إضافة فرع جديد للمنظومة'}
+              </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-400 hover:text-white text-lg cursor-pointer"
+              >
+                ✕
               </button>
             </div>
 
-            <Link href="/" className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-xs hover:bg-slate-800 transition">
-              <ArrowLeft className="w-4 h-4" /> العودة للرئيسية
-            </Link>
-          </div>
-        </div>
+            <form onSubmit={handleSubmit} className="space-y-4 mt-4 text-sm">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 text-xs mb-1">رمز الفرع (Code) *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.branch_code}
+                    onChange={(e) => setFormData({ ...formData, branch_code: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                    placeholder="مثال: BR-06"
+                  />
+                </div>
 
-        {/* كروت المؤشرات السريعة للفروع */}
-        <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-            <span className="text-xs text-slate-400 font-semibold block">إجمالي الفروع المسجلة</span>
-            <div className="text-2xl font-black font-mono text-white mt-2">{branches.length} <span className="text-xs text-slate-500 font-sans">فروع</span></div>
-            <p className="text-[11px] text-slate-500 mt-1">تغطي أنشطة المقاولات، التجارة، النقل، والاستثمار العقاري</p>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-            <span className="text-xs text-slate-400 font-semibold block">الفروع النشطة تشغيلياً</span>
-            <div className="text-2xl font-black font-mono text-emerald-400 mt-2">
-              {branches.filter(b => b.status === 'ACTIVE').length} <span className="text-xs text-slate-500 font-sans">فروع نشطة</span>
-            </div>
-            <span className="text-[11px] text-emerald-400 flex items-center gap-1 mt-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> تعمل بكامل طاقتها التشغيلية
-            </span>
-          </div>
-
-          <div className="bg-slate-900 border border-slate-800 p-5 rounded-2xl">
-            <span className="text-xs text-slate-400 font-semibold block">حالة المزامنة السحابية</span>
-            <div className="text-2xl font-black font-mono mt-2" style={{ color: primaryCol }}>100%</div>
-            <span className="text-[11px] flex items-center gap-1 mt-1" style={{ color: primaryCol }}>
-              <Activity className="w-3.5 h-3.5 animate-pulse" /> Neon Cloud Database Live Sync
-            </span>
-          </div>
-        </div>
-
-        {/* شريط الأدوات والبحث */}
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 mt-6">
-          <div className="relative w-full sm:w-80">
-            <Search className="w-4 h-4 text-slate-400 absolute right-3 top-3" />
-            <input 
-              type="text" 
-              placeholder="ابحث بالاسم، الرمز، أو النشاط..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pr-9 pl-3 py-2 text-xs text-white outline-none focus:border-amber-500"
-            />
-          </div>
-
-          {canAdd && (
-            <button
-              onClick={() => setShowAddModal(true)}
-              className="w-full sm:w-auto text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center justify-center gap-1.5 transition shadow-lg cursor-pointer"
-              style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
-            >
-              <PlusCircle className="w-4 h-4" /> إضافة فرع أو قطاع جديد
-            </button>
-          )}
-        </div>
-
-        {/* جدول الفروع والقطاعات الشامل */}
-        <div className="max-w-7xl mx-auto mt-4 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
-              <thead className="bg-slate-800/70 text-slate-400 border-b border-slate-800 text-[11px]">
-                <tr>
-                  <th className="p-4">رمز الفرع</th>
-                  <th className="p-4">اسم الفرع والقطاع</th>
-                  <th className="p-4">طبيعة النشاط التجاري</th>
-                  <th className="p-4">المدير المسؤول</th>
-                  <th className="p-4">الموقع والهاتف</th>
-                  <th className="p-4 text-center">الحالة التشغيلية</th>
-                  {(canEdit || canDelete) && <th className="p-4 text-center">الإجراءات</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800">
-                {filteredBranches.length === 0 ? (
-                  <tr>
-                    <td colSpan={canEdit || canDelete ? 7 : 6} className="p-8 text-center text-slate-500 font-sans">لا توجد فروع مسجلة مطابقة للبحث.</td>
-                  </tr>
-                ) : (
-                  filteredBranches.map((b) => (
-                    <tr key={b.branch_id} className="hover:bg-slate-800/30 transition">
-                      <td className="p-4 font-mono font-bold" style={{ color: primaryCol }}>{b.branch_code}</td>
-                      <td className="p-4 font-bold text-white text-sm">{b.name_ar}</td>
-                      <td className="p-4 text-slate-300 font-sans">{b.branch_type}</td>
-                      <td className="p-4 font-semibold text-sky-400">{b.manager_name}</td>
-                      <td className="p-4 text-slate-400">
-                        <div className="flex flex-col">
-                          <span className="flex items-center gap-1"><MapPin className="w-3 h-3 text-slate-500" /> {b.city} - {b.address}</span>
-                          <span className="flex items-center gap-1 font-mono text-[11px] text-slate-400 mt-0.5"><Phone className="w-3 h-3 text-slate-500" /> {b.phone}</span>
-                        </div>
-                      </td>
-                      <td className="p-4 text-center">
-                        <span className="px-2.5 py-1 text-[11px] font-bold rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                          يعمل بنجاح
-                        </span>
-                      </td>
-                      {(canEdit || canDelete) && (
-                        <td className="p-4 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
-                            {canEdit && (
-                              <button
-                                onClick={() => {
-                                  setEditingBranch(b);
-                                  setEditNameAr(b.name_ar);
-                                  setEditBranchType(b.branch_type);
-                                  setEditManagerName(b.manager_name);
-                                  setEditPhone(b.phone);
-                                  setEditCity(b.city);
-                                  setEditAddress(b.address);
-                                  setEditStatus(b.status || 'ACTIVE');
-                                }}
-                                className="p-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg border border-slate-700 transition cursor-pointer"
-                                style={{ color: primaryCol }}
-                                title="تعديل بيانات الفرع"
-                              >
-                                <Edit3 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                            {canDelete && (
-                              <button
-                                onClick={() => handleDeleteBranch(b)}
-                                className="p-1.5 bg-slate-800 hover:bg-rose-600 text-rose-400 hover:text-white rounded-lg border border-rose-500/20 transition cursor-pointer"
-                                title="حذف الفرع"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* نافذة إضافة فرع جديد */}
-        {showAddModal && canAdd && (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl text-right space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Building2 className="w-4 h-4" style={{ color: primaryCol }} /> تسجيل فرع أو قطاع جديد
-                </h3>
-                <button onClick={() => setShowAddModal(false)} className="text-slate-400 hover:text-white cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
+                <div>
+                  <label className="block text-slate-400 text-xs mb-1">اسم الفرع بالعربية *</label>
+                  <input
+                    type="text"
+                    required
+                    value={formData.name_ar}
+                    onChange={(e) => setFormData({ ...formData, name_ar: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    placeholder="مثال: فرع الصيانة والتطوير"
+                  />
+                </div>
               </div>
 
-              <form onSubmit={handleAddBranch} className="space-y-3 text-xs">
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">رمز الفرع المحاسبي *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="مثال: IND-01"
-                      value={branchCode}
-                      onChange={(e) => setBranchCode(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono uppercase outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">المدينة</label>
-                    <input
-                      type="text"
-                      value={city}
-                      onChange={(e) => setCity(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">اسم الفرع والقطاع *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: فرع الصناعات الإنشائية والخرسانية"
-                    value={nameAr}
-                    onChange={(e) => setNameAr(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">طبيعة النشاط التجاري والعمليات *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="مثال: إنتاج وتوريد الخرسانة الجاهزة والمواد مسبقة الصنع"
-                    value={branchType}
-                    onChange={(e) => setBranchType(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">المدير المسؤول</label>
-                    <input
-                      type="text"
-                      placeholder="اسم المدير"
-                      value={managerName}
-                      onChange={(e) => setManagerName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">رقم الهاتف</label>
-                    <input
-                      type="text"
-                      placeholder="078..."
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">العنوان التفصيلي</label>
-                  <input
-                    type="text"
-                    placeholder="الشارع أو المنطقة"
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                  />
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-5 py-2 text-slate-950 font-bold rounded-xl cursor-pointer shadow-md"
-                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
-                  >
-                    {loading ? 'جاري الحفظ...' : 'تسجيل الفرع'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* نافذة تعديل فرع */}
-        {editingBranch && canEdit && (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 shadow-2xl text-right space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Edit3 className="w-4 h-4" style={{ color: primaryCol }} /> تعديل الفرع: {editingBranch.branch_code}
-                </h3>
-                <button onClick={() => setEditingBranch(null)} className="text-slate-400 hover:text-white cursor-pointer">
-                  <X className="w-5 h-5" />
-                </button>
+              <div>
+                <label className="block text-slate-400 text-xs mb-1">نوع القطاع / طبيعة العمل</label>
+                <input
+                  type="text"
+                  value={formData.branch_type}
+                  onChange={(e) => setFormData({ ...formData, branch_type: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                  placeholder="مثال: تنفيذ المشاريع الإنشائية والهندسية"
+                />
               </div>
 
-              <form onSubmit={handleSaveEdit} className="space-y-3 text-xs">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">اسم الفرع *</label>
+                  <label className="block text-slate-400 text-xs mb-1">اسم المدير / المسؤول</label>
                   <input
                     type="text"
-                    required
-                    value={editNameAr}
-                    onChange={(e) => setEditNameAr(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
+                    value={formData.manager_name}
+                    onChange={(e) => setFormData({ ...formData, manager_name: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    placeholder="اسم المسؤول المعتمد"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-slate-400 mb-1 font-semibold">النشاط التجاري</label>
+                  <label className="block text-slate-400 text-xs mb-1">رقم الهاتف</label>
                   <input
                     type="text"
-                    value={editBranchType}
-                    onChange={(e) => setEditBranchType(e.target.value)}
-                    className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
+                    value={formData.phone}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-amber-500"
+                    placeholder="078xxxxxxxx"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-400 text-xs mb-1">المدينة</label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">المدير المسؤول</label>
-                    <input
-                      type="text"
-                      value={editManagerName}
-                      onChange={(e) => setEditManagerName(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">رقم الهاتف</label>
-                    <input
-                      type="text"
-                      value={editPhone}
-                      onChange={(e) => setEditPhone(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white font-mono outline-none focus:border-amber-500"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-slate-400 text-xs mb-1">العنوان / الموقع</label>
+                  <input
+                    type="text"
+                    value={formData.address}
+                    onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                    placeholder="مثال: حي الفرات"
+                  />
                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">المدينة</label>
-                    <input
-                      type="text"
-                      value={editCity}
-                      onChange={(e) => setEditCity(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-slate-400 mb-1 font-semibold">العنوان</label>
-                    <input
-                      type="text"
-                      value={editAddress}
-                      onChange={(e) => setEditAddress(e.target.value)}
-                      className="w-full bg-slate-800 border border-slate-700 rounded-xl p-2.5 text-white outline-none focus:border-amber-500"
-                    />
-                  </div>
-                </div>
+              <div>
+                <label className="block text-slate-400 text-xs mb-1">الحالة التشغيلية</label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-amber-500"
+                >
+                  <option value="ACTIVE">نشط (ACTIVE)</option>
+                  <option value="INACTIVE">متوقف (INACTIVE)</option>
+                </select>
+              </div>
 
-                <div className="flex items-center justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setEditingBranch(null)}
-                    className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer"
-                  >
-                    إلغاء
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-5 py-2 text-slate-950 font-bold rounded-xl cursor-pointer shadow-md"
-                    style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
-                  >
-                    {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs font-semibold cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs shadow-md transition cursor-pointer"
+                >
+                  {saving ? 'جاري الحفظ...' : 'حفظ البيانات'}
+                </button>
+              </div>
+            </form>
           </div>
-        )}
-
-      </div>
-    </AuthGuard>
+        </div>
+      )}
+    </div>
   );
 }
