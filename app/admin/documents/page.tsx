@@ -1274,8 +1274,8 @@ export default function AdministrativeDocumentsPage() {
               color: #0f172a !important;
               margin: 0 !important;
               padding: 0 !important;
-              width: 210mm !important;
-              height: 297mm !important;
+              width: 100% !important;
+              height: auto !important;
             }
             header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
               display: none !important;
@@ -1286,34 +1286,41 @@ export default function AdministrativeDocumentsPage() {
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
-              margin: 0 !important;
-              width: 210mm !important;
+              margin: 0 auto !important;
+              width: 100% !important;
               max-width: 210mm !important;
-              height: 296mm !important;
-              max-height: 296mm !important;
+              height: 282mm !important;
+              max-height: 282mm !important;
+              min-height: 0 !important;
               padding: 0 !important;
               overflow: hidden !important;
-              page-break-after: always !important;
               page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
             .print-attachment-sheet {
               box-sizing: border-box !important;
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
-              margin: 0 !important;
-              width: 210mm !important;
+              margin: 0 auto !important;
+              width: 100% !important;
               max-width: 210mm !important;
-              height: 296mm !important;
-              min-height: 296mm !important;
+              height: 282mm !important;
+              max-height: 282mm !important;
+              min-height: 0 !important;
               page-break-before: always !important;
-              page-break-after: always !important;
+              break-before: page !important;
               page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: auto !important;
+              break-after: auto !important;
               display: flex !important;
               flex-direction: column !important;
               justify-content: flex-start !important;
               align-items: center !important;
-              padding: 10mm !important;
+              padding: 8mm !important;
             }
           }
         `}</style>
@@ -1985,7 +1992,7 @@ export default function AdministrativeDocumentsPage() {
                       placeholder="مثال: م / المصادقة على المخططات الفنية"
                       value={inSubject}
                       onChange={(e) => setInSubject(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white outline-none font-bold"
                     />
                   </div>
                   <div>
@@ -2401,7 +2408,7 @@ export default function AdministrativeDocumentsPage() {
           const docBranchOfficialName = doc.branch_name || resolveBranchName(doc.branch_id);
 
           return (
-            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible">
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible print:block print:w-full">
               
               <div className="sticky top-0 z-50 w-full max-w-[210mm] flex flex-col sm:flex-row items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element gap-3">
                 <div className="flex items-center gap-3">
@@ -2447,11 +2454,11 @@ export default function AdministrativeDocumentsPage() {
               </div>
 
               {/* ورقة الطباعة A4 الموحدة والمضبوطة هندسياً */}
-              <div className="w-full max-w-[210mm] overflow-x-auto pb-6">
-                <div className="w-full min-w-[720px] sm:min-w-0 flex flex-col items-center space-y-8 print:space-y-0">
+              <div className="w-full max-w-[210mm] overflow-x-auto pb-6 print:pb-0 print:overflow-visible print:max-w-none print:w-full">
+                <div className="w-full min-w-[720px] sm:min-w-0 print:min-w-0 print:w-full flex flex-col items-center space-y-8 print:space-y-0">
                   <div 
                     id="page-first"
-                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1080px] max-h-[1115px] border border-slate-300 print:border-none print:m-0 print:p-0"
+                    className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1080px] max-h-[1115px] print:min-h-0 border border-slate-300 print:border-none print:m-0 print:p-0"
                   >
                     {/* العلامة المائية */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0">
@@ -2712,7 +2719,7 @@ export default function AdministrativeDocumentsPage() {
                     <div 
                       id={`att-${aIdx}`}
                       key={aIdx} 
-                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-8 border border-slate-300 flex flex-col justify-start items-center min-h-[1080px] max-h-[1115px] print:border-none print:m-0"
+                      className="print-attachment-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans p-6 md:p-8 border border-slate-300 flex flex-col justify-start items-center min-h-[1080px] max-h-[1115px] print:min-h-0 print:border-none print:m-0"
                     >
                       <div className="w-full flex items-center justify-between border-b-2 border-slate-900 pb-2.5 mb-3">
                         <div className="flex items-center gap-2.5">

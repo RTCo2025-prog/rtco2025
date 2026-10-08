@@ -142,7 +142,7 @@ function ContractPreviewModal({
   const qrCodeApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(verificationUrl)}`;
 
   return (
-    <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static">
+    <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible print:block print:w-full">
       
       <div className="sticky top-0 z-50 w-full max-w-[210mm] flex items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 px-5 py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element">
         <div className="flex items-center gap-3">
@@ -167,9 +167,9 @@ function ContractPreviewModal({
         </button>
       </div>
 
-      <div className="w-full max-w-[210mm] overflow-x-auto pb-4">
+      <div className="w-full max-w-[210mm] overflow-x-auto pb-4 print:pb-0 print:overflow-visible print:max-w-none print:w-full">
         <div 
-          className="print-paper-sheet min-w-[720px] sm:min-w-0 w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-4 relative overflow-hidden font-sans my-auto min-h-[1080px] max-h-[1115px] flex flex-col justify-between"
+          className="print-paper-sheet min-w-[720px] sm:min-w-0 print:min-w-0 print:w-full w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-3 print:space-y-2 relative overflow-hidden font-sans my-auto min-h-[1080px] max-h-[1115px] print:min-h-0 flex flex-col justify-between"
           style={{ borderColor: primaryCol }}
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
@@ -181,7 +181,7 @@ function ContractPreviewModal({
             )}
           </div>
 
-          <div className="relative z-10 space-y-4">
+          <div className="relative z-10 space-y-3.5 print:space-y-2">
             <div className="h-1.5 w-full rounded-full" style={{ background: `linear-gradient(90deg, #0f172a, ${primaryCol}, #0f172a)` }}></div>
 
             {/* الهيدر الأصلي المعتمد دون المساس به */}
@@ -232,7 +232,7 @@ function ContractPreviewModal({
             )}
 
             {/* شريط التوثيق والفرع تحت الهيدر مباشرة: في اليمين العدد، في المنتصف اسم الفرع فقط مأطر، وفي اليسار التاريخ */}
-            <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+            <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-1.5 font-cairo shadow-xs text-xs font-bold text-slate-800">
               {/* اليمين: العدد ورقم العقد */}
               <div className="flex items-center gap-1.5" dir="rtl">
                 <span className="text-slate-500 font-bold">العدد :</span>
@@ -243,7 +243,7 @@ function ContractPreviewModal({
 
               {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
               <div className="flex items-center justify-center">
-                <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                <span className="inline-flex items-center px-4 py-0.5 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
                   {contract.branch_name || 'فرع الاستثمارات العقارية'}
                 </span>
               </div>
@@ -255,8 +255,8 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3.5">
-              <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/70 space-y-1.5 text-xs">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/70 space-y-1 text-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                   <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full bg-slate-950"></span>
@@ -272,7 +272,7 @@ function ContractPreviewModal({
                 </div>
               </div>
 
-              <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/70 space-y-1.5 text-xs">
+              <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/70 space-y-1 text-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                   <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
                     <span className="w-2 h-2 rounded-full" style={{ backgroundColor: primaryCol }}></span>
@@ -289,7 +289,7 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="border border-slate-200 p-3.5 rounded-2xl bg-white shadow-sm space-y-1.5">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-white shadow-sm space-y-1">
               <div className="flex items-center justify-between border-b border-slate-100 pb-1 text-xs font-bold">
                 <span className="text-slate-950 flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5" style={{ color: primaryCol }} />
@@ -299,7 +299,7 @@ function ContractPreviewModal({
               </div>
 
               {contract.isVehicle ? (
-                <div className="grid grid-cols-3 gap-2 text-xs pt-1 font-sans">
+                <div className="grid grid-cols-3 gap-2 text-xs pt-0.5 font-sans">
                   <div className="bg-slate-50 p-1.5 rounded-xl border border-slate-100">
                     <span className="text-[9px] text-slate-500 block">الماركة والنوع:</span>
                     <strong className="text-slate-950 text-xs font-bold">{contract.vehicleBrand}</strong>
@@ -322,7 +322,7 @@ function ContractPreviewModal({
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 text-xs pt-1 font-sans">
+                <div className="grid grid-cols-3 gap-2 text-xs pt-0.5 font-sans">
                   <div className="col-span-2 bg-slate-50 p-1.5 rounded-xl border border-slate-100">
                     <span className="text-[9px] text-slate-500 block">وصف العقار / الدار:</span>
                     <strong className="text-slate-950 text-xs font-bold">{contract.propertyTitle}</strong>
@@ -343,8 +343,8 @@ function ContractPreviewModal({
               )}
             </div>
 
-            <div className="border border-slate-200 p-3.5 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-1.5">
-              <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-1">
+              <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                 <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
                 <span className="text-xs font-black font-sans text-slate-950 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-sm">
                   {formatNum(contract.totalAmount)} د.ع
@@ -355,7 +355,7 @@ function ContractPreviewModal({
                 كتابة وتفقيطاً: <span className="font-bold" style={{ color: primaryCol }}>{numberToArabicWords(Number(contract.totalAmount) || 0)}</span>
               </p>
               
-              <div className="grid grid-cols-2 gap-3 pt-1.5 font-sans text-xs border-t border-slate-100 text-slate-800">
+              <div className="grid grid-cols-2 gap-3 pt-1 font-sans text-xs border-t border-slate-100 text-slate-800">
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-600 text-[11px]">الواصل نقداً (العربون):</span>
                   <strong className="text-emerald-700 font-bold font-sans text-xs">{formatNum(contract.paidDeposit)} د.ع</strong>
@@ -367,28 +367,28 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="border border-slate-200 p-3 rounded-2xl bg-slate-50/50 space-y-1 text-[10px] text-slate-600 leading-relaxed font-sans">
+            <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/50 space-y-0.5 text-[10px] text-slate-600 leading-relaxed font-sans">
               <strong className="text-slate-950 block text-[11px] mb-0.5 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
               <p className="whitespace-pre-line text-justify">{contract.extraConditions}</p>
             </div>
           </div>
 
-          <div className="relative z-10 pt-2 space-y-3">
-            <div className="grid grid-cols-4 gap-4 text-center text-xs items-end border-t border-slate-200 pt-3">
+          <div className="relative z-10 pt-1 space-y-2">
+            <div className="grid grid-cols-4 gap-3 text-center text-xs items-end border-t border-slate-200 pt-2.5">
               <div>
                 <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
                 <p className="text-[9px] text-slate-400">({contract.isRent ? 'المؤجر' : 'البائع'})</p>
-                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-5"></div>
               </div>
 
               <div>
                 <p className="font-black text-slate-950 text-xs">توقيع الطرف الثاني</p>
                 <p className="text-[9px] text-slate-400">({contract.isRent ? 'المستأجر' : 'المشتري'})</p>
-                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-5"></div>
               </div>
 
               <div className="flex flex-col items-center justify-center">
-                <div className="w-14 h-14 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
+                <div className="w-13 h-13 border border-slate-300 rounded-xl p-1 bg-white shadow-sm flex items-center justify-center overflow-hidden">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img 
                     src={qrCodeApiUrl} 
@@ -396,7 +396,7 @@ function ContractPreviewModal({
                     className="w-full h-full object-contain"
                   />
                 </div>
-                <span className="font-mono text-[8px] font-bold mt-1 flex items-center gap-0.5" style={{ color: primaryCol }}>
+                <span className="font-mono text-[8px] font-bold mt-0.5 flex items-center gap-0.5" style={{ color: primaryCol }}>
                   <Globe className="w-2.5 h-2.5" /> تحقق رسمي
                 </span>
               </div>
@@ -404,7 +404,7 @@ function ContractPreviewModal({
               <div>
                 <p className="font-black text-slate-950 text-xs">مصادقة إدارة الشركة</p>
                 <p className="text-[9px] text-slate-400">الختم والتوثيق المعتمد</p>
-                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-6"></div>
+                <div className="border-b-2 border-dashed border-slate-400 w-20 mx-auto mt-5"></div>
               </div>
             </div>
 
@@ -899,8 +899,8 @@ export default function ElectronicContractsPage() {
               color: #0f172a !important;
               margin: 0 !important;
               padding: 0 !important;
-              width: 210mm !important;
-              height: 297mm !important;
+              width: 100% !important;
+              height: auto !important;
             }
             header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
               display: none !important;
@@ -911,15 +911,18 @@ export default function ElectronicContractsPage() {
               box-shadow: none !important;
               border: none !important;
               border-radius: 0 !important;
-              margin: 0 !important;
-              width: 210mm !important;
+              margin: 0 auto !important;
+              width: 100% !important;
               max-width: 210mm !important;
-              height: 296mm !important;
-              max-height: 296mm !important;
-              padding: 8mm 12mm !important;
+              height: 282mm !important;
+              max-height: 282mm !important;
+              min-height: 0 !important;
+              padding: 6mm 10mm !important;
               overflow: hidden !important;
-              page-break-after: always !important;
               page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
           }
         `}</style>
@@ -947,7 +950,7 @@ export default function ElectronicContractsPage() {
                     className="inline-flex items-center gap-1.5 border text-[11px] font-bold px-3 py-0.5 rounded-full shadow-inner font-mono"
                     style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
                   >
-                    <Sparkles className="w-3 h-3" />
+                    <Sparkles className="w-3 3-3" />
                     أرشيف العقود • باركود تحقق مباشر
                   </span>
                 </div>
