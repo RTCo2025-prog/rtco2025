@@ -1,76 +1,23 @@
-/* ========================================================
-   ضبط موحد وشامل لطباعة ورقة A4 على الموبايل والكمبيوتر
-   ======================================================== */
+@import "tailwindcss";
+
+:root {
+  --background: #020617;
+  --foreground: #f8fafc;
+  --font-cairo: 'Cairo', sans-serif;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-cairo), Arial, Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
 @media print {
-  /* 1. ضبط مقاس ورقة الطباعة وتصفير هوامش المتصفح الافتراضية */
-  @page {
-    size: A4 portrait !important;
-    margin: 0 !important;
-  }
-
-  /* 2. إجبار المتصفح على اعتبار أبعاد الصفحة بحجم A4 الحقيقي وليس أبعاد شاشة الموبايل */
-  html, body {
-    width: 210mm !important;
-    min-width: 210mm !important;
-    max-width: 210mm !important;
-    height: auto !important;
-    min-height: 0 !important;
-    margin: 0 auto !important;
-    padding: 0 !important;
-    background-color: #ffffff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-    overflow: visible !important;
-  }
-
-  /* 3. إخفاء كافة عناصر الواجهة وأزرار النظام أثناء الطباعة */
-  header, nav, aside, footer, 
-  .print-hidden-element, 
-  .print\\:hidden, 
-  button {
-    display: none !important;
-  }
-
-  /* 4. ضبط ورقة المستند الرسمية لتستقر بدقة تامة داخل صفحة A4 واحدة */
-  .print-paper-sheet,
-  .print-official-sheet,
-  .official-document-page {
-    box-sizing: border-box !important;
-    width: 210mm !important;
-    max-width: 210mm !important;
-    min-width: 210mm !important;
-    height: 282mm !important;
-    max-height: 282mm !important;
-    min-height: 0 !important;
-    margin: 0 auto !important;
-    padding: 6mm 10mm !important;
-    border: none !important;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    overflow: hidden !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    page-break-after: auto !important;
-    break-after: auto !important;
-    display: flex !important;
-    flex-direction: column !important;
-    justify-content: space-between !important;
-  }
-
-  /* 5. صفحات المرفقات (إن وجدت) تبدأ دائماً في صفحة جديدة مستقلة */
-  .print-attachment-sheet {
-    box-sizing: border-box !important;
-    width: 210mm !important;
-    max-width: 210mm !important;
-    height: 282mm !important;
-    max-height: 282mm !important;
-    min-height: 0 !important;
-    margin: 0 auto !important;
-    padding: 8mm 10mm !important;
-    page-break-before: always !important;
-    break-before: page !important;
-    page-break-inside: avoid !important;
-    break-inside: avoid !important;
-    overflow: hidden !important;
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 13px !important;
   }
 }
