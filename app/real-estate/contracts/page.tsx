@@ -144,32 +144,32 @@ function ContractPreviewModal({
   return (
     <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-2 sm:p-4 md:p-8 print:p-0 print:bg-white print:static print:overflow-visible print:block print:w-full">
       
-      <div className="sticky top-0 z-50 w-full max-w-[210mm] flex items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 px-5 py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element">
-        <div className="flex items-center gap-3">
+      <div className="sticky top-0 z-50 w-full max-w-[210mm] flex items-center justify-between bg-slate-900/95 backdrop-blur-md border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-4 sm:mb-6 shadow-2xl print:hidden print-hidden-element gap-3">
+        <div className="flex items-center gap-3 w-full sm:w-auto">
           <button
             onClick={() => window.print()}
-            className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+            className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition shadow-lg cursor-pointer flex-1 sm:flex-none whitespace-nowrap"
             style={{ background: `linear-gradient(90deg, ${primaryCol}, ${companySettings.secondary_color || '#ea580c'})` }}
           >
             <Printer className="w-4 h-4" /> طباعة فورية (Print A4)
           </button>
-          <span className="text-xs text-slate-300 font-bold hidden sm:inline">
+          <span className="text-xs text-slate-300 font-bold hidden sm:inline whitespace-nowrap">
             معاينة ورقة العقد الرسمية A4
           </span>
         </div>
 
         <button
           onClick={onClose}
-          className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer"
+          className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer shrink-0"
           title="إغلاق المعاينة"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="w-full max-w-[210mm] overflow-x-auto pb-4 print:pb-0 print:overflow-visible print:max-w-none print:w-full">
+      <div className="preview-scroll-container print:overflow-visible print:w-full print:max-w-none pb-6 print:pb-0">
         <div 
-          className="print-paper-sheet min-w-[720px] sm:min-w-0 print:min-w-0 print:w-full w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-3 print:space-y-2 relative overflow-hidden font-sans my-auto min-h-[1080px] max-h-[1115px] print:min-h-0 flex flex-col justify-between"
+          className="print-paper-sheet w-full bg-white text-slate-900 rounded-3xl p-6 sm:p-8 md:p-10 border-2 shadow-2xl print:border-none print:shadow-none print:p-0 print:m-0 space-y-3 print:space-y-2 relative overflow-hidden font-sans flex flex-col justify-between min-h-[1080px] max-h-[1115px] print:min-h-0"
           style={{ borderColor: primaryCol }}
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.035] z-0">
@@ -191,7 +191,7 @@ function ContractPreviewModal({
                 <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-28 object-contain" />
               </div>
             ) : (
-              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <div className="flex justify-between items-center pb-3 border-b border-slate-200">
                 <div className="flex items-center gap-3.5 text-right">
                   <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm shrink-0">
                     {hasLogo ? (
@@ -213,7 +213,7 @@ function ContractPreviewModal({
                   </div>
                 </div>
 
-                <div className="text-center">
+                <div className="text-center hidden sm:block">
                   <div className="inline-block bg-gradient-to-l from-slate-950 via-slate-900 to-slate-950 text-white px-5 py-1.5 rounded-2xl shadow-md">
                     <h2 className="text-base font-black tracking-wide font-serif">عَـقْـدُ الشَّــارِي</h2>
                     <span className="text-[8px] text-amber-400 font-mono tracking-widest uppercase block mt-0.5">
@@ -232,7 +232,7 @@ function ContractPreviewModal({
             )}
 
             {/* شريط التوثيق والفرع تحت الهيدر مباشرة: في اليمين العدد، في المنتصف اسم الفرع فقط مأطر، وفي اليسار التاريخ */}
-            <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-1.5 font-cairo shadow-xs text-xs font-bold text-slate-800">
+            <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-1.5 font-cairo shadow-xs text-xs font-bold text-slate-800 mt-2">
               {/* اليمين: العدد ورقم العقد */}
               <div className="flex items-center gap-1.5" dir="rtl">
                 <span className="text-slate-500 font-bold">العدد :</span>
@@ -255,7 +255,7 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 mt-3">
               <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/70 space-y-1 text-xs">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                   <span className="font-black text-slate-900 text-xs flex items-center gap-1.5">
@@ -289,7 +289,7 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="border border-slate-200 p-3 rounded-2xl bg-white shadow-sm space-y-1">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-white shadow-sm space-y-1 mt-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-1 text-xs font-bold">
                 <span className="text-slate-950 flex items-center gap-1.5">
                   <Award className="w-3.5 h-3.5" style={{ color: primaryCol }} />
@@ -343,7 +343,7 @@ function ContractPreviewModal({
               )}
             </div>
 
-            <div className="border border-slate-200 p-3 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-1">
+            <div className="border border-slate-200 p-3 rounded-2xl bg-gradient-to-l from-slate-50 to-white space-y-1 mt-3">
               <div className="flex items-center justify-between border-b border-slate-200 pb-1">
                 <span className="text-xs font-bold text-slate-950 font-sans">الثمن والبدل المالي المتفق عليه:</span>
                 <span className="text-xs font-black font-sans text-slate-950 bg-white px-2.5 py-0.5 rounded-lg border border-slate-200 shadow-sm">
@@ -367,14 +367,14 @@ function ContractPreviewModal({
               </div>
             </div>
 
-            <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/50 space-y-0.5 text-[10px] text-slate-600 leading-relaxed font-sans">
+            <div className="border border-slate-200 p-2.5 rounded-2xl bg-slate-50/50 space-y-0.5 text-[10px] text-slate-600 leading-relaxed font-sans mt-3">
               <strong className="text-slate-950 block text-[11px] mb-0.5 font-bold">الشروط والأحكام والالتزامات القانونية:</strong>
               <p className="whitespace-pre-line text-justify">{contract.extraConditions}</p>
             </div>
           </div>
 
-          <div className="relative z-10 pt-1 space-y-2">
-            <div className="grid grid-cols-4 gap-3 text-center text-xs items-end border-t border-slate-200 pt-2.5">
+          <div className="relative z-10 pt-1 space-y-2 mt-auto">
+            <div className="grid grid-cols-4 gap-3 text-center text-xs items-end border-t border-slate-200 pt-2.5 mt-4">
               <div>
                 <p className="font-black text-slate-950 text-xs">توقيع الطرف الأول</p>
                 <p className="text-[9px] text-slate-400">({contract.isRent ? 'المؤجر' : 'البائع'})</p>
@@ -1458,17 +1458,17 @@ export default function ElectronicContractsPage() {
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+          <div className="w-full overflow-x-auto pb-2">
+            <table className="w-full min-w-[700px] text-right text-xs">
               <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[11px]">
                 <tr>
-                  <th className="p-3">رقم العقد</th>
-                  <th className="p-3">نوع العقد</th>
-                  <th className="p-3">الطرف الأول (البائع/المؤجر)</th>
-                  <th className="p-3">الطرف الثاني (المشتري/المستأجر)</th>
-                  <th className="p-3">المبلغ الكلي</th>
-                  <th className="p-3">تاريخ التحرير</th>
-                  <th className="p-3 text-center">الإجراءات</th>
+                  <th className="p-3 whitespace-nowrap">رقم العقد</th>
+                  <th className="p-3 whitespace-nowrap">نوع العقد</th>
+                  <th className="p-3 whitespace-nowrap">الطرف الأول (البائع/المؤجر)</th>
+                  <th className="p-3 whitespace-nowrap">الطرف الثاني (المشتري/المستأجر)</th>
+                  <th className="p-3 whitespace-nowrap">المبلغ الكلي</th>
+                  <th className="p-3 whitespace-nowrap">تاريخ التحرير</th>
+                  <th className="p-3 text-center whitespace-nowrap">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80 font-mono">
@@ -1484,8 +1484,8 @@ export default function ElectronicContractsPage() {
 
                     return (
                       <tr key={c.id} className="hover:bg-slate-800/40 transition font-sans">
-                        <td className="p-3 font-mono font-bold" style={{ color: primaryCol }}>{c.contractNo}</td>
-                        <td className="p-3">
+                        <td className="p-3 font-mono font-bold whitespace-nowrap" style={{ color: primaryCol }}>{c.contractNo}</td>
+                        <td className="p-3 whitespace-nowrap">
                           <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/15 text-purple-300 border border-purple-500/30">
                             {c.title}
                           </span>
@@ -1493,12 +1493,12 @@ export default function ElectronicContractsPage() {
                             ({cBranchDisplay})
                           </span>
                         </td>
-                        <td className="p-3 font-bold text-white">{c.sellerName || '---'}</td>
-                        <td className="p-3 font-bold text-slate-200">{c.buyerName || '---'}</td>
-                        <td className="p-3 font-mono text-emerald-400 font-bold">{formatNum(c.totalAmount)} د.ع</td>
-                        <td className="p-3 text-slate-400 font-mono">{c.contractDate}</td>
-                        <td className="p-3 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                        <td className="p-3 font-bold text-white whitespace-nowrap truncate max-w-[150px]">{c.sellerName || '---'}</td>
+                        <td className="p-3 font-bold text-slate-200 whitespace-nowrap truncate max-w-[150px]">{c.buyerName || '---'}</td>
+                        <td className="p-3 font-mono text-emerald-400 font-bold whitespace-nowrap">{formatNum(c.totalAmount)} د.ع</td>
+                        <td className="p-3 text-slate-400 font-mono whitespace-nowrap">{c.contractDate}</td>
+                        <td className="p-3 text-center whitespace-nowrap">
+                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                             <button
                               onClick={() => handleOpenExistingContract(c)}
                               className="p-1.5 bg-emerald-500/10 hover:bg-emerald-500 text-emerald-400 hover:text-slate-950 rounded-lg border border-emerald-500/30 transition shadow flex items-center gap-1 text-[11px] font-bold cursor-pointer"

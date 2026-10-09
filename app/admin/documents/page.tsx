@@ -1253,78 +1253,6 @@ export default function AdministrativeDocumentsPage() {
     <AuthGuard moduleName="admin_docs" requiredAction="view">
       <div dir="rtl" className="min-h-screen bg-slate-950 text-slate-100 p-4 md:p-8 font-cairo text-[14px] print:bg-white print:p-0">
         
-        <style jsx global>{`
-          @media screen and (max-width: 768px) {
-            .print-official-sheet,
-            .print-attachment-sheet {
-              min-width: 720px !important;
-            }
-          }
-          @media print {
-            @page {
-              size: A4 portrait !important;
-              margin: 0 !important;
-            }
-            * {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            body, html {
-              background-color: #ffffff !important;
-              color: #0f172a !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              width: 100% !important;
-              height: auto !important;
-            }
-            header, nav, aside, .print-hidden-element, div[class*="backdrop-blur"], div[class*="fixed inset-0 bg-black/90"] > div:first-child {
-              display: none !important;
-              visibility: hidden !important;
-            }
-            .print-official-sheet {
-              box-sizing: border-box !important;
-              box-shadow: none !important;
-              border: none !important;
-              border-radius: 0 !important;
-              margin: 0 auto !important;
-              width: 100% !important;
-              max-width: 210mm !important;
-              height: 282mm !important;
-              max-height: 282mm !important;
-              min-height: 0 !important;
-              padding: 0 !important;
-              overflow: hidden !important;
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-              page-break-after: auto !important;
-              break-after: auto !important;
-            }
-            .print-attachment-sheet {
-              box-sizing: border-box !important;
-              box-shadow: none !important;
-              border: none !important;
-              border-radius: 0 !important;
-              margin: 0 auto !important;
-              width: 100% !important;
-              max-width: 210mm !important;
-              height: 282mm !important;
-              max-height: 282mm !important;
-              min-height: 0 !important;
-              page-break-before: always !important;
-              break-before: page !important;
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-              page-break-after: auto !important;
-              break-after: auto !important;
-              display: flex !important;
-              flex-direction: column !important;
-              justify-content: flex-start !important;
-              align-items: center !important;
-              padding: 8mm !important;
-            }
-          }
-        `}</style>
-
         {/* الترويسة الرئيسية */}
         <div className="max-w-7xl mx-auto pb-6 border-b border-slate-800/80 print:hidden print-hidden-element">
           <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-5 bg-slate-900/60 border border-slate-800/80 p-5 rounded-3xl backdrop-blur-md shadow-2xl">
@@ -1520,23 +1448,23 @@ export default function AdministrativeDocumentsPage() {
 
         {/* جدول السجل النشط */}
         <div className="max-w-7xl mx-auto mt-4 bg-slate-900 border border-slate-800 rounded-3xl overflow-hidden shadow-2xl print:hidden print-hidden-element">
-          <div className="overflow-x-auto">
-            <table className="w-full text-right text-xs">
+          <div className="w-full overflow-x-auto pb-2">
+            <table className="w-full min-w-[800px] text-right text-xs">
               <thead className="bg-slate-950 text-slate-400 border-b border-slate-800 text-[11px]">
                 <tr>
-                  <th className="p-3.5">العدد الإداري</th>
-                  <th className="p-3.5">تاريخ التوثيق</th>
+                  <th className="p-3.5 whitespace-nowrap">العدد الإداري</th>
+                  <th className="p-3.5 whitespace-nowrap">تاريخ التوثيق</th>
                   {activeTab === 'INCOMING' && (
                     <>
-                      <th className="p-3.5">عدد كتاب الجهة</th>
-                      <th className="p-3.5">تاريخ كتاب الجهة</th>
+                      <th className="p-3.5 whitespace-nowrap">عدد كتاب الجهة</th>
+                      <th className="p-3.5 whitespace-nowrap">تاريخ كتاب الجهة</th>
                     </>
                   )}
-                  <th className="p-3.5">{activeTab === 'INCOMING' ? 'من / الجهة الوارد منها' : 'إلى / الجهة المعنية'}</th>
-                  <th className="p-3.5">الموضوع</th>
-                  <th className="p-3.5">المرفقات</th>
-                  <th className="p-3.5 text-center">المستندات والصفحات</th>
-                  <th className="p-3.5 text-center">الإجراءات</th>
+                  <th className="p-3.5 whitespace-nowrap">{activeTab === 'INCOMING' ? 'من / الجهة الوارد منها' : 'إلى / الجهة المعنية'}</th>
+                  <th className="p-3.5 whitespace-nowrap">الموضوع</th>
+                  <th className="p-3.5 whitespace-nowrap">المرفقات</th>
+                  <th className="p-3.5 text-center whitespace-nowrap">المستندات والصفحات</th>
+                  <th className="p-3.5 text-center whitespace-nowrap">الإجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/80">
@@ -1553,13 +1481,13 @@ export default function AdministrativeDocumentsPage() {
 
                     return (
                       <tr key={doc.id} className="hover:bg-slate-800/40 transition">
-                        <td className="p-3.5 font-mono font-bold" style={{ color: companySettings.primary_color || '#d97706' }}>{doc.docNumber}</td>
-                        <td className="p-3.5 font-mono text-slate-400">{doc.docDate}</td>
+                        <td className="p-3.5 font-mono font-bold whitespace-nowrap" style={{ color: companySettings.primary_color || '#d97706' }}>{doc.docNumber}</td>
+                        <td className="p-3.5 font-mono text-slate-400 whitespace-nowrap">{doc.docDate}</td>
                         
                         {activeTab === 'INCOMING' && (
                           <>
-                            <td className="p-3.5 font-mono font-bold text-sky-400">{doc.senderDocNumber || '---'}</td>
-                            <td className="p-3.5 font-mono text-slate-400">{doc.senderDocDate || '---'}</td>
+                            <td className="p-3.5 font-mono font-bold text-sky-400 whitespace-nowrap">{doc.senderDocNumber || '---'}</td>
+                            <td className="p-3.5 font-mono text-slate-400 whitespace-nowrap">{doc.senderDocDate || '---'}</td>
                           </>
                         )}
 
@@ -1576,20 +1504,20 @@ export default function AdministrativeDocumentsPage() {
                           {totalPages > 0 ? (
                             <button
                               onClick={() => handleOpenPrintPreview(doc)}
-                              className="px-2.5 py-1 bg-sky-500/15 text-sky-300 hover:bg-sky-500 hover:text-white rounded-lg border border-sky-500/30 transition text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer"
+                              className="px-2.5 py-1 bg-sky-500/15 text-sky-300 hover:bg-sky-500 hover:text-white rounded-lg border border-sky-500/30 transition text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer whitespace-nowrap"
                             >
                               <Layers className="w-3.5 h-3.5" /> ({totalPages}) صفحات
                             </button>
                           ) : (
-                            <span className="text-slate-600 text-[11px]">بدون ملفات</span>
+                            <span className="text-slate-600 text-[11px] whitespace-nowrap">بدون ملفات</span>
                           )}
                         </td>
 
                         <td className="p-3.5 text-center">
-                          <div className="flex items-center justify-center gap-1.5">
+                          <div className="flex items-center justify-center gap-1.5 flex-nowrap">
                             <button
                               onClick={() => handleOpenPrintPreview(doc)}
-                              className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 rounded-xl border border-amber-500/30 font-bold transition flex items-center gap-1 text-[11px] cursor-pointer"
+                              className="px-3 py-1 bg-amber-500/10 hover:bg-amber-500 text-amber-400 hover:text-slate-950 rounded-xl border border-amber-500/30 font-bold transition flex items-center gap-1 text-[11px] cursor-pointer whitespace-nowrap"
                               title="معاينة وطباعة الكتاب مع المرفقات"
                             >
                               <Printer className="w-3.5 h-3.5" /> تصفح ومعاينة
@@ -1627,9 +1555,9 @@ export default function AdministrativeDocumentsPage() {
 
         {/* نافذة إنشاء / تعديل كتاب صادر */}
         {showOutgoingModal && (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right flex flex-col my-auto max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-2">
                   <Send className="w-5 h-5" style={{ color: companySettings.primary_color || '#d97706' }} />
                   <div>
@@ -1644,7 +1572,7 @@ export default function AdministrativeDocumentsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveOutgoing} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveOutgoing} className="space-y-4 text-xs flex-1">
                 {/* اختيار الفرع المعتمد رسمياً */}
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-amber-500/30">
                   <label className="block text-amber-400 mb-1 font-bold">الفرع الصادر منه الكتاب رسمياً *</label>
@@ -1700,7 +1628,7 @@ export default function AdministrativeDocumentsPage() {
                     <select
                       value={outPriority}
                       onChange={(e) => setOutPriority(e.target.value as any)}
-                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none"
+                      className="w-full bg-slate-950 border border-slate-700 rounded-xl p-2.5 text-white outline-none cursor-pointer"
                     >
                       <option value="NORMAL">اعتيادي</option>
                       <option value="URGENT">عاجل وفوري</option>
@@ -1785,7 +1713,7 @@ export default function AdministrativeDocumentsPage() {
                       onClick={() => outFileRef.current?.click()}
                       className="p-3 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-xl flex items-center justify-center gap-2 font-bold transition cursor-pointer"
                     >
-                      <Upload className="w-4 h-4 text-emerald-400" /> + اختيار وتحديد عدة صور معاً (حاسبة/استوديو)
+                      <Upload className="w-4 h-4 text-emerald-400" /> + اختيار عدة صور معاً (حاسبة)
                     </button>
                   </div>
 
@@ -1856,7 +1784,7 @@ export default function AdministrativeDocumentsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
                   <button type="button" onClick={() => { setShowOutgoingModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button 
                     type="submit" 
@@ -1873,9 +1801,9 @@ export default function AdministrativeDocumentsPage() {
 
         {/* نافذة إنشاء / تعديل كتاب وارد */}
         {showIncomingModal && (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right flex flex-col my-auto max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-2">
                   <Inbox className="w-5 h-5 text-sky-400" />
                   <div>
@@ -1890,7 +1818,7 @@ export default function AdministrativeDocumentsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveIncoming} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveIncoming} className="space-y-4 text-xs flex-1">
                 {/* اختيار الفرع المعتمد رسمياً */}
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-sky-500/30">
                   <label className="block text-sky-400 mb-1 font-bold">الفرع الوارد إليه الكتاب رسمياً *</label>
@@ -2119,7 +2047,7 @@ export default function AdministrativeDocumentsPage() {
                       onClick={() => inAttFileRef.current?.click()}
                       className="p-3.5 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-xl flex items-center justify-center gap-2 font-bold transition cursor-pointer"
                     >
-                      <Upload className="w-4 h-4 text-emerald-400" /> + اختيار وتحديد عدة صور معاً (حاسبة/استوديو)
+                      <Upload className="w-4 h-4 text-emerald-400" /> + اختيار عدة صور معاً (حاسبة)
                     </button>
                   </div>
 
@@ -2155,7 +2083,7 @@ export default function AdministrativeDocumentsPage() {
                   />
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
                   <button type="button" onClick={() => { setShowIncomingModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-sky-500 to-sky-400 hover:from-sky-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
                     {editingDocId ? 'حفظ التعديلات' : 'حفظ وأرشفة الكتاب الوارد'}
@@ -2168,9 +2096,9 @@ export default function AdministrativeDocumentsPage() {
 
         {/* نافذة إنشاء / تعديل أمر إداري */}
         {showOrderModal && (
-          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4 overflow-y-auto">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right space-y-4 my-8 max-h-[92vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-4xl rounded-3xl p-6 shadow-2xl text-right flex flex-col my-auto max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                 <div className="flex items-center gap-2">
                   <Bookmark className="w-5 h-5 text-emerald-400" />
                   <div>
@@ -2185,7 +2113,7 @@ export default function AdministrativeDocumentsPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleSaveOrder} className="space-y-4 text-xs">
+              <form onSubmit={handleSaveOrder} className="space-y-4 text-xs flex-1">
                 {/* اختيار الفرع المعتمد رسمياً */}
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-emerald-500/30">
                   <label className="block text-emerald-400 mb-1 font-bold">الفرع الصادر منه الأمر الإداري *</label>
@@ -2310,7 +2238,7 @@ export default function AdministrativeDocumentsPage() {
                       onClick={() => orderFileRef.current?.click()}
                       className="p-3 bg-slate-900 hover:bg-slate-800 text-emerald-300 border border-emerald-500/30 rounded-xl flex items-center justify-center gap-2 font-bold transition cursor-pointer"
                     >
-                      <Upload className="w-4 h-4 text-emerald-400" /> + رفع عدة صور معاً (حاسبة/استوديو)
+                      <Upload className="w-4 h-4 text-emerald-400" /> + رفع عدة صور معاً (حاسبة)
                     </button>
                   </div>
 
@@ -2358,7 +2286,7 @@ export default function AdministrativeDocumentsPage() {
                   </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
+                <div className="flex justify-end gap-2 pt-4 border-t border-slate-800">
                   <button type="button" onClick={() => { setShowOrderModal(false); setEditingDocId(null); }} className="px-4 py-2 bg-slate-800 text-slate-300 rounded-xl cursor-pointer">إلغاء</button>
                   <button type="submit" className="px-6 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-400 hover:from-emerald-400 text-slate-950 font-black rounded-xl shadow-lg cursor-pointer">
                     {editingDocId ? 'حفظ التعديلات' : 'اعتماد وإصدار الأمر الإداري A4'}
@@ -2414,16 +2342,16 @@ export default function AdministrativeDocumentsPage() {
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => window.print()}
-                    className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer"
+                    className="text-slate-950 font-black px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition shadow-lg cursor-pointer whitespace-nowrap"
                     style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
-                    <Printer className="w-4 h-4" /> أمر الطباعة الآن (Print A4)
+                    <Printer className="w-4 h-4" /> الطباعة الفورية
                   </button>
 
-                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-xs sm:max-w-md py-1">
+                  <div className="flex items-center gap-1.5 overflow-x-auto max-w-[150px] sm:max-w-md py-1">
                     <button
                       onClick={() => scrollToSection('page-first')}
-                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-xs font-bold shrink-0 border border-slate-700 cursor-pointer"
+                      className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg text-[10px] font-bold shrink-0 border border-slate-700 cursor-pointer"
                     >
                       {isIncoming ? 'الكتاب الرئيسي (ص 1)' : 'الكتاب الصادر'}
                     </button>
@@ -2431,7 +2359,7 @@ export default function AdministrativeDocumentsPage() {
                       <button
                         key={i}
                         onClick={() => scrollToSection(`att-${i}`)}
-                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg text-xs font-bold shrink-0 border border-slate-700 cursor-pointer"
+                        className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg text-[10px] font-bold shrink-0 border border-slate-700 cursor-pointer"
                       >
                         مرفق #{i + 1}
                       </button>
@@ -2440,22 +2368,22 @@ export default function AdministrativeDocumentsPage() {
                 </div>
 
                 <div className="flex items-center gap-3 self-end sm:self-auto">
-                  <span className="text-xs text-slate-300 font-bold hidden md:inline">
-                    إجمالي الصفحات: {attachmentsList.length + 1}
+                  <span className="text-[10px] text-slate-300 font-bold hidden md:inline">
+                    عدد الصفحات: {attachmentsList.length + 1}
                   </span>
                   <button
                     onClick={() => setSelectedDocForPrint(null)}
-                    className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer"
+                    className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer shrink-0"
                     title="إغلاق المعاينة"
                   >
-                    <X className="w-5 h-5" />
+                    <X className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* ورقة الطباعة A4 الموحدة والمضبوطة هندسياً */}
-              <div className="w-full max-w-[210mm] overflow-x-auto pb-6 print:pb-0 print:overflow-visible print:max-w-none print:w-full">
-                <div className="w-full min-w-[720px] sm:min-w-0 print:min-w-0 print:w-full flex flex-col items-center space-y-8 print:space-y-0">
+              <div className="preview-scroll-container pb-6 print:pb-0 print:overflow-visible print:w-full print:max-w-none">
+                <div className="w-full flex flex-col items-center space-y-8 print:space-y-0">
                   <div 
                     id="page-first"
                     className="print-official-sheet w-full bg-white text-slate-950 shadow-2xl print:shadow-none relative overflow-hidden font-sans flex flex-col justify-between min-h-[1080px] max-h-[1115px] print:min-h-0 border border-slate-300 print:border-none print:m-0 print:p-0"

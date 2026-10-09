@@ -930,14 +930,14 @@ export default function HRManagementPage() {
 
         {/* المؤشرات العامة العلوية */}
         <div className="max-w-7xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 mt-6 print:hidden">
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col justify-center">
             <span className="text-xs text-slate-400 font-semibold block">إجمالي كادر وموظفي الشركة</span>
             <div className="text-xl font-black font-mono text-white mt-2">
               {topCardsData.totalEmployeesCount} <span className="text-xs font-sans text-slate-500">موظف نشط</span>
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col justify-center">
             <span className="text-xs text-slate-400 font-semibold block">
               كتلة الرواتب الأساسية ({currentMonthArabic})
             </span>
@@ -946,7 +946,7 @@ export default function HRManagementPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col justify-center">
             <span className="text-xs text-slate-400 font-semibold block">
               صافي الرواتب ({currentMonthArabic})
             </span>
@@ -955,7 +955,7 @@ export default function HRManagementPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col justify-center">
             <span className="text-xs text-slate-400 font-semibold block">
               سلف شهر {currentMonthArabic} ({filterMonth})
             </span>
@@ -964,7 +964,7 @@ export default function HRManagementPage() {
             </div>
           </div>
 
-          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl">
+          <div className="bg-slate-900 border border-slate-800 p-4 rounded-3xl shadow-xl flex flex-col justify-center">
             <span className="text-xs text-slate-400 font-semibold block">
               إجازات شهر {currentMonthArabic} ({filterMonth})
             </span>
@@ -1194,32 +1194,32 @@ export default function HRManagementPage() {
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-4 text-xs font-mono">
-                          <div className="text-right">
-                            <span className="text-slate-500 block text-[10px] font-sans">الراتب الأساسي</span>
-                            <span className="font-bold text-slate-200">{formatNum(emp.base_salary)} د.ع</span>
+                        <div className="flex flex-wrap items-center gap-4 text-xs font-mono w-full md:w-auto mt-3 md:mt-0">
+                          <div className="text-right flex-1 md:flex-none">
+                            <span className="text-slate-500 block text-[10px] font-sans">الأساسي</span>
+                            <span className="font-bold text-slate-200">{formatNum(emp.base_salary)}</span>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right flex-1 md:flex-none">
                             <span className="text-slate-500 block text-[10px] font-sans">البدلات</span>
                             <span className="font-bold text-slate-300">+{formatNum(emp.allowances)}</span>
                           </div>
-                          <div className="text-right">
-                            <span className="text-slate-500 block text-[10px] font-sans">رصيد الإجازات</span>
-                            <span className="font-bold text-sky-400">{emp.annual_leave_balance || 0} يوم</span>
+                          <div className="text-right flex-1 md:flex-none">
+                            <span className="text-slate-500 block text-[10px] font-sans">الإجازات</span>
+                            <span className="font-bold text-sky-400">{emp.annual_leave_balance || 0}يوم</span>
                           </div>
-                          <div className="text-right bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                          <div className="text-right bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800 shrink-0">
                             <span className="text-emerald-400 block text-[10px] font-sans font-bold">الصافي</span>
                             <span className="font-black text-sm text-emerald-400">{formatNum(netCalculated)} د.ع</span>
                           </div>
-                          <div className="p-1 text-slate-400">
+                          <div className="p-1 text-slate-400 self-center">
                             {isExpanded ? <ChevronUp className="w-4 h-4 text-amber-400" /> : <ChevronDown className="w-4 h-4" />}
                           </div>
                         </div>
                       </div>
 
                       {isExpanded && (
-                        <div className="p-5 border-t border-slate-800 bg-slate-950 space-y-4">
-                          <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800/80">
+                        <div className="p-4 sm:p-5 border-t border-slate-800 bg-slate-950 space-y-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-800/80">
                             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
                               <FileText className="w-3.5 h-3.5" style={{ color: primaryCol }} /> حركات شهر {currentMonthArabic} ({filterMonth})
                             </span>
@@ -1273,7 +1273,7 @@ export default function HRManagementPage() {
                                     }}
                                     className="px-2.5 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-lg font-bold transition flex items-center gap-1 text-[11px] cursor-pointer"
                                   >
-                                    <Palmtree className="w-3.5 h-3.5" /> قيد إجازة
+                                    <Palmtree className="w-3.5 h-3.5" /> إجازة
                                   </button>
                                   <button
                                     onClick={() => {
@@ -1301,7 +1301,7 @@ export default function HRManagementPage() {
                               {canDelete && (
                                 <button
                                   onClick={() => handleDeleteEmployee(emp)}
-                                  className="p-1 text-slate-500 hover:text-rose-400 transition mr-1 cursor-pointer"
+                                  className="p-1 text-slate-500 hover:text-rose-400 transition cursor-pointer"
                                   title="حذف الموظف"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1318,14 +1318,14 @@ export default function HRManagementPage() {
                               {empLeaves.length === 0 ? (
                                 <p className="text-slate-500 text-[11px] py-3 text-center">لا توجد إجازات في هذا الشهر.</p>
                               ) : (
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-xs text-right font-mono">
+                                <div className="w-full overflow-x-auto pb-2">
+                                  <table className="w-full min-w-[300px] text-xs text-right font-mono">
                                     <thead className="text-slate-400 border-b border-slate-800 text-[11px]">
                                       <tr>
-                                        <th className="pb-1">النوع</th>
-                                        <th className="pb-1">الأيام</th>
-                                        <th className="pb-1">التاريخ</th>
-                                        {canDelete && <th className="pb-1 text-center">حذف</th>}
+                                        <th className="pb-1 whitespace-nowrap">النوع</th>
+                                        <th className="pb-1 whitespace-nowrap">الأيام</th>
+                                        <th className="pb-1 whitespace-nowrap">التاريخ</th>
+                                        {canDelete && <th className="pb-1 text-center whitespace-nowrap">حذف</th>}
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/60">
@@ -1336,7 +1336,7 @@ export default function HRManagementPage() {
 
                                         return (
                                           <tr key={l.leave_id}>
-                                            <td className="py-1.5 font-sans">
+                                            <td className="py-1.5 font-sans whitespace-nowrap">
                                               {isUnpaid ? (
                                                 <span className="text-rose-400 font-bold">بدون راتب</span>
                                               ) : isSick ? (
@@ -1345,10 +1345,10 @@ export default function HRManagementPage() {
                                                 <span className="text-sky-400 font-bold">اعتيادية</span>
                                               )}
                                             </td>
-                                            <td className="py-1.5 text-white font-bold">{l.days_count} يوم</td>
-                                            <td className="py-1.5 text-slate-400">{formatDateOnly(l.start_date)}</td>
+                                            <td className="py-1.5 text-white font-bold whitespace-nowrap">{l.days_count} يوم</td>
+                                            <td className="py-1.5 text-slate-400 whitespace-nowrap">{formatDateOnly(l.start_date)}</td>
                                             {canDelete && (
-                                              <td className="py-1.5 text-center">
+                                              <td className="py-1.5 text-center whitespace-nowrap">
                                                 <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
                                                   <Trash2 className="w-3.5 h-3.5" />
                                                 </button>
@@ -1370,20 +1370,20 @@ export default function HRManagementPage() {
                               {empAdjustments.length === 0 ? (
                                 <p className="text-slate-500 text-[11px] py-3 text-center">لا توجد حركات في هذا الشهر.</p>
                               ) : (
-                                <div className="overflow-x-auto">
-                                  <table className="w-full text-xs text-right font-mono">
+                                <div className="w-full overflow-x-auto pb-2">
+                                  <table className="w-full min-w-[300px] text-xs text-right font-mono">
                                     <thead className="text-slate-400 border-b border-slate-800 text-[11px]">
                                       <tr>
-                                        <th className="pb-1">النوع</th>
-                                        <th className="pb-1">المبلغ</th>
-                                        <th className="pb-1">البيان</th>
-                                        {canDelete && <th className="pb-1 text-center">حذف</th>}
+                                        <th className="pb-1 whitespace-nowrap">النوع</th>
+                                        <th className="pb-1 whitespace-nowrap">المبلغ</th>
+                                        <th className="pb-1 whitespace-nowrap">البيان</th>
+                                        {canDelete && <th className="pb-1 text-center whitespace-nowrap">حذف</th>}
                                       </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-800/60">
                                       {empAdjustments.map(a => (
                                         <tr key={a.adj_id}>
-                                          <td className="py-1.5 font-sans">
+                                          <td className="py-1.5 font-sans whitespace-nowrap">
                                             {a.adj_type === 'DEDUCTION' ? (
                                               <span className="text-rose-400 font-bold">قطع</span>
                                             ) : a.adj_type === 'OVERTIME' ? (
@@ -1394,12 +1394,12 @@ export default function HRManagementPage() {
                                               <span className="text-sky-400 font-bold">مكافأة</span>
                                             )}
                                           </td>
-                                          <td className="py-1.5 text-white font-bold">
+                                          <td className="py-1.5 text-white font-bold whitespace-nowrap">
                                             {formatNum((a.adj_type === 'LOAN' && Number(a.monthly_installment) > 0) ? a.monthly_installment : a.amount)} د.ع
                                           </td>
-                                          <td className="py-1.5 text-slate-300 font-sans leading-relaxed">{a.reason || '---'}</td>
+                                          <td className="py-1.5 text-slate-300 font-sans leading-relaxed whitespace-nowrap max-w-[120px] truncate" title={a.reason}>{a.reason || '---'}</td>
                                           {canDelete && (
-                                            <td className="py-1.5 text-center">
+                                            <td className="py-1.5 text-center whitespace-nowrap">
                                               <button onClick={() => handleDeleteAdjustment(a.adj_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                               </button>
@@ -1470,176 +1470,178 @@ export default function HRManagementPage() {
               </div>
             </div>
 
-            <div className="bg-white text-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xl print:border-none print:shadow-none print:p-0 space-y-4">
-              
-              {/* 1. الترويسة الأصلية للشركة دون المساس بها */}
-              {hasLetterhead ? (
-                <div className="w-full border-b pb-3 mb-2">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
-                </div>
-              ) : (
-                <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
-                      {hasLogo ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
-                      ) : (
-                        <Image 
-                          src="/logo.png" 
-                          alt="شركة البرج المتألق" 
-                          width={50} 
-                          height={50} 
-                          className="object-contain" 
-                          priority 
-                        />
-                      )}
+            <div className="preview-scroll-container print:overflow-visible print:w-full print:max-w-none">
+              <div className="print-official-sheet w-full bg-white text-slate-900 rounded-2xl p-6 md:p-8 border border-slate-200 shadow-xl print:border-none print:shadow-none print:p-0 space-y-4">
+                
+                {/* 1. الترويسة الأصلية للشركة دون المساس بها */}
+                {hasLetterhead ? (
+                  <div className="w-full border-b pb-3 mb-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-14 h-14 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200 shrink-0">
+                        {hasLogo ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                        ) : (
+                          <Image 
+                            src="/logo.png" 
+                            alt="شركة البرج المتألق" 
+                            width={50} 
+                            height={50} 
+                            className="object-contain" 
+                            priority 
+                          />
+                        )}
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h2>
+                        <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                        <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h2>
-                      <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
-                      <p className="text-[11px] text-slate-500 font-mono">{companySettings.address}</p>
+                    <div className="text-left font-mono">
+                      <span 
+                        className="border px-3 py-1 font-bold text-xs text-slate-950 rounded-lg inline-block shadow-sm"
+                        style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                      >
+                        مسير رواتب الكوادر
+                      </span>
+                      <p className="text-[11px] text-slate-600 font-bold mt-1 font-sans">شهر: {currentMonthArabic} ({filterMonth})</p>
                     </div>
                   </div>
-                  <div className="text-left font-mono">
-                    <span 
-                      className="border px-3 py-1 font-bold text-xs text-slate-950 rounded-lg inline-block shadow-sm"
-                      style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
-                    >
-                      مسير رواتب الكوادر
+                )}
+
+                {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع مأطر، اليسار التاريخ */}
+                <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
+                  {/* اليمين: العدد */}
+                  <div className="flex items-center gap-1.5" dir="rtl">
+                    <span className="text-slate-500 font-bold">العدد :</span>
+                    <span className="font-mono text-slate-950 text-sm tracking-wide">
+                      ر/ {filterMonth} / 2026
                     </span>
-                    <p className="text-[11px] text-slate-600 font-bold mt-1 font-sans">شهر: {currentMonthArabic} ({filterMonth})</p>
+                  </div>
+
+                  {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
+                  <div className="flex items-center justify-center">
+                    <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                      {currentActiveBranchName}
+                    </span>
+                  </div>
+
+                  {/* اليسار: التاريخ */}
+                  <div className="flex items-center gap-1.5" dir="rtl">
+                    <span className="text-slate-500 font-bold">التاريخ :</span>
+                    <span className="font-mono text-slate-950 text-sm tracking-wider">
+                      {new Date().toISOString().substring(0, 10)}
+                    </span>
                   </div>
                 </div>
-              )}
 
-              {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع مأطر، اليسار التاريخ */}
-              <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
-                {/* اليمين: العدد */}
-                <div className="flex items-center gap-1.5" dir="rtl">
-                  <span className="text-slate-500 font-bold">العدد :</span>
-                  <span className="font-mono text-slate-950 text-sm tracking-wide">
-                    ر/ {filterMonth} / 2026
-                  </span>
-                </div>
-
-                {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
-                <div className="flex items-center justify-center">
-                  <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
-                    {currentActiveBranchName}
-                  </span>
-                </div>
-
-                {/* اليسار: التاريخ */}
-                <div className="flex items-center gap-1.5" dir="rtl">
-                  <span className="text-slate-500 font-bold">التاريخ :</span>
-                  <span className="font-mono text-slate-950 text-sm tracking-wider">
-                    {new Date().toISOString().substring(0, 10)}
-                  </span>
-                </div>
-              </div>
-
-              <div className="border border-slate-300 rounded-xl overflow-hidden">
-                <table className="w-full text-right text-[12px] border-collapse">
-                  <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
-                    <tr>
-                      <th className="p-2.5 text-center w-8 border-l border-slate-200">ت</th>
-                      <th className="p-2.5 border-l border-slate-200">اسم الموظف</th>
-                      <th className="p-2.5 border-l border-slate-200">المسمى والقسم</th>
-                      <th className="p-2.5 border-l border-slate-200">الراتب الأساسي</th>
-                      <th className="p-2.5 border-l border-slate-200">البدلات والحوافز</th>
-                      <th className="p-2.5 border-l border-slate-200">الإضافي</th>
-                      <th className="p-2.5 border-l border-slate-200">الاستقطاعات والسلف</th>
-                      <th className="p-2.5 border-l border-slate-200">سبب القطع</th>
-                      <th className="p-2.5 border-l border-slate-200">صافي المستحق</th>
-                      <th className="p-2.5 text-center print:hidden border-l border-slate-200">إشعار</th>
-                      <th className="p-2.5 text-center w-24">التوقيع</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-200 font-sans">
-                    {currentMonthRuns.length === 0 ? (
+                <div className="border border-slate-300 rounded-xl overflow-hidden w-full overflow-x-auto pb-2 print:overflow-visible print:pb-0">
+                  <table className="w-full min-w-[800px] text-right text-[12px] border-collapse">
+                    <thead className="bg-slate-100 text-slate-800 font-bold border-b border-slate-300">
                       <tr>
-                        <td colSpan={11} className="text-center py-8 text-slate-500 text-xs">
-                          البودرة غير مرحلة لشهر {currentMonthArabic} ({filterMonth}) حالياً. اضغط على زر <strong className="text-emerald-700">«اعتماد وترحيل رواتب شهر {currentMonthArabic}»</strong> لتنزيل المسير فوراً.
-                        </td>
+                        <th className="p-2.5 text-center w-8 border-l border-slate-200 whitespace-nowrap">ت</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">اسم الموظف</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">المسمى والقسم</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">الراتب الأساسي</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">البدلات والحوافز</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">الإضافي</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">الاستقطاعات والسلف</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">سبب القطع</th>
+                        <th className="p-2.5 border-l border-slate-200 whitespace-nowrap">صافي المستحق</th>
+                        <th className="p-2.5 text-center print:hidden border-l border-slate-200 whitespace-nowrap">إشعار</th>
+                        <th className="p-2.5 text-center w-24 whitespace-nowrap">التوقيع</th>
                       </tr>
-                    ) : (
-                      currentMonthRuns.map((run, idx) => (
-                        <tr key={run.run_id} className="hover:bg-slate-50 transition-colors">
-                          <td className="p-2.5 text-center font-mono font-bold text-slate-400 border-l border-slate-200">{idx + 1}</td>
-                          <td className="p-2.5 font-bold text-slate-900 border-l border-slate-200 whitespace-nowrap">
-                            {run.full_name}
-                          </td>
-                          <td className="p-2.5 text-slate-600 border-l border-slate-200 text-[11px] whitespace-nowrap">
-                            {run.job_title} <span className="text-slate-400">({run.department})</span>
-                          </td>
-                          <td className="p-2.5 font-mono text-slate-800 border-l border-slate-200 whitespace-nowrap">{formatNum(run.base_salary)}</td>
-                          <td className="p-2.5 font-mono text-emerald-700 font-bold border-l border-slate-200 whitespace-nowrap">
-                            +{formatNum(Number(run.allowances) + Number(run.bonuses))}
-                          </td>
-                          <td className="p-2.5 font-mono text-emerald-600 font-bold border-l border-slate-200 whitespace-nowrap">
-                            +{formatNum(run.overtime_amount)}
-                          </td>
-                          <td className="p-2.5 font-mono text-rose-700 font-bold border-l border-slate-200 whitespace-nowrap">
-                            -{formatNum(Number(run.loans_deducted) + Number(run.penalties))}
-                          </td>
-                          <td className="p-2.5 text-rose-600 text-[11px] leading-relaxed border-l border-slate-200">
-                            {run.deduction_reasons || '---'}
-                          </td>
-                          <td className="p-2.5 font-mono font-black text-slate-950 text-[13px] border-l border-slate-200 whitespace-nowrap">
-                            {formatNum(run.net_salary)} <span className="text-[10px] font-sans font-normal text-slate-500">د.ع</span>
-                          </td>
-                          <td className="p-1.5 text-center print:hidden border-l border-slate-200 whitespace-nowrap">
-                            <button
-                              onClick={() => sendWhatsAppPayslip(run)}
-                              className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded border border-emerald-300 transition inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
-                              title="إرسال إشعار الراتب عبر واتساب"
-                            >
-                              <Send className="w-3 h-3 text-emerald-600" /> واتساب
-                            </button>
-                          </td>
-                          <td className="p-1.5 text-center">
-                            <div className="border-b border-dashed border-slate-400 w-16 mx-auto mt-2"></div>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200 font-sans">
+                      {currentMonthRuns.length === 0 ? (
+                        <tr>
+                          <td colSpan={11} className="text-center py-8 text-slate-500 text-xs">
+                            البودرة غير مرحلة لشهر {currentMonthArabic} ({filterMonth}) حالياً. اضغط على زر <strong className="text-emerald-700">«اعتماد وترحيل رواتب شهر {currentMonthArabic}»</strong> لتنزيل المسير فوراً.
                           </td>
                         </tr>
-                      ))
+                      ) : (
+                        currentMonthRuns.map((run, idx) => (
+                          <tr key={run.run_id} className="hover:bg-slate-50 transition-colors">
+                            <td className="p-2.5 text-center font-mono font-bold text-slate-400 border-l border-slate-200 whitespace-nowrap">{idx + 1}</td>
+                            <td className="p-2.5 font-bold text-slate-900 border-l border-slate-200 whitespace-nowrap">
+                              {run.full_name}
+                            </td>
+                            <td className="p-2.5 text-slate-600 border-l border-slate-200 text-[11px] whitespace-nowrap">
+                              {run.job_title} <span className="text-slate-400">({run.department})</span>
+                            </td>
+                            <td className="p-2.5 font-mono text-slate-800 border-l border-slate-200 whitespace-nowrap">{formatNum(run.base_salary)}</td>
+                            <td className="p-2.5 font-mono text-emerald-700 font-bold border-l border-slate-200 whitespace-nowrap">
+                              +{formatNum(Number(run.allowances) + Number(run.bonuses))}
+                            </td>
+                            <td className="p-2.5 font-mono text-emerald-600 font-bold border-l border-slate-200 whitespace-nowrap">
+                              +{formatNum(run.overtime_amount)}
+                            </td>
+                            <td className="p-2.5 font-mono text-rose-700 font-bold border-l border-slate-200 whitespace-nowrap">
+                              -{formatNum(Number(run.loans_deducted) + Number(run.penalties))}
+                            </td>
+                            <td className="p-2.5 text-rose-600 text-[11px] leading-relaxed border-l border-slate-200 min-w-[120px]">
+                              {run.deduction_reasons || '---'}
+                            </td>
+                            <td className="p-2.5 font-mono font-black text-slate-950 text-[13px] border-l border-slate-200 whitespace-nowrap">
+                              {formatNum(run.net_salary)} <span className="text-[10px] font-sans font-normal text-slate-500">د.ع</span>
+                            </td>
+                            <td className="p-1.5 text-center print:hidden border-l border-slate-200 whitespace-nowrap">
+                              <button
+                                onClick={() => sendWhatsAppPayslip(run)}
+                                className="px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded border border-emerald-300 transition inline-flex items-center gap-1 text-[11px] font-semibold cursor-pointer"
+                                title="إرسال إشعار الراتب عبر واتساب"
+                              >
+                                <Send className="w-3 h-3 text-emerald-600" /> واتساب
+                              </button>
+                            </td>
+                            <td className="p-1.5 text-center whitespace-nowrap">
+                              <div className="border-b border-dashed border-slate-400 w-16 mx-auto mt-2"></div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                    {currentMonthRuns.length > 0 && (
+                      <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs">
+                        <tr>
+                          <td colSpan={3} className="p-2.5 text-slate-950 font-black border-l border-slate-300 whitespace-nowrap">
+                            إجمالي مسير شهر {currentMonthArabic}:
+                          </td>
+                          <td className="p-2.5 font-mono border-l border-slate-300 whitespace-nowrap">{formatNum(sheetTotals.totalBase)}</td>
+                          <td className="p-2.5 font-mono text-emerald-700 border-l border-slate-300 whitespace-nowrap">+{formatNum(sheetTotals.totalAdditions)}</td>
+                          <td className="p-2.5 border-l border-slate-300"></td>
+                          <td className="p-2.5 font-mono text-rose-700 border-l border-slate-300 whitespace-nowrap">-{formatNum(sheetTotals.totalDeductions)}</td>
+                          <td className="p-2.5 border-l border-slate-300"></td>
+                          <td className="p-2.5 font-mono font-black text-sm border-l border-slate-300 whitespace-nowrap" style={{ color: primaryCol }}>
+                            {formatNum(sheetTotals.totalNet)} <span className="text-[10px] font-sans font-normal">د.ع</span>
+                          </td>
+                          <td className="print:hidden border-l border-slate-300"></td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
                     )}
-                  </tbody>
-                  {currentMonthRuns.length > 0 && (
-                    <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold text-xs">
-                      <tr>
-                        <td colSpan={3} className="p-2.5 text-slate-950 font-black border-l border-slate-300">
-                          إجمالي مسير شهر {currentMonthArabic}:
-                        </td>
-                        <td className="p-2.5 font-mono border-l border-slate-300 whitespace-nowrap">{formatNum(sheetTotals.totalBase)}</td>
-                        <td className="p-2.5 font-mono text-emerald-700 border-l border-slate-300 whitespace-nowrap">+{formatNum(sheetTotals.totalAdditions)}</td>
-                        <td className="p-2.5 border-l border-slate-300"></td>
-                        <td className="p-2.5 font-mono text-rose-700 border-l border-slate-300 whitespace-nowrap">-{formatNum(sheetTotals.totalDeductions)}</td>
-                        <td className="p-2.5 border-l border-slate-300"></td>
-                        <td className="p-2.5 font-mono font-black text-sm border-l border-slate-300 whitespace-nowrap" style={{ color: primaryCol }}>
-                          {formatNum(sheetTotals.totalNet)} <span className="text-[10px] font-sans font-normal">د.ع</span>
-                        </td>
-                        <td className="print:hidden border-l border-slate-300"></td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  )}
-                </table>
-              </div>
+                  </table>
+                </div>
 
-              <div className="grid grid-cols-3 gap-6 pt-5 text-center border-t border-slate-300 text-xs">
-                <div>
-                  <p className="font-bold text-slate-800">مسؤول الموارد البشرية</p>
-                  <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800">مدير الحسابات والمالية</p>
-                  <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-800">المدير المفوض للشركة</p>
-                  <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                <div className="grid grid-cols-3 gap-6 pt-5 text-center border-t border-slate-300 text-xs">
+                  <div>
+                    <p className="font-bold text-slate-800">مسؤول الموارد البشرية</p>
+                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">مدير الحسابات والمالية</p>
+                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">المدير المفوض للشركة</p>
+                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1661,15 +1663,15 @@ export default function HRManagementPage() {
                 <h4 className="text-xs font-bold text-sky-400 flex items-center gap-1.5">
                   <Palmtree className="w-4 h-4" /> سجل الإجازات ({filteredLeaves.length})
                 </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-right font-mono">
+                <div className="w-full overflow-x-auto pb-2">
+                  <table className="w-full min-w-[400px] text-xs text-right font-mono">
                     <thead className="text-slate-400 border-b border-slate-800 text-[11px]">
                       <tr>
-                        <th className="pb-1">الموظف</th>
-                        <th className="pb-1">النوع</th>
-                        <th className="pb-1">الأيام</th>
-                        <th className="pb-1">التاريخ</th>
-                        {canDelete && <th className="pb-1 text-center">حذف</th>}
+                        <th className="pb-1 whitespace-nowrap">الموظف</th>
+                        <th className="pb-1 whitespace-nowrap">النوع</th>
+                        <th className="pb-1 whitespace-nowrap">الأيام</th>
+                        <th className="pb-1 whitespace-nowrap">التاريخ</th>
+                        {canDelete && <th className="pb-1 text-center whitespace-nowrap">حذف</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
@@ -1683,8 +1685,8 @@ export default function HRManagementPage() {
 
                           return (
                             <tr key={l.leave_id}>
-                              <td className="py-2 font-sans font-bold text-slate-200">{l.full_name}</td>
-                              <td className="py-2 font-sans">
+                              <td className="py-2 font-sans font-bold text-slate-200 whitespace-nowrap">{l.full_name}</td>
+                              <td className="py-2 font-sans whitespace-nowrap">
                                 {isUnpaid ? (
                                   <span className="text-rose-400 font-bold">بدون راتب</span>
                                 ) : isSick ? (
@@ -1693,10 +1695,10 @@ export default function HRManagementPage() {
                                   <span className="text-sky-400 font-bold">اعتيادية</span>
                                 )}
                               </td>
-                              <td className="py-2 text-white font-bold">{l.days_count} يوم</td>
-                              <td className="py-2 text-slate-400">{formatDateOnly(l.start_date)}</td>
+                              <td className="py-2 text-white font-bold whitespace-nowrap">{l.days_count} يوم</td>
+                              <td className="py-2 text-slate-400 whitespace-nowrap">{formatDateOnly(l.start_date)}</td>
                               {canDelete && (
-                                <td className="py-2 text-center">
+                                <td className="py-2 text-center whitespace-nowrap">
                                   <button onClick={() => handleDeleteLeave(l.leave_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
@@ -1715,22 +1717,22 @@ export default function HRManagementPage() {
                 <h4 className="text-xs font-bold text-amber-400 flex items-center gap-1.5">
                   <Scissors className="w-4 h-4" /> سجل الحركات والسلف ({filteredAdjustments.length})
                 </h4>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-xs text-right font-mono">
+                <div className="w-full overflow-x-auto pb-2">
+                  <table className="w-full min-w-[500px] text-xs text-right font-mono">
                     <thead className="text-slate-400 border-b border-slate-800 text-[11px]">
                       <tr>
-                        <th className="pb-1">الموظف</th>
-                        <th className="pb-1">النوع</th>
-                        <th className="pb-1">المبلغ</th>
-                        <th className="pb-1">البيان</th>
-                        {canDelete && <th className="pb-1 text-center">حذف</th>}
+                        <th className="pb-1 whitespace-nowrap">الموظف</th>
+                        <th className="pb-1 whitespace-nowrap">النوع</th>
+                        <th className="pb-1 whitespace-nowrap">المبلغ</th>
+                        <th className="pb-1 whitespace-nowrap">البيان</th>
+                        {canDelete && <th className="pb-1 text-center whitespace-nowrap">حذف</th>}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {filteredAdjustments.map(a => (
                         <tr key={a.adj_id}>
-                          <td className="py-2 font-sans font-bold text-slate-200">{a.full_name}</td>
-                          <td className="py-2 font-sans">
+                          <td className="py-2 font-sans font-bold text-slate-200 whitespace-nowrap">{a.full_name}</td>
+                          <td className="py-2 font-sans whitespace-nowrap">
                             {a.adj_type === 'DEDUCTION' ? (
                               <span className="text-rose-400 font-bold">قطع</span>
                             ) : a.adj_type === 'OVERTIME' ? (
@@ -1741,12 +1743,12 @@ export default function HRManagementPage() {
                               <span className="text-sky-400 font-bold">مكافأة</span>
                             )}
                           </td>
-                          <td className="py-2 text-white font-bold">
+                          <td className="py-2 text-white font-bold whitespace-nowrap">
                             {formatNum((a.adj_type === 'LOAN' && Number(a.monthly_installment) > 0) ? a.monthly_installment : a.amount)} د.ع
                           </td>
-                          <td className="py-2 text-slate-300 font-sans leading-relaxed">{a.reason || '---'}</td>
+                          <td className="py-2 text-slate-300 font-sans leading-relaxed whitespace-nowrap max-w-[150px] truncate" title={a.reason}>{a.reason || '---'}</td>
                           {canDelete && (
-                            <td className="py-2 text-center">
+                            <td className="py-2 text-center whitespace-nowrap">
                               <button onClick={() => handleDeleteAdjustment(a.adj_id)} className="p-1 text-slate-500 hover:text-rose-400 cursor-pointer">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -1765,7 +1767,7 @@ export default function HRManagementPage() {
         {/* 4. تبويب التقييمات والجزاءات */}
         {activeTab === 'APPRAISALS' && (
           <div className="max-w-7xl mx-auto mt-5 space-y-4 print:hidden">
-            <div className="flex items-center justify-between bg-slate-900 border border-slate-800 p-4 rounded-2xl">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900 border border-slate-800 p-4 rounded-2xl">
               <div>
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-emerald-400" /> سجل تقييمات الأداء والجزاءات الإدارية
@@ -1775,14 +1777,14 @@ export default function HRManagementPage() {
               {canAdd && (
                 <button
                   onClick={() => setShowAppraisalModal(true)}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer"
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-3.5 py-2 rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
                 >
                   <PlusCircle className="w-3.5 h-3.5" /> إضافة تقييم أو إنذار
                 </button>
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               {penaltiesAppraisals.length === 0 ? (
                 <div className="col-span-full bg-slate-900 border border-slate-800 p-8 rounded-2xl text-center text-slate-500 text-xs">
                   لا توجد سجلات تقييم أو إنذارات مسجلة.
@@ -1826,7 +1828,7 @@ export default function HRManagementPage() {
         {/* نافذة السؤال وتحديد جهة توجيه تأييد الراتب */}
         {targetDestinationPrompt && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl text-right space-y-4">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-800 pb-3">
                 <h3 className="text-sm font-bold text-white flex items-center gap-2">
                   <FileCheck className="w-4 h-4" style={{ color: primaryCol }} /> توجيه كتاب تأييد الراتب
@@ -1864,7 +1866,7 @@ export default function HRManagementPage() {
                     setSalaryCertEmp({ ...targetDestinationPrompt.emp, net: targetDestinationPrompt.net });
                     setTargetDestinationPrompt(null);
                   }}
-                  className="px-5 py-2 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer"
+                  className="px-5 py-2 text-slate-950 font-bold rounded-xl text-xs shadow-md cursor-pointer whitespace-nowrap"
                   style={{ backgroundColor: primaryCol }}
                 >
                   عرض وطباعة التأييد
@@ -1879,176 +1881,180 @@ export default function HRManagementPage() {
           const empBranchDisplay = resolveBranchName(cvPrintEmp.branch_id);
 
           return (
-            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static">
-              <div className="w-full max-w-4xl flex items-center justify-between bg-slate-900 border border-slate-700 p-4 rounded-2xl mb-4 print:hidden shadow-xl">
+            <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static print:overflow-visible print:block print:w-full">
+              <div className="sticky top-0 z-50 w-full max-w-[210mm] flex flex-col sm:flex-row items-center justify-between bg-slate-900 border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-4 print:hidden shadow-xl gap-3">
                 <button 
                   onClick={() => window.print()} 
-                  className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center gap-2 transition cursor-pointer shadow-lg"
+                  className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg w-full sm:w-auto whitespace-nowrap"
                   style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                 >
-                  <Printer className="w-4 h-4" /> طباعة السيرة الذاتية الرسمية (A4)
+                  <Printer className="w-4 h-4" /> طباعة السيرة الذاتية (A4)
                 </button>
-                <button onClick={() => setCvPrintEmp(null)} className="text-slate-400 hover:text-white p-2 cursor-pointer">
+                <button onClick={() => setCvPrintEmp(null)} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer shrink-0 self-end sm:self-auto">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="w-full max-w-4xl bg-white text-slate-900 rounded-2xl p-8 md:p-10 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4">
-                
-                {/* 1. الترويسة الأصلية للشركة دون المساس بها */}
-                {hasLetterhead ? (
-                  <div className="w-full border-b pb-3 mb-2">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
-                  </div>
-                ) : (
-                  <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
-                        {hasLogo ? (
+              <div className="preview-scroll-container pb-6 print:pb-0 print:overflow-visible print:w-full print:max-w-none">
+                <div className="print-official-sheet w-full bg-white text-slate-900 rounded-2xl p-6 sm:p-8 md:p-10 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 flex flex-col justify-between min-h-[1080px] max-h-[1115px] print:min-h-0">
+                  
+                  <div>
+                    {/* 1. الترويسة الأصلية للشركة دون المساس بها */}
+                    {hasLetterhead ? (
+                      <div className="w-full border-b pb-3 mb-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
+                            {hasLogo ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                            ) : (
+                              <Image 
+                                src="/logo.png" 
+                                alt="شركة البرج المتألق" 
+                                width={56} 
+                                height={56} 
+                                className="object-contain" 
+                                priority 
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                            <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                            <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address}</p>
+                          </div>
+                        </div>
+                        <div className="text-left font-mono hidden sm:block">
+                          <div 
+                            className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                            style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                          >
+                            السيرة الذاتية الرسمية
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع مأطر، اليسار التاريخ */}
+                    <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800 mt-2">
+                      {/* اليمين: العدد */}
+                      <div className="flex items-center gap-1.5" dir="rtl">
+                        <span className="text-slate-500 font-bold">العدد :</span>
+                        <span className="font-mono text-slate-950 text-sm tracking-wide">
+                          ذ/ {cvPrintEmp.emp_code} / 2026
+                        </span>
+                      </div>
+
+                      {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
+                      <div className="flex items-center justify-center">
+                        <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                          {empBranchDisplay}
+                        </span>
+                      </div>
+
+                      {/* اليسار: التاريخ */}
+                      <div className="flex items-center gap-1.5" dir="rtl">
+                        <span className="text-slate-500 font-bold">التاريخ :</span>
+                        <span className="font-mono text-slate-950 text-sm tracking-wider">
+                          {new Date().toISOString().substring(0, 10)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-center gap-5 bg-slate-50 border border-slate-200 p-5 rounded-2xl mt-4">
+                      <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shrink-0">
+                        {cvPrintEmp.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                          <img src={cvPrintEmp.avatar_url} alt={cvPrintEmp.full_name} className="w-full h-full object-cover" />
                         ) : (
-                          <Image 
-                            src="/logo.png" 
-                            alt="شركة البرج المتألق" 
-                            width={56} 
-                            height={56} 
-                            className="object-contain" 
-                            priority 
-                          />
+                          <User className="w-10 h-10 text-slate-400" />
                         )}
                       </div>
-                      <div>
-                        <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
-                        <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
-                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address}</p>
+                      <div className="flex-1 text-center sm:text-right space-y-1 w-full">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <h2 className="text-lg font-black text-slate-950">{cvPrintEmp.full_name}</h2>
+                          <span 
+                            className="font-mono text-xs font-bold px-2 py-0.5 rounded border inline-block w-max mx-auto sm:mx-0"
+                            style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
+                          >
+                            {cvPrintEmp.emp_code}
+                          </span>
+                        </div>
+                        <p className="text-xs font-bold" style={{ color: primaryCol }}>{cvPrintEmp.job_title} - <span className="text-slate-700">{cvPrintEmp.department}</span></p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 text-xs text-slate-600 font-mono">
+                          <div>الهاتف: <strong className="text-slate-900 font-sans">{cvPrintEmp.phone || 'غير مسجل'}</strong></div>
+                          <div>تاريخ التعيين: <strong className="text-slate-900">{formatDateOnly(cvPrintEmp.hire_date)}</strong></div>
+                          <div>الحالة: <strong className="text-emerald-700 font-sans">على رأس العمل ✓</strong></div>
+                        </div>
                       </div>
                     </div>
-                    <div className="text-left font-mono">
-                      <div 
-                        className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
-                        style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
-                      >
-                        السيرة الذاتية الرسمية
+
+                    <div className="space-y-3.5 text-xs leading-relaxed mt-4">
+                      <div className="border border-slate-200 p-4 rounded-xl bg-white space-y-1.5 text-right">
+                        <h3 className="font-bold text-slate-950 flex items-center gap-1.5 text-sm">
+                          <User className="w-4 h-4" style={{ color: primaryCol }} /> النبذة المهنية الموجزة
+                        </h3>
+                        <p className="text-slate-800 font-sans text-xs leading-relaxed whitespace-pre-line">
+                          {cvPrintEmp.cv_data?.bio ? cvPrintEmp.cv_data.bio : 'لا توجد نبذة مهنية مسجلة حتى الآن.'}
+                        </p>
                       </div>
-                    </div>
-                  </div>
-                )}
 
-                {/* 2. شريط التوثيق الرسمي تحت الترويسة مباشرة: اليمين العدد، المنتصف اسم الفرع مأطر، اليسار التاريخ */}
-                <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800">
-                  {/* اليمين: العدد */}
-                  <div className="flex items-center gap-1.5" dir="rtl">
-                    <span className="text-slate-500 font-bold">العدد :</span>
-                    <span className="font-mono text-slate-950 text-sm tracking-wide">
-                      ذ/ {cvPrintEmp.emp_code} / 2026
-                    </span>
-                  </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
+                          <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
+                            <GraduationCap className="w-3.5 h-3.5 text-sky-600" /> المؤهل العلمي
+                          </h3>
+                          <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.education || 'مؤهل أكاديمي معتمد'}</p>
+                        </div>
+                        <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
+                          <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
+                            <Briefcase className="w-3.5 h-3.5 text-amber-600" /> سنوات الخبرة
+                          </h3>
+                          <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.experienceYears || 'خبرة عملية موثقة'}</p>
+                        </div>
+                      </div>
 
-                  {/* المنتصف: اسم الفرع فقط مأطر بمفرده بدون أي إضافات */}
-                  <div className="flex items-center justify-center">
-                    <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
-                      {empBranchDisplay}
-                    </span>
-                  </div>
+                      <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
+                        <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
+                          <Award className="w-3.5 h-3.5 text-emerald-600" /> المهارات والاختصاصات
+                        </h3>
+                        <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.skills || 'الالتزام ببرامج العمل، الكفاءة في تنفيذ المهام، والعمل الجماعي.'}</p>
+                      </div>
 
-                  {/* اليسار: التاريخ */}
-                  <div className="flex items-center gap-1.5" dir="rtl">
-                    <span className="text-slate-500 font-bold">التاريخ :</span>
-                    <span className="font-mono text-slate-950 text-sm tracking-wider">
-                      {new Date().toISOString().substring(0, 10)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-center gap-5 bg-slate-50 border border-slate-200 p-5 rounded-2xl">
-                  <div className="w-24 h-24 rounded-xl overflow-hidden border border-slate-300 bg-slate-200 flex items-center justify-center shrink-0">
-                    {cvPrintEmp.avatar_url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={cvPrintEmp.avatar_url} alt={cvPrintEmp.full_name} className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-10 h-10 text-slate-400" />
-                    )}
-                  </div>
-                  <div className="flex-1 text-right space-y-1">
-                    <div className="flex items-center justify-between">
-                      <h2 className="text-lg font-black text-slate-950">{cvPrintEmp.full_name}</h2>
-                      <span 
-                        className="font-mono text-xs font-bold px-2 py-0.5 rounded border"
-                        style={{ backgroundColor: `${primaryCol}15`, color: primaryCol, borderColor: `${primaryCol}30` }}
-                      >
-                        {cvPrintEmp.emp_code}
-                      </span>
-                    </div>
-                    <p className="text-xs font-bold" style={{ color: primaryCol }}>{cvPrintEmp.job_title} - <span className="text-slate-700">{cvPrintEmp.department}</span></p>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1 text-xs text-slate-600 font-mono">
-                      <div>الهاتف: <strong className="text-slate-900 font-sans">{cvPrintEmp.phone || 'غير مسجل'}</strong></div>
-                      <div>تاريخ التعيين: <strong className="text-slate-900">{formatDateOnly(cvPrintEmp.hire_date)}</strong></div>
-                      <div>الحالة: <strong className="text-emerald-700 font-sans">على رأس العمل ✓</strong></div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3.5 text-xs leading-relaxed">
-                  <div className="border border-slate-200 p-4 rounded-xl bg-white space-y-1.5 text-right">
-                    <h3 className="font-bold text-slate-950 flex items-center gap-1.5 text-sm">
-                      <User className="w-4 h-4" style={{ color: primaryCol }} /> النبذة المهنية الموجزة
-                    </h3>
-                    <p className="text-slate-800 font-sans text-xs leading-relaxed whitespace-pre-line">
-                      {cvPrintEmp.cv_data?.bio ? cvPrintEmp.cv_data.bio : 'لا توجد نبذة مهنية مسجلة حتى الآن.'}
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
-                      <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
-                        <GraduationCap className="w-3.5 h-3.5 text-sky-600" /> المؤهل العلمي
-                      </h3>
-                      <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.education || 'مؤهل أكاديمي معتمد'}</p>
-                    </div>
-                    <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
-                      <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
-                        <Briefcase className="w-3.5 h-3.5 text-amber-600" /> سنوات الخبرة
-                      </h3>
-                      <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.experienceYears || 'خبرة عملية موثقة'}</p>
-                    </div>
-                  </div>
-
-                  <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-1">
-                    <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
-                      <Award className="w-3.5 h-3.5 text-emerald-600" /> المهارات والاختصاصات
-                    </h3>
-                    <p className="text-slate-700 font-bold">{cvPrintEmp.cv_data?.skills || 'الالتزام ببرامج العمل، الكفاءة في تنفيذ المهام، والعمل الجماعي.'}</p>
-                  </div>
-
-                  <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-2">
-                    <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
-                      <Paperclip className="w-3.5 h-3.5" style={{ color: primaryCol }} /> المستمسكات والشهادات الرسمية
-                    </h3>
-                    {cvPrintEmp.cv_data?.documents && cvPrintEmp.cv_data.documents.length > 0 ? (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono">
-                        {cvPrintEmp.cv_data.documents.map((d: any, idx: number) => (
-                          <div key={idx} className="bg-slate-50 border border-slate-200 p-2 rounded-lg text-[11px] flex items-center justify-between">
-                            <span className="font-bold text-slate-900 font-sans truncate">{d.title}</span>
-                            <span className="text-emerald-700 font-bold">مؤرشف ✓</span>
+                      <div className="border border-slate-200 p-3.5 rounded-xl bg-white space-y-2">
+                        <h3 className="font-bold text-slate-950 flex items-center gap-1.5">
+                          <Paperclip className="w-3.5 h-3.5" style={{ color: primaryCol }} /> المستمسكات والشهادات الرسمية
+                        </h3>
+                        {cvPrintEmp.cv_data?.documents && cvPrintEmp.cv_data.documents.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 font-mono">
+                            {cvPrintEmp.cv_data.documents.map((d: any, idx: number) => (
+                              <div key={idx} className="bg-slate-50 border border-slate-200 p-2 rounded-lg text-[11px] flex items-center justify-between">
+                                <span className="font-bold text-slate-900 font-sans truncate pr-1">{d.title}</span>
+                                <span className="text-emerald-700 font-bold whitespace-nowrap">مؤرشف ✓</span>
+                              </div>
+                            ))}
                           </div>
-                        ))}
+                        ) : (
+                          <p className="text-slate-500 text-[11px]">مستمسكات الموظف محفوظة في الملف الإداري المركزي.</p>
+                        )}
                       </div>
-                    ) : (
-                      <p className="text-slate-500 text-[11px]">مستمسكات الموظف محفوظة في الملف الإداري المركزي.</p>
-                    )}
+                    </div>
                   </div>
-                </div>
 
-                <div className="grid grid-cols-2 gap-6 pt-6 text-center border-t border-slate-200 text-xs">
-                  <div>
-                    <p className="font-bold text-slate-700">مسؤول شؤون الموظفين</p>
-                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
-                  </div>
-                  <div>
-                    <p className="font-bold text-slate-700">مصادقة إدارة الشركة / الختم</p>
-                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  <div className="grid grid-cols-2 gap-6 pt-6 text-center border-t border-slate-200 text-xs mt-6">
+                    <div>
+                      <p className="font-bold text-slate-700">مسؤول شؤون الموظفين</p>
+                      <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-700">مصادقة إدارة الشركة / الختم</p>
+                      <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2074,7 +2080,7 @@ export default function HRManagementPage() {
 
               <div className="space-y-3 text-xs">
                 <div className="bg-slate-950 p-3.5 rounded-2xl border border-slate-800 flex flex-col sm:flex-row items-center gap-4">
-                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-900 flex items-center justify-center shrink-0">
+                  <div className="w-20 h-20 rounded-2xl overflow-hidden border-2 border-slate-700 bg-slate-900 flex items-center justify-center shrink-0 mx-auto sm:mx-0">
                     {cvAvatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={cvAvatar} alt="صورة الموظف" className="w-full h-full object-cover" />
@@ -2083,11 +2089,11 @@ export default function HRManagementPage() {
                     )}
                   </div>
                   <div className="flex-1 space-y-2 w-full">
-                    <label className="block text-slate-300 font-bold flex items-center gap-1.5">
+                    <label className="block text-slate-300 font-bold flex items-center justify-center sm:justify-start gap-1.5">
                       <Camera className="w-4 h-4 text-purple-400" /> صورة الموظف الشخصية:
                     </label>
-                    <div className="flex gap-2 items-center">
-                      <label className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1.5 rounded-xl cursor-pointer transition flex items-center gap-1.5 text-xs shrink-0">
+                    <div className="flex flex-col sm:flex-row gap-2 items-center">
+                      <label className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1.5 rounded-xl cursor-pointer transition flex items-center justify-center gap-1.5 text-xs w-full sm:w-auto shrink-0">
                         <Upload className="w-3.5 h-3.5" /> اختر صورة من جهازك
                         <input type="file" accept="image/*" onChange={handleAvatarFileUpload} className="hidden" />
                       </label>
@@ -2097,7 +2103,7 @@ export default function HRManagementPage() {
                         placeholder="أو ضع رابط صورة مباشر..."
                         value={cvAvatar}
                         onChange={(e) => setCvAvatar(e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-800 rounded-xl p-1.5 text-white font-mono text-xs outline-none"
+                        className="w-full sm:flex-1 bg-slate-900 border border-slate-800 rounded-xl p-1.5 text-white font-mono text-xs outline-none"
                       />
                     </div>
                   </div>
@@ -2157,22 +2163,22 @@ export default function HRManagementPage() {
                     <Paperclip className="w-3.5 h-3.5 text-purple-400" /> أرشيف المستمسكات والشهادات
                   </h4>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <input
                       type="text"
                       placeholder="اسم المستند (بطاقة موحدة...)"
                       value={docTitle}
                       onChange={(e) => setDocTitle(e.target.value)}
-                      className="bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-white outline-none"
+                      className="w-full sm:flex-1 bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-white outline-none"
                     />
-                    <div className="flex gap-1.5">
+                    <div className="flex gap-1.5 w-full sm:w-auto">
                       <input
                         type="text"
                         dir="ltr"
                         placeholder="رابط الملف (URL)"
                         value={docUrl}
                         onChange={(e) => setDocUrl(e.target.value)}
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-white font-mono text-xs outline-none"
+                        className="w-full sm:w-48 bg-slate-900 border border-slate-700 rounded-xl p-1.5 text-white font-mono text-xs outline-none"
                       />
                       <button
                         type="button"
@@ -2189,17 +2195,17 @@ export default function HRManagementPage() {
                       <p className="text-slate-500 text-center py-2 text-[11px]">لم يتم إرفاق أي مستمسكات بعد.</p>
                     ) : (
                       documentsList.map((doc, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-800">
+                        <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
                           <div className="flex items-center gap-2 truncate">
                             <span className="font-bold text-slate-200">{doc.title}</span>
-                            <a href={doc.url} target="_blank" rel="noreferrer" className="text-purple-400 hover:underline flex items-center gap-1 text-[11px] font-mono">
+                            <a href={doc.url} target="_blank" rel="noreferrer" className="text-purple-400 hover:underline flex items-center gap-1 text-[11px] font-mono whitespace-nowrap">
                               معاينة <ExternalLink className="w-3 h-3" />
                             </a>
                           </div>
                           <button
                             type="button"
                             onClick={() => handleRemoveDocFromCv(idx)}
-                            className="text-rose-400 hover:text-rose-300 p-0.5 cursor-pointer"
+                            className="text-rose-400 hover:text-rose-300 p-0.5 cursor-pointer self-end sm:self-auto"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -2230,8 +2236,8 @@ export default function HRManagementPage() {
         {/* نافذة تعديل بيانات الموظف */}
         {editingEmployee && canEdit && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Edit3 className="w-5 h-5" style={{ color: primaryCol }} /> تعديل بيانات الموظف: {editingEmployee.full_name}
                 </h3>
@@ -2240,7 +2246,7 @@ export default function HRManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleUpdateEmployee} className="space-y-3.5 text-xs">
+              <form onSubmit={handleUpdateEmployee} className="space-y-3.5 text-xs flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">رقم الموظف *</label>
@@ -2400,7 +2406,7 @@ export default function HRManagementPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800 mt-auto">
                   <button 
                     type="button" 
                     onClick={() => setEditingEmployee(null)} 
@@ -2411,7 +2417,7 @@ export default function HRManagementPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer"
+                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer whitespace-nowrap"
                     style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
@@ -2425,8 +2431,8 @@ export default function HRManagementPage() {
         {/* نافذة استقطاع / إضافي / سلفة مقسطة */}
         {showAdjModal && canAdd && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                   {adjType === 'DEDUCTION' ? (
                     <Scissors className="w-4 h-4 text-rose-400" />
@@ -2442,7 +2448,7 @@ export default function HRManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddAdjustment} className="space-y-3 text-xs">
+              <form onSubmit={handleAddAdjustment} className="space-y-3 text-xs flex-1">
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">الموظف المعني *</label>
                   <select
@@ -2474,7 +2480,7 @@ export default function HRManagementPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">نوع الإجراء</label>
                     <select
@@ -2585,12 +2591,12 @@ export default function HRManagementPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-1">
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800 mt-auto">
                   <button type="button" onClick={() => setShowAdjModal(false)} className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer">إلغاء</button>
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-4 py-1.5 font-bold rounded-xl text-slate-950 transition text-xs cursor-pointer shadow-md"
+                    className="px-4 py-1.5 font-bold rounded-xl text-slate-950 transition text-xs cursor-pointer shadow-md whitespace-nowrap"
                     style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الاعتماد...' : 'اعتماد الإجراء'}
@@ -2604,8 +2610,8 @@ export default function HRManagementPage() {
         {/* نافذة تسجيل إجازة */}
         {showLeaveModal && canAdd && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                   <Palmtree className="w-4 h-4 text-sky-400" /> تقديم إجازة موظف لشهر {currentMonthArabic}
                 </h3>
@@ -2614,7 +2620,7 @@ export default function HRManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleRecordLeave} className="space-y-3 text-xs">
+              <form onSubmit={handleRecordLeave} className="space-y-3 text-xs flex-1">
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">الموظف *</label>
                   <select
@@ -2632,7 +2638,7 @@ export default function HRManagementPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">نوع الإجازة</label>
                     <select
@@ -2666,7 +2672,7 @@ export default function HRManagementPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">من تاريخ *</label>
                     <input
@@ -2707,9 +2713,9 @@ export default function HRManagementPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-1">
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800 mt-auto">
                   <button type="button" onClick={() => setShowLeaveModal(false)} className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer">إلغاء</button>
-                  <button type="submit" disabled={loading} className="px-4 py-1.5 font-bold rounded-xl text-white bg-sky-600 hover:bg-sky-500 transition text-xs cursor-pointer">
+                  <button type="submit" disabled={loading} className="px-4 py-1.5 font-bold rounded-xl text-white bg-sky-600 hover:bg-sky-500 transition text-xs cursor-pointer whitespace-nowrap">
                     {loading ? 'جاري الحفظ...' : 'اعتماد الإجازة'}
                   </button>
                 </div>
@@ -2721,8 +2727,8 @@ export default function HRManagementPage() {
         {/* نافذة إضافة موظف جديد */}
         {showAddEmpModal && canAdd && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right space-y-4 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-xl rounded-3xl p-6 shadow-2xl text-right flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
                 <h3 className="text-base font-bold text-white flex items-center gap-2">
                   <Users className="w-5 h-5" style={{ color: primaryCol }} /> إضافة موظف جديد لكادر الشركة
                 </h3>
@@ -2731,7 +2737,7 @@ export default function HRManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddEmployee} className="space-y-3.5 text-xs">
+              <form onSubmit={handleAddEmployee} className="space-y-3.5 text-xs flex-1">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">رقم الموظف *</label>
@@ -2898,7 +2904,7 @@ export default function HRManagementPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
+                <div className="flex items-center justify-end gap-2.5 pt-4 border-t border-slate-800 mt-auto">
                   <button 
                     type="button" 
                     onClick={() => setShowAddEmpModal(false)} 
@@ -2909,7 +2915,7 @@ export default function HRManagementPage() {
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer"
+                    className="px-6 py-2.5 text-slate-950 font-bold rounded-xl text-xs transition shadow-lg cursor-pointer whitespace-nowrap"
                     style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ وتسجيل الموظف'}
@@ -2923,8 +2929,8 @@ export default function HRManagementPage() {
         {/* نافذة تقييم أداء / إنذار */}
         {showAppraisalModal && canAdd && (
           <div className="fixed inset-0 bg-black/85 z-50 flex items-center justify-center p-4">
-            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right space-y-3.5">
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-2xl p-5 shadow-2xl text-right flex flex-col max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-800 pb-2.5 mb-4">
                 <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
                   <Award className="w-4 h-4 text-emerald-400" /> إضافة تقييم أداء أو إنذار إداري
                 </h3>
@@ -2933,7 +2939,7 @@ export default function HRManagementPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddAppraisal} className="space-y-3 text-xs">
+              <form onSubmit={handleAddAppraisal} className="space-y-3 text-xs flex-1">
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">الموظف *</label>
                   <select
@@ -2951,7 +2957,7 @@ export default function HRManagementPage() {
                   </select>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className="block text-slate-400 mb-1 font-semibold">نوع القيد</label>
                     <select
@@ -2992,7 +2998,7 @@ export default function HRManagementPage() {
                 <div>
                   <label className="block text-slate-400 mb-1 font-semibold">التفاصيل والملاحظات</label>
                   <textarea
-                    rows={2}
+                    rows={3}
                     placeholder="تفاصيل التقييم أو مبرر العقوبة..."
                     value={recordDetails}
                     onChange={(e) => setRecordDetails(e.target.value)}
@@ -3000,17 +3006,152 @@ export default function HRManagementPage() {
                   />
                 </div>
 
-                <div className="flex items-center justify-end gap-2 pt-1">
+                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-800 mt-auto">
                   <button type="button" onClick={() => setShowAppraisalModal(false)} className="px-3 py-1.5 bg-slate-800 text-slate-300 rounded-xl text-xs cursor-pointer">إلغاء</button>
                   <button 
                     type="submit" 
                     disabled={loading} 
-                    className="px-4 py-1.5 font-bold rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 transition text-xs cursor-pointer"
+                    className="px-4 py-1.5 font-bold rounded-xl text-white bg-emerald-600 hover:bg-emerald-500 transition text-xs cursor-pointer whitespace-nowrap"
                   >
                     {loading ? 'جاري الحفظ...' : 'حفظ الإجراء'}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* نافذة تأييد الراتب A4 */}
+        {salaryCertEmp && (
+          <div className="fixed inset-0 bg-black/90 z-50 overflow-y-auto flex flex-col items-center p-4 print:p-0 print:bg-white print:static print:overflow-visible print:block print:w-full">
+            <div className="sticky top-0 z-50 w-full max-w-[210mm] flex flex-col sm:flex-row items-center justify-between bg-slate-900 border border-slate-700 p-3 sm:px-5 sm:py-3 rounded-2xl mb-4 print:hidden shadow-xl gap-3">
+              <button 
+                onClick={() => window.print()} 
+                className="text-slate-950 font-bold px-6 py-2.5 rounded-xl text-xs flex items-center justify-center gap-2 transition cursor-pointer shadow-lg w-full sm:w-auto whitespace-nowrap"
+                style={{ background: `linear-gradient(90deg, ${primaryCol}, ${secondaryCol})` }}
+              >
+                <Printer className="w-4 h-4" /> طباعة كتاب التأييد (A4)
+              </button>
+              <button onClick={() => setSalaryCertEmp(null)} className="bg-slate-800 hover:bg-rose-600 text-slate-300 hover:text-white p-2 rounded-xl transition border border-slate-700 cursor-pointer shrink-0 self-end sm:self-auto">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="preview-scroll-container pb-6 print:pb-0 print:overflow-visible print:w-full print:max-w-none">
+              <div className="print-official-sheet w-full bg-white text-slate-900 rounded-2xl p-6 sm:p-8 md:p-10 border border-slate-200 shadow-2xl print:border-none print:shadow-none print:p-0 space-y-4 flex flex-col justify-between min-h-[1080px] max-h-[1115px] print:min-h-0">
+                
+                <div className="relative z-10 flex flex-col flex-1">
+                  {/* الترويسة الأصلية */}
+                  {hasLetterhead ? (
+                    <div className="w-full border-b pb-3 mb-2">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={companySettings.letterhead_url} alt="ترويسة الشركة" className="w-full max-h-32 object-contain" />
+                    </div>
+                  ) : (
+                    <div className="flex justify-between items-center border-b-2 pb-4" style={{ borderColor: primaryCol }}>
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-16 h-16 relative flex items-center justify-center p-1 bg-slate-50 rounded-xl border border-slate-200">
+                          {hasLogo ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={companySettings.logo_url} alt={companySettings.company_name} className="w-full h-full object-contain" />
+                          ) : (
+                            <Image 
+                              src="/logo.png" 
+                              alt="شركة البرج المتألق" 
+                              width={56} 
+                              height={56} 
+                              className="object-contain" 
+                              priority 
+                            />
+                          )}
+                        </div>
+                        <div>
+                          <h1 className="text-xl font-black" style={{ color: primaryCol }}>{companySettings.company_name}</h1>
+                          <p className="text-xs text-slate-700 font-bold">{companySettings.tagline}</p>
+                          <p className="text-[11px] text-slate-500 font-mono mt-0.5">{companySettings.address}</p>
+                        </div>
+                      </div>
+                      <div className="text-left font-mono hidden sm:block">
+                        <div 
+                          className="border-2 px-3 py-1 font-black text-xs uppercase text-slate-950 rounded-lg inline-block"
+                          style={{ backgroundColor: `${primaryCol}20`, borderColor: primaryCol }}
+                        >
+                          الموارد البشرية
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* شريط التوثيق */}
+                  <div className="flex items-center justify-between bg-slate-100/90 border border-slate-300 rounded-xl px-4 py-2 font-cairo shadow-xs text-xs font-bold text-slate-800 mt-2">
+                    <div className="flex items-center gap-1.5" dir="rtl">
+                      <span className="text-slate-500 font-bold">العدد :</span>
+                      <span className="font-mono text-slate-950 text-sm tracking-wide">
+                        م.ب/ {salaryCertEmp.emp_code} / 2026
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <span className="inline-flex items-center px-4 py-1 rounded-lg bg-white border border-amber-600/60 text-slate-950 font-black text-xs shadow-xs">
+                        تأييد استمرار بالخدمة
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5" dir="rtl">
+                      <span className="text-slate-500 font-bold">التاريخ :</span>
+                      <span className="font-mono text-slate-950 text-sm tracking-wider">
+                        {new Date().toISOString().substring(0, 10)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="px-10 py-6 space-y-5 flex-1">
+                    <div className="text-center font-black text-lg text-slate-950">
+                      {certificateDestination}
+                    </div>
+
+                    <div className="text-center font-black text-base text-slate-900 mt-2">
+                      <span className="border-b-2 pb-0.5 px-4 inline-block" style={{ borderBottomColor: primaryCol }}>
+                        م / تأييد راتب واستمرار بالخدمة
+                      </span>
+                    </div>
+
+                    <div className="text-[14px] leading-[2.2] font-semibold text-slate-900 text-justify pt-4 space-y-4">
+                      <p>
+                        تحية طيبة واعتزاز...
+                      </p>
+                      <p>
+                        تهديكم <strong>{companySettings.company_name}</strong> أطيب التحيات، ونؤيد لكم بموجب هذا الكتاب المستند إلى سجلات الموارد البشرية الرسمية لدينا، بأن:
+                      </p>
+                      <p className="bg-slate-50 border border-slate-200 p-4 rounded-xl leading-[2]">
+                        السيد/ة: <strong className="text-base" style={{ color: primaryCol }}>{salaryCertEmp.full_name}</strong><br/>
+                        والذي يحمل الرقم الوظيفي المرجعي: <strong className="font-mono">{salaryCertEmp.emp_code}</strong><br/>
+                        مستمر/ة بالخدمة والعمل الفعلي لغاية تاريخ تحرير هذا الكتاب بصفة: <strong>{salaryCertEmp.job_title}</strong> ضمن قسم: <strong>{salaryCertEmp.department}</strong>.
+                      </p>
+                      <p>
+                        علماً بأن إجمالي الراتب الصافي الحالي للمذكور أعلاه يبلغ <strong>{formatNum(salaryCertEmp.net)} دينار عراقي</strong> شهرياً، شاملاً الراتب الأساسي والبدلات الثابتة المقررة وفق العقد.
+                      </p>
+                      <p>
+                        وقد زُوّد بهذا التأييد بناءً على طلبه الشخصي لتقديمه إلى حضرتكم، دون أدنى مسؤولية مالية أو قانونية مترتبة على شركتنا تجاه الغير.
+                      </p>
+                    </div>
+
+                    <div className="text-center pt-8 text-sm font-black text-slate-900">
+                      ... مع فائق الشكر والتقدير
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 pt-6 text-center border-t border-slate-200 text-xs mt-6">
+                  <div>
+                    <p className="font-bold text-slate-700">مدير الموارد البشرية</p>
+                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-700">المدير المفوض للشركة</p>
+                    <div className="border-b border-dashed border-slate-400 w-28 mx-auto mt-6"></div>
+                  </div>
+                </div>
+
+              </div>
             </div>
           </div>
         )}

@@ -21,3 +21,27 @@ body {
     font-size: 13px !important;
   }
 }
+/* ضبط العرض لشاشات الموبايل (للسماح بالتمرير دون تشويه الورقة) */
+@media screen and (max-width: 768px) {
+  .preview-scroll-container {
+    width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .print-paper-sheet, .print-official-sheet {
+    min-width: 760px !important; /* يحافظ على دقة A4 داخل الموبايل */
+    margin: 0 auto !important;
+  }
+}
+
+/* ضبط الطباعة الفعلي ليكون صفحة واحدة 100% */
+@media print {
+  @page { size: A4 portrait !important; margin: 0 !important; }
+  html, body { width: 210mm !important; height: auto !important; margin: 0 !important; padding: 0 !important; background: #fff !important; }
+  header, nav, button, .print-hidden-element, .print\:hidden { display: none !important; }
+  .print-paper-sheet, .print-official-sheet {
+    width: 210mm !important; height: 280mm !important; max-height: 280mm !important;
+    margin: 0 auto !important; padding: 8mm 10mm !important; overflow: hidden !important;
+    page-break-inside: avoid !important; break-inside: avoid !important; border: none !important; box-shadow: none !important;
+  }
+}
